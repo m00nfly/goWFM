@@ -1,0 +1,10 @@
+{
+  "org_name": "Site name",
+  "org_link": "http://your-site.link",
+  "data_root_path": "/absolute/path/to/data",
+  "server_port": 8080,
+  "session_secret": "",
+  "log_level": "info",
+  "db_path": "wfm.db",
+  "max_upload_size": 0
+}
