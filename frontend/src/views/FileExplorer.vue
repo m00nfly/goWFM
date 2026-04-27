@@ -203,7 +203,6 @@ async function fetchFiles() {
 }
 
 function navigateTo(path: string) {
-  currentPath.value = path
   router.push({ query: { path } })
 }
 
