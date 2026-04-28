@@ -72,12 +72,22 @@ import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
-  NBreadcrumb, NBreadcrumbItem, NSelect, useMessage
+  NBreadcrumb, NBreadcrumbItem, NSelect, NIcon, useMessage
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { formatSize } from '@/utils/format'
+import {
+  FolderOpenOutline,
+  ImageOutline,
+  DocumentTextOutline,
+  DocumentOutline,
+  CodeSlashOutline,
+  ArchiveOutline,
+  VideocamOutline,
+  MusicalNotesOutline,
+} from '@vicons/ionicons5'
 
 const route = useRoute()
 const router = useRouter()
@@ -115,15 +125,54 @@ const pathSegments = computed(() => {
   }))
 })
 
+// 根据文件名和类型返回对应的图标和颜色
+function getFileIcon(name: string, isDir: boolean): { icon: any; color: string } {
+  if (isDir) return { icon: FolderOpenOutline, color: '#e6a23c' }
+
+  const ext = name.toLowerCase().split('.').pop() || ''
+
+  // 图片
+  if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'tif'].includes(ext))
+    return { icon: ImageOutline, color: '#67c23a' }
+  // 视频
+  if (['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v'].includes(ext))
+    return { icon: VideocamOutline, color: '#e6a23c' }
+  // 音频
+  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape'].includes(ext))
+    return { icon: MusicalNotesOutline, color: '#f56c6c' }
+  // 压缩包
+  if (['zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'zst'].includes(ext))
+    return { icon: ArchiveOutline, color: '#909399' }
+  // 代码
+  if (['js', 'ts', 'jsx', 'tsx', 'vue', 'py', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb',
+       'php', 'swift', 'kt', 'html', 'css', 'scss', 'less', 'json', 'xml', 'yaml',
+       'yml', 'toml', 'sql', 'sh', 'bash', 'cmd', 'ps1', 'bat'].includes(ext))
+    return { icon: CodeSlashOutline, color: '#409eff' }
+  // 文档
+  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'log', 'csv', 'rtf'].includes(ext))
+    return { icon: DocumentTextOutline, color: '#409eff' }
+  // 默认
+  return { icon: DocumentOutline, color: '#909399' }
+}
+
 const columns: DataTableColumns = [
   {
     title: '名称',
     key: 'name',
     sorter: (a: any, b: any) => a.name.localeCompare(b.name),
     render(row: any) {
-      return row.is_directory
-        ? h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => row.name)
-        : h('span', null, row.name)
+      const { icon, color } = getFileIcon(row.name, row.is_directory)
+      const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '6px', verticalAlign: 'middle' } }, () => h(icon))
+      if (row.is_directory) {
+        return h('div', { style: { display: 'flex', alignItems: 'center' } }, [
+          iconEl,
+          h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => row.name),
+        ])
+      }
+      return h('div', { style: { display: 'flex', alignItems: 'center' } }, [
+        iconEl,
+        h('span', null, row.name),
+      ])
     },
   },
   {

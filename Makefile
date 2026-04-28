@@ -41,3 +41,7 @@ clean:
 	rm -f $(BINARY_NAME) $(BINARY_NAME).exe
 	rm -rf $(FRONTEND_DIR)/dist
 	rm -f wfm.db wfm.db-shm wfm.db-wal
+
+clean-dist:
+	rm -f $(BINARY_NAME) $(BINARY_NAME).exe
+	rm -rf $(FRONTEND_DIR)/dist
