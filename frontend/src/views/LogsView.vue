@@ -1,6 +1,5 @@
 <template>
-  <MainLayout>
-    <n-card title="操作日志">
+  <n-card title="操作日志">
       <n-space :size="12" style="margin-bottom: 16px">
         <n-date-picker v-model:value="dateRange" type="daterange" clearable />
         <n-input v-model:value="filterUser" placeholder="用户ID" clearable style="width: 100px" />
@@ -14,12 +13,10 @@
         <n-pagination v-model:page="page" :page-count="totalPages" @update:page="fetchLogs" />
       </n-space>
     </n-card>
-  </MainLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import MainLayout from '@/layouts/MainLayout.vue'
 import {
   NCard, NSpace, NButton, NDataTable, NInput, NSelect, NDatePicker, NPagination, useMessage
 } from 'naive-ui'

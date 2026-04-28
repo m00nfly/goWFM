@@ -1,59 +1,198 @@
 <template>
-  <n-layout class="main-layout">
-    <n-layout-header bordered class="main-header">
-      <div class="header-left">
-        <span class="logo" @click="router.push('/')">WFM</span>
-        <span v-if="orgName" class="org-name">{{ orgName }}</span>
+  <n-layout class="main-layout" has-sider>
+    <!-- 可折叠侧边栏 -->
+    <n-layout-sider
+      bordered
+      collapse-mode="width"
+      :collapsed-width="64"
+      :width="220"
+      :collapsed="collapsed"
+      show-trigger="bar"
+      @collapse="collapsed = true"
+      @expand="collapsed = false"
+    >
+      <div class="sidebar-header" @click="router.push('/')">
+        <n-icon size="24" color="#3B82F6">
+          <folder-open-outline />
+        </n-icon>
+        <span v-show="!collapsed" class="sidebar-title">WFM</span>
       </div>
-      <div class="header-right">
-        <n-dropdown :options="userMenuOptions" @select="onUserMenuSelect">
-          <n-button text>{{ userStore.user?.display_name || userStore.user?.username || '用户' }}</n-button>
-        </n-dropdown>
-      </div>
-    </n-layout-header>
-    <n-layout-content class="main-content">
-      <slot />
-    </n-layout-content>
-    <n-layout-footer bordered class="main-footer">
-      <span>
-        <template v-if="orgLink">
-          <a :href="orgLink" target="_blank" class="org-link">{{ orgName || orgLink }}</a>
-        </template>
-        <template v-else>{{ orgName }}</template>
-        &copy; {{ new Date().getFullYear() }} WFM - 文件管理系统
-      </span>
-    </n-layout-footer>
+      <n-menu
+        :value="activeMenuKey"
+        :collapsed="collapsed"
+        :collapsed-icon-size="22"
+        :options="menuOptions"
+        @update:value="onMenuSelect"
+      />
+    </n-layout-sider>
+
+    <!-- 右侧主体 -->
+    <n-layout>
+      <!-- 顶部栏 -->
+      <n-layout-header bordered class="main-header">
+        <div class="header-left">
+          <span class="page-title">{{ pageTitle }}</span>
+        </div>
+        <div class="header-right">
+          <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
+            <n-button text class="user-btn">
+              <template #icon>
+                <n-icon size="20"><person-circle-outline /></n-icon>
+              </template>
+              <span class="user-name">{{ userStore.user?.display_name || userStore.user?.username || '用户' }}</span>
+            </n-button>
+          </n-dropdown>
+        </div>
+      </n-layout-header>
+
+      <!-- 内容区 -->
+      <n-layout-content class="main-content">
+        <router-view />
+      </n-layout-content>
+
+      <!-- 底部栏 -->
+      <n-layout-footer bordered class="main-footer">
+        <span>
+          <template v-if="orgLink">
+            <a :href="orgLink" target="_blank" class="org-link">{{ orgName || orgLink }}</a>
+          </template>
+          <template v-else>{{ orgName }}</template>
+          <template v-if="orgName">&nbsp;|&nbsp;</template>
+          &copy; {{ new Date().getFullYear() }} WFM
+        </span>
+      </n-layout-footer>
+    </n-layout>
   </n-layout>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { NLayout, NLayoutHeader, NLayoutContent, NLayoutFooter, NButton, NDropdown } from 'naive-ui'
+import { ref, computed, h, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import {
+  NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NLayoutFooter,
+  NMenu, NButton, NDropdown, NIcon,
+} from 'naive-ui'
+import type { MenuOption } from 'naive-ui'
+import {
+  FolderOpenOutline,
+  ShareSocialOutline,
+  DocumentTextOutline,
+  PeopleOutline,
+  SettingsOutline,
+  CogOutline,
+  PersonCircleOutline,
+  LogOutOutline,
+} from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import api from '@/api'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
+
+const collapsed = ref(false)
 const orgName = ref('')
 const orgLink = ref('')
 
-const userMenuOptions = computed(() => {
-  const options = [
-    { label: '个人设置', key: 'settings' },
-    { label: '退出登录', key: 'logout' },
+// ---------- 菜单配置 ----------
+
+const menuOptions = computed<MenuOption[]>(() => {
+  const items: MenuOption[] = [
+    {
+      label: '文件管理',
+      key: '/',
+      icon: () => h(NIcon, null, () => h(FolderOpenOutline)),
+    },
   ]
-  if (userStore.user?.is_admin) {
-    options.splice(1, 0, { label: '用户管理', key: 'users' })
-  }
+
   if (userStore.hasPermission(8)) {
-    options.splice(1, 0, { label: '我的分享', key: 'shares' })
+    items.push({
+      label: '我的分享',
+      key: '/shares',
+      icon: () => h(NIcon, null, () => h(ShareSocialOutline)),
+    })
   }
+
   if (userStore.hasPermission(16)) {
-    options.splice(1, 0, { label: '操作日志', key: 'logs' })
+    items.push({
+      label: '操作日志',
+      key: '/logs',
+      icon: () => h(NIcon, null, () => h(DocumentTextOutline)),
+    })
   }
-  return options
+
+  if (userStore.user?.is_admin) {
+    items.push({
+      label: '用户管理',
+      key: '/admin/users',
+      icon: () => h(NIcon, null, () => h(PeopleOutline)),
+    })
+    items.push({
+      label: '系统设置',
+      key: '/admin/settings',
+      icon: () => h(NIcon, null, () => h(CogOutline)),
+    })
+  }
+
+  return items
 })
+
+// 高亮的菜单 key
+const activeMenuKey = computed(() => {
+  const p = route.path
+  if (p.startsWith('/admin/users')) return '/admin/users'
+  if (p.startsWith('/admin/settings')) return '/admin/settings'
+  if (p === '/shares') return '/shares'
+  if (p === '/logs') return '/logs'
+  if (p === '/settings') return '/settings'
+  return '/'
+})
+
+// 页面标题
+const pageTitle = computed(() => {
+  const map: Record<string, string> = {
+    '/': '文件管理',
+    '/shares': '我的分享',
+    '/logs': '操作日志',
+    '/admin/users': '用户管理',
+    '/admin/settings': '系统设置',
+    '/settings': '个人设置',
+  }
+  return map[activeMenuKey.value] || ''
+})
+
+// 用户下拉菜单
+const userDropdownOptions = computed(() => [
+  {
+    label: '个人设置',
+    key: 'settings',
+    icon: () => h(NIcon, null, () => h(SettingsOutline)),
+  },
+  { type: 'divider', key: 'd2' },
+  {
+    label: '退出登录',
+    key: 'logout',
+    icon: () => h(NIcon, null, () => h(LogOutOutline)),
+  },
+])
+
+// ---------- 事件处理 ----------
+
+function onMenuSelect(key: string) {
+  router.push(key)
+}
+
+async function onUserAction(key: string) {
+  if (key === 'settings') {
+    router.push('/settings')
+  } else if (key === 'logout') {
+    try { await api.post('/api/auth/logout') } catch { /* ignore */ }
+    userStore.logout()
+    router.push('/login')
+  }
+}
+
+// ---------- 生命周期 ----------
 
 onMounted(async () => {
   try {
@@ -62,28 +201,32 @@ onMounted(async () => {
     orgLink.value = res.data.org_link || ''
   } catch { /* ignore */ }
 })
-
-async function onUserMenuSelect(key: string) {
-  if (key === 'settings') {
-    router.push('/settings')
-  } else if (key === 'users') {
-    router.push('/admin/users')
-  } else if (key === 'shares') {
-    router.push('/shares')
-  } else if (key === 'logs') {
-    router.push('/logs')
-  } else if (key === 'logout') {
-    try { await api.post('/api/auth/logout') } catch {}
-    userStore.logout()
-    router.push('/login')
-  }
-}
 </script>
 
 <style scoped>
 .main-layout {
   min-height: 100vh;
 }
+
+/* ---- 侧边栏 ---- */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 20px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.sidebar-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #3B82F6;
+  white-space: nowrap;
+}
+
+/* ---- 顶部栏 ---- */
 .main-header {
   display: flex;
   align-items: center;
@@ -96,24 +239,41 @@ async function onUserMenuSelect(key: string) {
   align-items: center;
   gap: 12px;
 }
-.logo {
-  font-size: 20px;
-  font-weight: 700;
-  color: #3B82F6;
-  cursor: pointer;
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
 }
-.org-name {
+.header-right {
+  display: flex;
+  align-items: center;
+}
+.user-btn {
   font-size: 14px;
-  color: #666;
 }
+.user-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- 内容区 ---- */
 .main-content {
   padding: 24px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 56px - 44px);
 }
+
+/* ---- 底部栏 ---- */
 .main-footer {
   text-align: center;
   padding: 12px;
   color: #999;
   font-size: 13px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .org-link {
   color: #3B82F6;

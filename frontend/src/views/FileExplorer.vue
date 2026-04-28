@@ -1,6 +1,5 @@
 <template>
-  <MainLayout>
-    <n-card>
+  <n-card>
       <template #header>
         <n-space justify="space-between" align="center">
           <n-breadcrumb>
@@ -66,13 +65,11 @@
         </template>
       </n-modal>
     </n-card>
-  </MainLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import MainLayout from '@/layouts/MainLayout.vue'
 import {
   NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
   NBreadcrumb, NBreadcrumbItem, NSelect, useMessage

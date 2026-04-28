@@ -1,6 +1,5 @@
 <template>
-  <MainLayout>
-    <n-card title="用户管理">
+  <n-card title="用户管理">
       <n-space justify="end" :size="12">
         <n-button type="primary" @click="showCreateModal = true">创建用户</n-button>
       </n-space>
@@ -67,12 +66,10 @@
         </template>
       </n-modal>
     </n-card>
-  </MainLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, h } from 'vue'
-import MainLayout from '@/layouts/MainLayout.vue'
 import { NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput, NCheckboxGroup, NCheckbox, NSwitch, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
