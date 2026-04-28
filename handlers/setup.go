@@ -33,6 +33,7 @@ type SetupRequest struct {
 	LogLevel      string `json:"log_level"`
 	DBPath        string `json:"db_path"`
 	AdminPassword string `json:"admin_password"`
+	MaxUploadSize int64  `json:"max_upload_size"`
 }
 
 func PostSetup(c *gin.Context) {
@@ -69,6 +70,7 @@ func PostSetup(c *gin.Context) {
 		SessionSecret: req.SessionSecret,
 		LogLevel:      req.LogLevel,
 		DBPath:        req.DBPath,
+		MaxUploadSize: req.MaxUploadSize,
 	}
 
 	if newCfg.ServerPort == 0 {
@@ -82,6 +84,9 @@ func PostSetup(c *gin.Context) {
 	}
 	if newCfg.SessionSecret == "" {
 		newCfg.SessionSecret = config.RandomSecret()
+	}
+	if newCfg.MaxUploadSize == 0 {
+		newCfg.MaxUploadSize = 1073741824 // 默认 1 GB
 	}
 
 	if err := os.MkdirAll(req.DataRootPath, 0755); err != nil {
@@ -109,7 +114,7 @@ func PostSetup(c *gin.Context) {
 
 func GetConfigInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"org_name":  config.C.OrgName,
-		"org_link":  config.C.OrgLink,
+		"org_name": config.C.OrgName,
+		"org_link": config.C.OrgLink,
 	})
 }
