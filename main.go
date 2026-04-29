@@ -57,6 +57,7 @@ func setupRouter() *gin.Engine {
 		auth.DELETE("/shares/:id", handlers.DeleteShareLink)
 
 		auth.GET("/logs", handlers.ListLogs)
+		auth.GET("/logs/users", handlers.ListUsersForLog)
 	}
 
 	r.GET("/share/:token", handlers.AccessShare)

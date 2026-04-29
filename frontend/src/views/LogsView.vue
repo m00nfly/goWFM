@@ -1,11 +1,23 @@
 <template>
   <n-card title="操作日志" style="display: flex; flex-direction: column; height: 100%">
       <n-space :size="12" style="margin-bottom: 12px">
-        <n-date-picker v-model:value="dateRange" type="daterange" clearable />
-        <n-input v-model:value="filterUser" placeholder="用户ID" clearable style="width: 100px" />
+        <n-date-picker
+          v-model:value="dateRange"
+          type="datetimerange"
+          clearable
+          :default-time="['00:00:01', '23:59:59']"
+        />
+        <n-select
+          v-model:value="filterUsername"
+          :options="userOptions"
+          clearable
+          filterable
+          placeholder="用户名"
+          style="width: 140px"
+        />
         <n-select v-model:value="filterAction" :options="actionOptions" clearable placeholder="操作类型" style="width: 160px" />
         <n-input v-model:value="filterPath" placeholder="目标路径" clearable style="width: 200px" />
-        <n-button @click="fetchLogs">筛选</n-button>
+        <n-button @click="fetchLogs">搜索</n-button>
       </n-space>
 
       <n-data-table
@@ -42,7 +54,8 @@ const total = ref(0)
 const totalPages = computed(() => Math.ceil(total.value / pageSize) || 1)
 
 const dateRange = ref<[number, number] | null>(null)
-const filterUser = ref('')
+const filterUsername = ref<string | null>(null)
+const userOptions = ref<{ label: string; value: string }[]>([])
 const filterAction = ref<string | null>(null)
 const filterPath = ref('')
 
@@ -107,8 +120,15 @@ const columns: DataTableColumns = [
   },
 ]
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('resize', onResize)
+  try {
+    const res = await api.get('/api/logs/users')
+    userOptions.value = (res.data as any[]).map((u: any) => ({
+      label: u.username,
+      value: u.username,
+    }))
+  } catch { /* 无权限或失败则不展示下拉 */ }
   fetchLogs()
 })
 
@@ -124,7 +144,7 @@ async function fetchLogs() {
       params.start_time = new Date(dateRange.value[0]).toISOString()
       params.end_time = new Date(dateRange.value[1]).toISOString()
     }
-    if (filterUser.value) params.user_id = filterUser.value
+    if (filterUsername.value) params.username = filterUsername.value
     if (filterAction.value) params.action = filterAction.value
     if (filterPath.value) params.target_path = filterPath.value
 
