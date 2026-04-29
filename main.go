@@ -17,6 +17,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var Version string = "dev"
+
 func setupRouter() *gin.Engine {
 	r := gin.Default()
 
@@ -104,6 +106,8 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
+
+	handlers.Version = Version
 
 	r := setupRouter()
 	r.MaxMultipartMemory = cfg.MaxUploadSize

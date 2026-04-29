@@ -6,6 +6,11 @@ BUILD_DIR := build
 GO := go
 NPM := npm
 
+GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+GIT_TAG := $(shell git describe --tags --always --dirty 2>/dev/null || echo "untagged")
+VERSION := $(GIT_BRANCH)-$(GIT_TAG)
+LDFLAGS := -s -w -X 'main.Version=$(VERSION)'
+
 all: build
 
 dev: dev-frontend dev-backend
@@ -23,16 +28,16 @@ build-frontend:
 	$(NPM) --prefix $(FRONTEND_DIR) run build
 
 build-binary: build-frontend
-	CGO_ENABLED=0 $(GO) build -ldflags="-s -w" -o $(BINARY_NAME) .
+	CGO_ENABLED=0 $(GO) build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) .
 
 build-linux: build-frontend
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -ldflags="-s -w" -o $(BINARY_NAME) .
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) .
 
 build-darwin: build-frontend
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build -ldflags="-s -w" -o $(BINARY_NAME) .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) .
 
 build-windows: build-frontend
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -ldflags="-s -w" -o $(BINARY_NAME).exe .
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME).exe .
 
 setup:
 	$(NPM) --prefix $(FRONTEND_DIR) install

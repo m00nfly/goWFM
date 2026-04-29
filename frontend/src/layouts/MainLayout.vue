@@ -11,19 +11,33 @@
       @collapse="collapsed = true"
       @expand="collapsed = false"
     >
-      <div class="sidebar-header" @click="router.push('/')">
-        <n-icon size="24" color="#3B82F6">
-          <folder-open-outline />
-        </n-icon>
-        <span v-show="!collapsed" class="sidebar-title">WFM</span>
+      <div class="sidebar-inner">
+        <div class="sidebar-top">
+          <div class="sidebar-header" @click="router.push('/')">
+            <n-icon size="24" color="#3B82F6">
+              <folder-open-outline />
+            </n-icon>
+            <span v-show="!collapsed" class="sidebar-title">WFM</span>
+          </div>
+          <n-menu
+            :value="activeMenuKey"
+            :collapsed="collapsed"
+            :collapsed-icon-size="22"
+            :options="menuOptions"
+            @update:value="onMenuSelect"
+          />
+        </div>
+        <div v-show="!collapsed" class="sidebar-footer">
+          <template v-if="orgLink">
+            <a :href="orgLink" target="_blank" class="org-link">{{ orgName || orgLink }}</a>
+          </template>
+          <template v-else-if="orgName">
+            <span class="org-text">{{ orgName }}</span>
+          </template>
+          <span class="copyright">&copy; 2026 WFM</span>
+          <span v-if="version" class="version">{{ version }}</span>
+        </div>
       </div>
-      <n-menu
-        :value="activeMenuKey"
-        :collapsed="collapsed"
-        :collapsed-icon-size="22"
-        :options="menuOptions"
-        @update:value="onMenuSelect"
-      />
     </n-layout-sider>
 
     <!-- 右侧主体 -->
@@ -50,17 +64,6 @@
         <router-view />
       </n-layout-content>
 
-      <!-- 底部栏 -->
-      <n-layout-footer bordered class="main-footer">
-        <span>
-          <template v-if="orgLink">
-            <a :href="orgLink" target="_blank" class="org-link">{{ orgName || orgLink }}</a>
-          </template>
-          <template v-else>{{ orgName }}</template>
-          <template v-if="orgName">&nbsp;|&nbsp;</template>
-          &copy; {{ new Date().getFullYear() }} WFM
-        </span>
-      </n-layout-footer>
     </n-layout>
   </n-layout>
 </template>
@@ -69,7 +72,7 @@
 import { ref, computed, h, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NLayoutFooter,
+  NLayout, NLayoutSider, NLayoutHeader, NLayoutContent,
   NMenu, NButton, NDropdown, NIcon,
 } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
@@ -93,6 +96,7 @@ const userStore = useUserStore()
 const collapsed = ref(false)
 const orgName = ref('')
 const orgLink = ref('')
+const version = ref('')
 
 // ---------- 菜单配置 ----------
 
@@ -199,6 +203,7 @@ onMounted(async () => {
     const res = await api.get('/api/config/info')
     orgName.value = res.data.org_name || ''
     orgLink.value = res.data.org_link || ''
+    version.value = res.data.version || ''
   } catch { /* ignore */ }
 })
 </script>
@@ -209,6 +214,15 @@ onMounted(async () => {
 }
 
 /* ---- 侧边栏 ---- */
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.sidebar-top {
+  flex: 1;
+  overflow-y: auto;
+}
 .sidebar-header {
   display: flex;
   align-items: center;
@@ -261,25 +275,37 @@ onMounted(async () => {
 .main-content {
   padding: 24px;
   background: #f5f7fa;
-  min-height: calc(100vh - 56px - 44px);
+  min-height: calc(100vh - 56px);
 }
 
-/* ---- 底部栏 ---- */
-.main-footer {
-  text-align: center;
-  padding: 12px;
-  color: #999;
-  font-size: 13px;
-  height: 44px;
+/* ---- 侧边栏底部信息 ---- */
+.sidebar-footer {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 2px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 12px;
+  color: #999;
+  line-height: 1.6;
 }
 .org-link {
   color: #3B82F6;
   text-decoration: none;
+  font-size: 12px;
 }
 .org-link:hover {
   text-decoration: underline;
+}
+.org-text {
+  color: #999;
+}
+.copyright {
+  color: #bbb;
+}
+.version {
+  color: #ccc;
+  font-size: 11px;
 }
 </style>

@@ -116,5 +116,6 @@ func GetConfigInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"org_name": config.C.OrgName,
 		"org_link": config.C.OrgLink,
+		"version":  Version,
 	})
 }
