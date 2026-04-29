@@ -55,6 +55,7 @@ type FileEntry struct {
 	CanDelete   bool      `json:"can_delete"`
 	CanDownload bool      `json:"can_download"`
 	CanShare    bool      `json:"can_share"`
+	CanChange   bool      `json:"can_change"`
 }
 
 func ListDirectory(relativePath string, user *models.User) ([]FileEntry, error) {
@@ -102,9 +103,14 @@ func ListDirectory(relativePath string, user *models.User) ([]FileEntry, error) 
 				entry.CanDelete = true
 			}
 		} else {
-			entry.OwnerName = "admin"
-			entry.OwnerID = 0
+			owner, _ := GetUserByID(1)
+			entry.OwnerName = owner.DisplayName
+			entry.OwnerID = owner.ID
 			entry.CreatedAt = info.ModTime().Format(time.RFC3339)
+		}
+
+		if (user.HasPermission(models.PermUpload) && entry.OwnerID == user.ID) || user.IsAdmin {
+			entry.CanChange = true
 		}
 
 		result = append(result, entry)
