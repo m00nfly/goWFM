@@ -128,7 +128,7 @@ func main() {
 	}()
 
 	addr := fmt.Sprintf(":%d", config.C.ServerPort)
-	log.Printf("WFM server starting on %s", addr)
+	log.Printf("goWFM server starting on %s", addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

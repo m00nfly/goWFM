@@ -10,7 +10,7 @@ import (
 
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, err := c.Cookie("wfm_session")
+		token, err := c.Cookie("gowfm_session")
 		if token == "" || err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 			c.Abort()
@@ -32,7 +32,7 @@ func AuthRequired() gin.HandlerFunc {
 
 func OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, _ := c.Cookie("wfm_session")
+		token, _ := c.Cookie("gowfm_session")
 		if token != "" {
 			session, err := services.GetSession(token)
 			if session != nil && err == nil {

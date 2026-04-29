@@ -1,6 +1,6 @@
 .PHONY: all dev dev-frontend dev-backend build clean setup
 
-BINARY_NAME := wfm
+BINARY_NAME := gowfm
 FRONTEND_DIR := frontend
 BUILD_DIR := build
 GO := go
@@ -45,7 +45,7 @@ setup:
 clean:
 	rm -f $(BINARY_NAME) $(BINARY_NAME).exe
 	rm -rf $(FRONTEND_DIR)/dist
-	rm -f wfm.db wfm.db-shm wfm.db-wal
+	rm -f gowfm.db gowfm.db-shm gowfm.db-wal
 
 clean-dist:
 	rm -f $(BINARY_NAME) $(BINARY_NAME).exe

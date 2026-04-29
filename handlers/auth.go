@@ -47,18 +47,18 @@ func Login(c *gin.Context) {
 
 	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("wfm_session", session.Token, int(sessionDuration.Seconds()), "/", "", secure, true)
+	c.SetCookie("gowfm_session", session.Token, int(sessionDuration.Seconds()), "/", "", secure, true)
 	c.JSON(http.StatusOK, gin.H{"message": "login successful"})
 }
 
 func Logout(c *gin.Context) {
-	token, _ := c.Cookie("wfm_session")
+	token, _ := c.Cookie("gowfm_session")
 	if token != "" {
 		services.DeleteSession(token)
 	}
 	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("wfm_session", "", -1, "/", "", secure, true)
+	c.SetCookie("gowfm_session", "", -1, "/", "", secure, true)
 	c.JSON(http.StatusOK, gin.H{"message": "logout successful"})
 }
 

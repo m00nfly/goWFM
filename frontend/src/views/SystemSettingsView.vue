@@ -30,7 +30,7 @@
 
       <n-divider>数据库</n-divider>
       <n-form-item label="数据库路径">
-        <n-input :value="configInfo.db_path || 'wfm.db'" disabled />
+        <n-input :value="configInfo.db_path || 'gowfm.db'" disabled />
       </n-form-item>
 
       <n-alert type="info" style="margin-top: 16px">

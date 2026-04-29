@@ -80,7 +80,7 @@ func PostSetup(c *gin.Context) {
 		newCfg.LogLevel = "info"
 	}
 	if newCfg.DBPath == "" {
-		newCfg.DBPath = "wfm.db"
+		newCfg.DBPath = "gowfm.db"
 	}
 	if newCfg.SessionSecret == "" {
 		newCfg.SessionSecret = config.RandomSecret()

@@ -71,7 +71,7 @@ const form = reactive({
   server_port: 8080,
   session_secret: '',
   log_level: 'info',
-  db_path: 'wfm.db',
+  db_path: 'gowfm.db',
   max_upload_size_mb: 1024,
 })
 

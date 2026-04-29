@@ -17,7 +17,7 @@
             <n-icon size="24" color="#3B82F6">
               <folder-open-outline />
             </n-icon>
-            <span v-show="!collapsed" class="sidebar-title">WFM</span>
+            <span v-show="!collapsed" class="sidebar-title">goWFM</span>
           </div>
           <n-menu
             :value="activeMenuKey"
@@ -34,7 +34,7 @@
           <template v-else-if="orgName">
             <span class="org-text">{{ orgName }}</span>
           </template>
-          <span class="copyright">&copy; 2026 WFM</span>
+          <span class="copyright">&copy; 2026 goWFM</span>
           <span v-if="version" class="version">{{ version }}</span>
         </div>
       </div>

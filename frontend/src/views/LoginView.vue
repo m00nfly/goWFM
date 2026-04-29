@@ -1,6 +1,6 @@
 <template>
   <div class="login-page">
-    <n-card title="WFM 登录" class="login-card">
+    <n-card title="goWFM 登录" class="login-card">
       <n-form ref="formRef" :model="form" :rules="rules">
         <n-form-item label="用户名" path="username">
           <n-input v-model:value="form.username" placeholder="请输入用户名" />
