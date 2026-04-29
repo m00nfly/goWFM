@@ -1,6 +1,5 @@
 <template>
-  <MainLayout>
-    <n-card>
+  <n-card>
       <template #header>
         <n-space justify="space-between" align="center">
           <n-breadcrumb>
@@ -9,16 +8,45 @@
               {{ seg.name }}
             </n-breadcrumb-item>
           </n-breadcrumb>
-          <n-button size="small" @click="refresh">刷新</n-button>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" @click="refresh">
+                <template #icon><n-icon><refresh-outline /></n-icon></template>
+              </n-button>
+            </template>
+            刷新
+          </n-tooltip>
         </n-space>
       </template>
 
-      <n-space :size="12" style="margin-bottom: 16px">
-        <n-button v-if="hasPermUpload" type="primary" @click="showUploadModal = true">上传文件</n-button>
-        <n-button v-if="hasPermUpload" @click="showMkdirModal = true">新建文件夹</n-button>
+      <n-space :size="8" style="margin-bottom: 16px">
+        <n-tooltip v-if="hasPermUpload" trigger="hover">
+          <template #trigger>
+            <n-button type="primary" @click="showUploadModal = true">
+              <template #icon><n-icon><cloud-upload-outline /></n-icon></template>
+            </n-button>
+          </template>
+          上传文件
+        </n-tooltip>
+        <n-tooltip v-if="hasPermUpload" trigger="hover">
+          <template #trigger>
+            <n-button @click="showMkdirModal = true">
+              <template #icon><n-icon><create-outline /></n-icon></template>
+            </n-button>
+          </template>
+          新建文件夹
+        </n-tooltip>
+        <n-tooltip v-if="currentPath !== '/'" trigger="hover">
+          <template #trigger>
+            <n-button @click="goToParent">
+              <template #icon><n-icon><arrow-back-outline /></n-icon></template>
+            </n-button>
+          </template>
+          返回上级
+        </n-tooltip>
       </n-space>
 
-      <n-data-table :columns="columns" :data="entries" :bordered="false" striped :loading="loading" :row-key="(row: any) => row.path" />
+      <n-data-table :columns="columns" :data="entries" :bordered="false" striped :loading="loading" :row-key="(row: any) => row.path || row.name" />
 
       <n-modal v-model:show="showUploadModal" title="上传文件" preset="dialog">
         <n-form label-placement="left" label-width="80">
@@ -66,21 +94,37 @@
         </template>
       </n-modal>
     </n-card>
-  </MainLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import MainLayout from '@/layouts/MainLayout.vue'
 import {
   NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
-  NBreadcrumb, NBreadcrumbItem, NSelect, useMessage
+  NBreadcrumb, NBreadcrumbItem, NSelect, NIcon, NTooltip, useMessage
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { formatSize } from '@/utils/format'
+import {
+  FolderOpenOutline,
+  ImageOutline,
+  DocumentTextOutline,
+  DocumentOutline,
+  CodeSlashOutline,
+  ArchiveOutline,
+  VideocamOutline,
+  MusicalNotesOutline,
+  EnterOutline,
+  CloudDownloadOutline,
+  ShareSocialOutline,
+  TrashOutline,
+  CloudUploadOutline,
+  CreateOutline,
+  RefreshOutline,
+  ArrowBackOutline,
+} from '@vicons/ionicons5'
 
 const route = useRoute()
 const router = useRouter()
@@ -118,15 +162,76 @@ const pathSegments = computed(() => {
   }))
 })
 
+// 上级目录路径
+const parentPath = computed(() => {
+  if (currentPath.value === '/') return '/'
+  const parts = currentPath.value.split('/').filter(Boolean)
+  parts.pop()
+  return '/' + parts.join('/') || '/'
+})
+
+// 根据文件名和类型返回对应的图标和颜色
+function getFileIcon(name: string, isDir: boolean): { icon: any; color: string } {
+  if (isDir) return { icon: FolderOpenOutline, color: '#e6a23c' }
+
+  const ext = name.toLowerCase().split('.').pop() || ''
+
+  // 图片
+  if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'tif'].includes(ext))
+    return { icon: ImageOutline, color: '#67c23a' }
+  // 视频
+  if (['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v'].includes(ext))
+    return { icon: VideocamOutline, color: '#e6a23c' }
+  // 音频
+  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape'].includes(ext))
+    return { icon: MusicalNotesOutline, color: '#f56c6c' }
+  // 压缩包
+  if (['zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'zst'].includes(ext))
+    return { icon: ArchiveOutline, color: '#909399' }
+  // 代码
+  if (['js', 'ts', 'jsx', 'tsx', 'vue', 'py', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb',
+       'php', 'swift', 'kt', 'html', 'css', 'scss', 'less', 'json', 'xml', 'yaml',
+       'yml', 'toml', 'sql', 'sh', 'bash', 'cmd', 'ps1', 'bat'].includes(ext))
+    return { icon: CodeSlashOutline, color: '#409eff' }
+  // 文档
+  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'log', 'csv', 'rtf'].includes(ext))
+    return { icon: DocumentTextOutline, color: '#409eff' }
+  // 默认
+  return { icon: DocumentOutline, color: '#909399' }
+}
+
+// 图标按钮 + Tooltip（render 函数中用）
+function iconBtn(iconComp: any, tooltip: string, onClick: () => void, color?: string) {
+  return h(NTooltip, { trigger: 'hover', placement: 'top' }, {
+    default: () => tooltip,
+    trigger: () =>
+      h(NButton, { size: 'small', quaternary: true, onClick }, {
+        icon: () => h(NIcon, { size: 18, color: color || undefined }, () => h(iconComp)),
+      }),
+  })
+}
+
 const columns: DataTableColumns = [
   {
     title: '名称',
     key: 'name',
     sorter: (a: any, b: any) => a.name.localeCompare(b.name),
     render(row: any) {
-      return row.is_directory
-        ? h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => row.name)
-        : h('span', null, row.name)
+      const { icon, color } = getFileIcon(row.name, row.is_directory)
+      const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '6px', verticalAlign: 'middle' } }, () => h(icon))
+      if (row.is_directory) {
+        // return h('div', { style: { display: 'flex', alignItems: 'center' } }, [
+        //   iconEl,
+        //   h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => row.name),
+        // ])
+        return h('div', { style: { display: 'flex', alignItems: 'center' } },
+          h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => [iconEl, row.name]),
+        )
+      }
+      return h('div', { style: { display: 'flex', alignItems: 'center' } }, [
+        iconEl,
+        h('span', null, row.name),
+      ])
     },
   },
   {
@@ -134,7 +239,7 @@ const columns: DataTableColumns = [
     key: 'size',
     sorter: (a: any, b: any) => a.size - b.size,
     render(row: any) {
-      return row.is_directory ? '-' : formatSize(row.size)
+      return row.is_directory ? '—' : formatSize(row.size)
     },
   },
   {
@@ -157,18 +262,19 @@ const columns: DataTableColumns = [
   {
     title: '操作',
     key: 'actions',
-    width: 240,
     render(row: any) {
       const btns: any[] = []
+
       if (row.is_directory) {
-        btns.push(h(NButton, { size: 'small', onClick: () => navigateTo(row.path) }, () => '进入'))
+        btns.push(iconBtn(EnterOutline, '进入目录', () => navigateTo(row.path), '#3B82F6'))
       } else {
-        if (row.can_download) btns.push(h(NButton, { size: 'small', onClick: () => downloadFile(row) }, () => '下载'))
-        if (hasPermShare.value) btns.push(h(NButton, { size: 'small', onClick: () => shareFile(row) }, () => '分享'))
+        if (row.can_download) btns.push(iconBtn(CloudDownloadOutline, '下载文件', () => downloadFile(row), '#3B82F6'))
+        if (hasPermShare.value) btns.push(iconBtn(ShareSocialOutline, '分享文件', () => shareFile(row), '#3B82F6'))
       }
-      if (row.can_delete) btns.push(h(NButton, { size: 'small', type: 'error', onClick: () => deleteEntry(row) }, () => '删除'))
-      btns.push(h(NButton, { size: 'small', onClick: () => openMoveModal(row) }, () => '移动'))
-      return h(NSpace, { size: 4 }, () => btns)
+      if (row.can_delete) btns.push(iconBtn(TrashOutline, '删除', () => deleteEntry(row), '#d03050'))
+      if (row.can_change) btns.push(iconBtn(CreateOutline, '移动/重命名', () => openMoveModal(row)))
+
+      return h(NSpace, { size: 2 }, () => btns)
     },
   },
 ]
@@ -206,7 +312,13 @@ function navigateTo(path: string) {
   router.push({ query: { path } })
 }
 
-function refresh() { fetchFiles() }
+function goToParent() {
+  navigateTo(parentPath.value)
+}
+
+function refresh() {
+  fetchFiles()
+}
 
 function onFileSelect(e: Event) {
   const target = e.target as HTMLInputElement
@@ -277,11 +389,11 @@ async function handleMove() {
   moveLoading.value = true
   try {
     await api.put('/api/files/move', { source: moveSource.value, destination: moveDest.value })
-    message.success('移动成功')
+    message.success('移动/重命名成功')
     showMoveModal.value = false
     await fetchFiles()
   } catch (err: any) {
-    message.error(err.response?.data?.error || '移动失败')
+    message.error(err.response?.data?.error || '移动/重命名失败')
   } finally {
     moveLoading.value = false
   }

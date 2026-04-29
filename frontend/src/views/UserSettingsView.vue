@@ -1,6 +1,5 @@
 <template>
-  <MainLayout>
-    <n-card title="个人设置">
+  <n-card title="个人设置">
       <n-form :model="form" label-placement="left" label-width="80">
         <n-form-item label="显示名称">
           <n-input v-model:value="form.display_name" />
@@ -22,12 +21,10 @@
         <n-button type="primary" :loading="pwSaving" @click="handlePasswordChange">修改密码</n-button>
       </n-form>
     </n-card>
-  </MainLayout>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import MainLayout from '@/layouts/MainLayout.vue'
 import { NCard, NForm, NFormItem, NInput, NButton, NDivider, useMessage } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'

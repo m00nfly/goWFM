@@ -1,25 +1,44 @@
 <template>
-  <MainLayout>
-    <n-card title="操作日志">
-      <n-space :size="12" style="margin-bottom: 16px">
-        <n-date-picker v-model:value="dateRange" type="daterange" clearable />
-        <n-input v-model:value="filterUser" placeholder="用户ID" clearable style="width: 100px" />
+  <n-card title="操作日志" style="display: flex; flex-direction: column; height: 100%">
+      <n-space :size="12" style="margin-bottom: 12px">
+        <n-date-picker
+          v-model:value="dateRange"
+          type="datetimerange"
+          clearable
+          :default-time="['00:00:01', '23:59:59']"
+        />
+        <n-select
+          v-model:value="filterUsername"
+          :options="userOptions"
+          clearable
+          filterable
+          placeholder="用户名"
+          style="width: 140px"
+        />
         <n-select v-model:value="filterAction" :options="actionOptions" clearable placeholder="操作类型" style="width: 160px" />
         <n-input v-model:value="filterPath" placeholder="目标路径" clearable style="width: 200px" />
-        <n-button @click="fetchLogs">筛选</n-button>
+        <n-button @click="fetchLogs">搜索</n-button>
       </n-space>
 
-      <n-data-table :columns="columns" :data="logs" :bordered="false" striped :loading="loading" />
-      <n-space justify="center" style="margin-top: 16px">
+      <n-data-table
+        :columns="columns"
+        :data="logs"
+        :bordered="false"
+        striped
+        :loading="loading"
+        size="small"
+        :scroll-x="900"
+        :max-height="tableHeight"
+        :flex-height="false"
+      />
+      <n-space justify="center" style="margin-top: 12px">
         <n-pagination v-model:page="page" :page-count="totalPages" @update:page="fetchLogs" />
       </n-space>
     </n-card>
-  </MainLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import MainLayout from '@/layouts/MainLayout.vue'
+import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import {
   NCard, NSpace, NButton, NDataTable, NInput, NSelect, NDatePicker, NPagination, useMessage
 } from 'naive-ui'
@@ -35,10 +54,22 @@ const total = ref(0)
 const totalPages = computed(() => Math.ceil(total.value / pageSize) || 1)
 
 const dateRange = ref<[number, number] | null>(null)
-const filterUser = ref('')
+const filterUsername = ref<string | null>(null)
+const userOptions = ref<{ label: string; value: string }[]>([])
 const filterAction = ref<string | null>(null)
 const filterPath = ref('')
 
+// ---------- 表格自适应高度 ----------
+// 布局偏移：header(56) + footer(44) + content padding(48) + card header+padding(78) + 筛选栏+分页(94)
+const LAYOUT_OFFSET = 320
+const windowHeight = ref(window.innerHeight)
+const tableHeight = computed(() => Math.max(200, windowHeight.value - LAYOUT_OFFSET))
+
+function onResize() {
+  windowHeight.value = window.innerHeight
+}
+
+// ---------- 操作类型映射 ----------
 const actionOptions = [
   { label: '登录', value: 'LOGIN' },
   { label: '登录失败', value: 'LOGIN_FAIL' },
@@ -57,17 +88,53 @@ const actionOptions = [
   { label: '移动/重命名', value: 'MOVE' },
 ]
 
+const actionLabelMap = new Map(actionOptions.map(o => [o.value, o.label]))
+
+// ---------- 时间格式化 ----------
+function formatTime(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+// ---------- 表格列定义 ----------
 const columns: DataTableColumns = [
   { title: 'ID', key: 'id', width: 60 },
-  { title: '用户', key: 'username' },
-  { title: '操作', key: 'action' },
-  { title: '目标路径', key: 'target_path' },
-  { title: 'IP地址', key: 'ip_address' },
+  { title: '用户', key: 'username', width: 100 },
+  {
+    title: '操作类型',
+    key: 'action',
+    width: 110,
+    render: (row: any) => actionLabelMap.get(row.action) ?? row.action,
+  },
+  { title: '目标路径', key: 'target_path', ellipsis: { tooltip: true } },
+  { title: 'IP地址', key: 'ip_address', width: 130 },
   { title: '详情', key: 'details', ellipsis: { tooltip: true } },
-  { title: '时间', key: 'created_at' },
+  {
+    title: '时间',
+    key: 'created_at',
+    width: 165,
+    render: (row: any) => formatTime(row.created_at),
+  },
 ]
 
-onMounted(() => fetchLogs())
+onMounted(async () => {
+  window.addEventListener('resize', onResize)
+  try {
+    const res = await api.get('/api/logs/users')
+    userOptions.value = (res.data as any[]).map((u: any) => ({
+      label: u.username,
+      value: u.username,
+    }))
+  } catch { /* 无权限或失败则不展示下拉 */ }
+  fetchLogs()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+})
 
 async function fetchLogs() {
   loading.value = true
@@ -77,7 +144,7 @@ async function fetchLogs() {
       params.start_time = new Date(dateRange.value[0]).toISOString()
       params.end_time = new Date(dateRange.value[1]).toISOString()
     }
-    if (filterUser.value) params.user_id = filterUser.value
+    if (filterUsername.value) params.username = filterUsername.value
     if (filterAction.value) params.action = filterAction.value
     if (filterPath.value) params.target_path = filterPath.value
 
