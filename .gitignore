@@ -34,3 +34,5 @@ config.json
 # Binary files
 gowfm
 gowfm.exe
+gowfm-darwin
+gowfm-linux
