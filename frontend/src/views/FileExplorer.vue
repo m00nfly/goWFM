@@ -1,9 +1,11 @@
 <template>
-  <n-card>
+  <n-card class="file-explorer-card" :bordered="false" content-style="display: flex; flex-direction: column; height: 100%;">
       <template #header>
         <n-space justify="space-between" align="center">
           <n-breadcrumb>
-            <n-breadcrumb-item @click="navigateTo('/')">根目录</n-breadcrumb-item>
+            <n-breadcrumb-item @click="navigateTo('/')">
+              <span class="root-breadcrumb">根目录</span>
+            </n-breadcrumb-item>
             <n-breadcrumb-item v-for="seg in pathSegments" :key="seg.path" @click="navigateTo(seg.path)">
               {{ seg.name }}
             </n-breadcrumb-item>
@@ -19,7 +21,7 @@
         </n-space>
       </template>
 
-      <n-space :size="8" style="margin-bottom: 16px">
+      <n-space :size="8" class="toolbar-row">
         <n-tooltip v-if="hasPermUpload" trigger="hover">
           <template #trigger>
             <n-button type="primary" @click="showUploadModal = true">
@@ -31,7 +33,7 @@
         <n-tooltip v-if="hasPermUpload" trigger="hover">
           <template #trigger>
             <n-button @click="showMkdirModal = true">
-              <template #icon><n-icon><create-outline /></n-icon></template>
+              <template #icon><n-icon><AddCircleOutline /></n-icon></template>
             </n-button>
           </template>
           新建文件夹
@@ -46,7 +48,20 @@
         </n-tooltip>
       </n-space>
 
-      <n-data-table :columns="columns" :data="entries" :bordered="false" striped :loading="loading" :row-key="(row: any) => row.path || row.name" />
+      <div class="file-table-wrapper">
+        <n-data-table
+          class="file-data-table"
+          size="small"
+          flex-height
+          :columns="columns"
+          :data="entries"
+          :bordered="false"
+          striped
+          :loading="loading"
+          :row-key="(row: any) => row.path || row.name"
+          style="height: 100%;"
+        />
+      </div>
 
       <n-modal v-model:show="showUploadModal" title="上传文件" preset="dialog">
         <n-form label-placement="left" label-width="80">
@@ -108,20 +123,21 @@ import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { formatSize } from '@/utils/format'
 import {
-  FolderOpenOutline,
-  ImageOutline,
-  DocumentTextOutline,
-  DocumentOutline,
-  CodeSlashOutline,
-  ArchiveOutline,
-  VideocamOutline,
-  MusicalNotesOutline,
+  FolderOpen,
+  Image,
+  DocumentText,
+  Document,
+  CodeSlash,
+  Archive,
+  Videocam,
+  MusicalNotes,
   EnterOutline,
   CloudDownloadOutline,
   ShareSocialOutline,
   TrashOutline,
   CloudUploadOutline,
   CreateOutline,
+  AddCircleOutline,
   RefreshOutline,
   ArrowBackOutline,
 } from '@vicons/ionicons5'
@@ -172,32 +188,32 @@ const parentPath = computed(() => {
 
 // 根据文件名和类型返回对应的图标和颜色
 function getFileIcon(name: string, isDir: boolean): { icon: any; color: string } {
-  if (isDir) return { icon: FolderOpenOutline, color: '#e6a23c' }
+  if (isDir) return { icon: FolderOpen, color: '#e6a23c' }
 
   const ext = name.toLowerCase().split('.').pop() || ''
 
   // 图片
   if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'tif'].includes(ext))
-    return { icon: ImageOutline, color: '#67c23a' }
+    return { icon: Image, color: '#67c23a' }
   // 视频
   if (['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v'].includes(ext))
-    return { icon: VideocamOutline, color: '#e6a23c' }
+    return { icon: Videocam, color: '#e6a23c' }
   // 音频
   if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape'].includes(ext))
-    return { icon: MusicalNotesOutline, color: '#f56c6c' }
+    return { icon: MusicalNotes, color: '#f56c6c' }
   // 压缩包
   if (['zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'zst'].includes(ext))
-    return { icon: ArchiveOutline, color: '#909399' }
+    return { icon: Archive, color: '#909399' }
   // 代码
   if (['js', 'ts', 'jsx', 'tsx', 'vue', 'py', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb',
        'php', 'swift', 'kt', 'html', 'css', 'scss', 'less', 'json', 'xml', 'yaml',
        'yml', 'toml', 'sql', 'sh', 'bash', 'cmd', 'ps1', 'bat'].includes(ext))
-    return { icon: CodeSlashOutline, color: '#409eff' }
+    return { icon: CodeSlash, color: '#409eff' }
   // 文档
   if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'log', 'csv', 'rtf'].includes(ext))
-    return { icon: DocumentTextOutline, color: '#409eff' }
+    return { icon: DocumentText, color: '#409eff' }
   // 默认
-  return { icon: DocumentOutline, color: '#909399' }
+  return { icon: Document, color: '#909399' }
 }
 
 // 图标按钮 + Tooltip（render 函数中用）
@@ -215,28 +231,27 @@ const columns: DataTableColumns = [
   {
     title: '名称',
     key: 'name',
+    className: 'col-name',
     sorter: (a: any, b: any) => a.name.localeCompare(b.name),
     render(row: any) {
       const { icon, color } = getFileIcon(row.name, row.is_directory)
-      const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '6px', verticalAlign: 'middle' } }, () => h(icon))
+      const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '6px', verticalAlign: 'middle', flexShrink: 0 } }, () => h(icon))
       if (row.is_directory) {
-        // return h('div', { style: { display: 'flex', alignItems: 'center' } }, [
-        //   iconEl,
-        //   h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => row.name),
-        // ])
-        return h('div', { style: { display: 'flex', alignItems: 'center' } },
-          h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => [iconEl, row.name]),
+        return h('div', { class: 'name-cell' },
+          h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => [iconEl, h('span', { class: 'name-text' }, row.name)]),
         )
       }
-      return h('div', { style: { display: 'flex', alignItems: 'center' } }, [
+      return h('div', { class: 'name-cell' }, [
         iconEl,
-        h('span', null, row.name),
+        h('span', { class: 'name-text' }, row.name),
       ])
     },
   },
   {
     title: '大小',
     key: 'size',
+    className: 'col-size',
+    width: 110,
     sorter: (a: any, b: any) => a.size - b.size,
     render(row: any) {
       return row.is_directory ? '—' : formatSize(row.size)
@@ -245,6 +260,8 @@ const columns: DataTableColumns = [
   {
     title: '修改时间',
     key: 'mod_time',
+    className: 'col-time',
+    width: 170,
     sorter: (a: any, b: any) => new Date(a.mod_time).getTime() - new Date(b.mod_time).getTime(),
     render(row: any) {
       return new Date(row.mod_time).toLocaleString()
@@ -253,6 +270,8 @@ const columns: DataTableColumns = [
   {
     title: '所有者',
     key: 'owner_name',
+    className: 'col-owner',
+    width: 140,
     render(row: any) {
       return isAdmin.value
         ? h(NButton, { text: true, type: 'primary', onClick: () => openOwnerModal(row) }, () => row.owner_name)
@@ -262,6 +281,8 @@ const columns: DataTableColumns = [
   {
     title: '操作',
     key: 'actions',
+    className: 'col-actions',
+    width: 175,
     render(row: any) {
       const btns: any[] = []
 
@@ -426,3 +447,93 @@ async function fetchAllUsers() {
   } catch { /* ignore */ }
 }
 </script>
+
+<style scoped>
+.file-explorer-card {
+  height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-explorer-card :deep(.n-card__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 顶部路径面包屑区域：灰色圆角边框 */
+.file-explorer-card :deep(.n-card-header) {
+  padding-top: 24px;
+  padding-bottom: 0;
+}
+.file-explorer-card :deep(.n-card-header__main) {
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+/* 根目录默认粗体 */
+.root-breadcrumb {
+  font-weight: 600;
+}
+
+/* 工具栏与面包屑目视觉间距 ≈ .n-card-header__main padding-top (10px) */
+.toolbar-row {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.file-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 紧凑化表格行高 */
+.file-data-table :deep(.n-data-table-td),
+.file-data-table :deep(.n-data-table-th) {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 13px;
+}
+
+.file-data-table :deep(.n-data-table-th) {
+  font-weight: 600;
+}
+
+/* 名称列：自动吸纳剩余宽度，长文件名按字符换行，不被截断 */
+.file-data-table :deep(.col-name .n-data-table-td__ellipsis),
+.file-data-table :deep(.col-name) {
+  white-space: normal !important;
+}
+.file-data-table :deep(.col-name .name-cell) {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+.file-data-table :deep(.col-name .name-text) {
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.file-data-table :deep(.col-name .n-button__content) {
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  text-align: left;
+  line-height: 1.5;
+}
+
+/* 非名称列：紧凑不换行 */
+.file-data-table :deep(.col-time),
+.file-data-table :deep(.col-actions) {
+  white-space: nowrap;
+}
+</style>

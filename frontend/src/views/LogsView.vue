@@ -1,5 +1,9 @@
 <template>
-  <n-card title="操作日志" style="display: flex; flex-direction: column; height: 100%">
+  <n-card
+    class="logs-card"
+    :bordered="false"
+    content-style="padding: 12px 16px; display: flex; flex-direction: column; height: 100%;"
+  >
       <n-space :size="12" style="margin-bottom: 12px">
         <n-date-picker
           v-model:value="dateRange"
@@ -20,17 +24,20 @@
         <n-button @click="fetchLogs">搜索</n-button>
       </n-space>
 
-      <n-data-table
-        :columns="columns"
-        :data="logs"
-        :bordered="false"
-        striped
-        :loading="loading"
-        size="small"
-        :scroll-x="900"
-        :max-height="tableHeight"
-        :flex-height="false"
-      />
+      <div class="logs-table-wrapper">
+        <n-data-table
+          class="logs-data-table"
+          :columns="columns"
+          :data="logs"
+          :bordered="false"
+          striped
+          :loading="loading"
+          size="small"
+          :scroll-x="900"
+          flex-height
+          style="height: 100%;"
+        />
+      </div>
       <n-space justify="center" style="margin-top: 12px">
         <n-pagination v-model:page="page" :page-count="totalPages" @update:page="fetchLogs" />
       </n-space>
@@ -38,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, h } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
   NCard, NSpace, NButton, NDataTable, NInput, NSelect, NDatePicker, NPagination, useMessage
 } from 'naive-ui'
@@ -58,16 +65,6 @@ const filterUsername = ref<string | null>(null)
 const userOptions = ref<{ label: string; value: string }[]>([])
 const filterAction = ref<string | null>(null)
 const filterPath = ref('')
-
-// ---------- 表格自适应高度 ----------
-// 布局偏移：header(56) + footer(44) + content padding(48) + card header+padding(78) + 筛选栏+分页(94)
-const LAYOUT_OFFSET = 320
-const windowHeight = ref(window.innerHeight)
-const tableHeight = computed(() => Math.max(200, windowHeight.value - LAYOUT_OFFSET))
-
-function onResize() {
-  windowHeight.value = window.innerHeight
-}
 
 // ---------- 操作类型映射 ----------
 const actionOptions = [
@@ -121,7 +118,6 @@ const columns: DataTableColumns = [
 ]
 
 onMounted(async () => {
-  window.addEventListener('resize', onResize)
   try {
     const res = await api.get('/api/logs/users')
     userOptions.value = (res.data as any[]).map((u: any) => ({
@@ -130,10 +126,6 @@ onMounted(async () => {
     }))
   } catch { /* 无权限或失败则不展示下拉 */ }
   fetchLogs()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
 })
 
 async function fetchLogs() {
@@ -158,3 +150,37 @@ async function fetchLogs() {
   }
 }
 </script>
+
+<style scoped>
+.logs-card {
+  height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.logs-card :deep(.n-card__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.logs-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.logs-data-table :deep(.n-data-table-td),
+.logs-data-table :deep(.n-data-table-th) {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 13px;
+}
+
+.logs-data-table :deep(.n-data-table-th) {
+  font-weight: 600;
+}
+</style>

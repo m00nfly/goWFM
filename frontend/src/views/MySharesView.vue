@@ -1,9 +1,25 @@
 <template>
-  <n-card title="我的分享">
-      <n-space justify="end" :size="12" style="margin-bottom: 16px">
+  <n-card
+    class="shares-card"
+    :bordered="false"
+    content-style="padding: 12px 16px; display: flex; flex-direction: column; height: 100%;"
+  >
+      <n-space justify="end" :size="12" style="margin-bottom: 12px">
         <n-button type="primary" @click="showCreateModal = true">创建分享</n-button>
       </n-space>
-      <n-data-table :columns="columns" :data="shares" :bordered="false" striped :loading="loading" />
+      <div class="shares-table-wrapper">
+        <n-data-table
+          class="shares-data-table"
+          size="small"
+          flex-height
+          :columns="columns"
+          :data="shares"
+          :bordered="false"
+          striped
+          :loading="loading"
+          style="height: 100%;"
+        />
+      </div>
 
       <n-modal v-model:show="showCreateModal" title="创建分享链接" preset="dialog">
         <n-form label-placement="left" label-width="80">
@@ -113,3 +129,37 @@ async function handleDelete(row: any) {
   }
 }
 </script>
+
+<style scoped>
+.shares-card {
+  height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shares-card :deep(.n-card__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shares-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shares-data-table :deep(.n-data-table-td),
+.shares-data-table :deep(.n-data-table-th) {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 13px;
+}
+
+.shares-data-table :deep(.n-data-table-th) {
+  font-weight: 600;
+}
+</style>

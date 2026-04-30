@@ -45,7 +45,9 @@
       <!-- 顶部栏 -->
       <n-layout-header bordered class="main-header">
         <div class="header-left">
-          <span class="page-title">{{ pageTitle }}</span>
+          <span class="site-name">{{ orgName || 'goWFM' }}</span>
+          <span v-if="pageTitle" class="breadcrumb-sep">&gt;</span>
+          <span v-if="pageTitle" class="page-title">{{ pageTitle }}</span>
         </div>
         <div class="header-right">
           <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
@@ -251,7 +253,17 @@ onMounted(async () => {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+.site-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #3B82F6;
+}
+.breadcrumb-sep {
+  font-size: 14px;
+  color: #bbb;
+  font-weight: 400;
 }
 .page-title {
   font-size: 16px;

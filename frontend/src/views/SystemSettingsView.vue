@@ -1,5 +1,5 @@
 <template>
-  <n-card title="系统配置">
+  <n-card :bordered="false">
     <n-form label-placement="left" label-width="auto">
       <n-divider>站点信息</n-divider>
       <n-form-item label="站点名称">

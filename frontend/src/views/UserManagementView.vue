@@ -1,9 +1,24 @@
 <template>
-  <n-card title="用户管理">
-      <n-space justify="end" :size="12">
+  <n-card
+    class="users-card"
+    :bordered="false"
+    content-style="padding: 12px 16px; display: flex; flex-direction: column; height: 100%;"
+  >
+      <n-space justify="end" :size="12" style="margin-bottom: 12px">
         <n-button type="primary" @click="showCreateModal = true">创建用户</n-button>
       </n-space>
-      <n-data-table :columns="columns" :data="users" :bordered="false" striped style="margin-top: 16px" />
+      <div class="users-table-wrapper">
+        <n-data-table
+          class="users-data-table"
+          size="small"
+          flex-height
+          :columns="columns"
+          :data="users"
+          :bordered="false"
+          striped
+          style="height: 100%;"
+        />
+      </div>
 
       <n-modal v-model:show="showCreateModal" title="创建用户" preset="dialog">
         <n-form ref="createFormRef" :model="createForm" :rules="createRules" label-placement="left" label-width="80">
@@ -198,3 +213,37 @@ async function handleDelete(row: any) {
   }
 }
 </script>
+
+<style scoped>
+.users-card {
+  height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.users-card :deep(.n-card__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.users-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.users-data-table :deep(.n-data-table-td),
+.users-data-table :deep(.n-data-table-th) {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 13px;
+}
+
+.users-data-table :deep(.n-data-table-th) {
+  font-weight: 600;
+}
+</style>

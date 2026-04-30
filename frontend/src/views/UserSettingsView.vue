@@ -1,5 +1,5 @@
 <template>
-  <n-card title="个人设置">
+  <n-card :bordered="false">
       <n-form :model="form" label-placement="left" label-width="80">
         <n-form-item label="显示名称">
           <n-input v-model:value="form.display_name" />
