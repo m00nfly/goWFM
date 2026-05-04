@@ -43,10 +43,10 @@ setup:
 	$(NPM) --prefix $(FRONTEND_DIR) install
 
 clean:
-	rm -f $(BINARY_NAME) $(BINARY_NAME).exe
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-linux $(BINARY_NAME)-darwin $(BINARY_NAME).exe
 	rm -rf $(FRONTEND_DIR)/dist
 	rm -f gowfm.db gowfm.db-shm gowfm.db-wal
 
 clean-dist:
-	rm -f $(BINARY_NAME) $(BINARY_NAME).exe
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-linux $(BINARY_NAME)-darwin $(BINARY_NAME).exe
 	rm -rf $(FRONTEND_DIR)/dist
