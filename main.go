@@ -60,6 +60,9 @@ func setupRouter() *gin.Engine {
 
 		auth.GET("/logs", handlers.ListLogs)
 		auth.GET("/logs/users", handlers.ListUsersForLog)
+
+		auth.GET("/admin/shares", middleware.AdminRequired(), handlers.ListAllShares)
+		auth.GET("/admin/share-users", middleware.AdminRequired(), handlers.ListShareUsers)
 	}
 
 	r.GET("/share/:token", handlers.AccessShare)

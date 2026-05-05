@@ -5,15 +5,20 @@
     content-style="padding: 12px 16px; display: flex; flex-direction: column; height: 100%;"
   >
       <div class="shares-summary">
-        当前有 {{ totalCount }} 个文件分享，{{ validCount }} 个有效，{{ expiredCount }} 个已过期
+        当前共有 {{ totalCount }} 个文件分享，{{ validCount }} 个有效，{{ expiredCount }} 个已过期
       </div>
+      <n-space align="center" style="margin-bottom: 12px;">
+        <n-input v-model:value="filterFileName" placeholder="按文件名筛选" clearable size="small" style="width: 200px;" />
+        <n-select v-model:value="filterOwnerId" :options="ownerOptions" placeholder="按分享者筛选" clearable size="small" style="width: 160px;" />
+        <n-select v-model:value="filterStatus" :options="statusOptions" placeholder="按状态筛选" clearable size="small" style="width: 130px;" />
+      </n-space>
       <div class="shares-table-wrapper">
         <n-data-table
           class="shares-data-table"
           size="small"
           flex-height
           :columns="columns"
-          :data="shares"
+          :data="filteredShares"
           :bordered="false"
           striped
           :loading="loading"
@@ -29,7 +34,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, useMessage } from 'naive-ui'
+import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, NInput, NSelect, NPopconfirm, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
 
@@ -40,9 +45,36 @@ const shares = ref<any[]>([])
 const loading = ref(false)
 const highlightId = ref<number | null>(null)
 let highlightTimer: ReturnType<typeof setTimeout> | null = null
+
+// 筛选状态
+const filterFileName = ref('')
+const filterOwnerId = ref<number | null>(null)
+const filterStatus = ref<string | null>(null)
+
+const statusOptions = [
+  { label: '有效', value: 'valid' },
+  { label: '已过期', value: 'expired' },
+]
+
+// 分享者数据
+const shareUsers = ref<{id: number, username: string}[]>([])
+const ownerMap = computed(() => new Map(shareUsers.value.map(u => [u.id, u.username])))
+const ownerOptions = computed(() => shareUsers.value.map(u => ({ label: u.username, value: u.id })))
+
+// 统计（基于全量数据）
 const totalCount = computed(() => shares.value.length)
 const validCount = computed(() => shares.value.filter((s: any) => s.status === 'valid').length)
 const expiredCount = computed(() => shares.value.filter((s: any) => s.status === 'expired').length)
+
+// 筛选过滤
+const filteredShares = computed(() => {
+  return shares.value.filter(s => {
+    if (filterFileName.value && !s.file_name.toLowerCase().includes(filterFileName.value.toLowerCase())) return false
+    if (filterOwnerId.value && s.owner_id !== filterOwnerId.value) return false
+    if (filterStatus.value && s.status !== filterStatus.value) return false
+    return true
+  })
+})
 
 function rowClassName(row: any) {
   return row.id === highlightId.value ? 'highlighted-row' : ''
@@ -89,6 +121,15 @@ const columns: DataTableColumns = [
       }),
   },
   {
+    title: '分享者',
+    key: 'owner_id',
+    width: 120,
+    className: 'col-owner',
+    render(row: any) {
+      return ownerMap.value.get(row.owner_id) || '未知用户'
+    },
+  },
+  {
     title: '分享状态',
     key: 'status',
     width: 100,
@@ -122,25 +163,40 @@ const columns: DataTableColumns = [
     render: (row: any) =>
       h(NSpace, { size: 'small' }, () => [
         h(NButton, { size: 'small', onClick: () => copyLink(row) }, () => '复制链接'),
-        h(NButton, { size: 'small', type: 'error', onClick: () => handleDelete(row) }, () => '删除'),
+        h(NPopconfirm, {
+          onPositiveClick: () => handleDelete(row),
+        }, {
+          trigger: () => h(NButton, { size: 'small', type: 'error' }, () => '删除'),
+          default: () => '确认删除此分享链接？',
+        }),
       ]),
   },
 ]
 
 onMounted(() => {
   fetchShares()
+  fetchShareUsers()
 })
 
 async function fetchShares() {
   loading.value = true
   try {
-    const res = await api.get('/api/shares/my')
+    const res = await api.get('/api/admin/shares')
     shares.value = res.data
     applyHighlight()
   } catch (err: any) {
     message.error(err.response?.data?.error || '获取分享列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchShareUsers() {
+  try {
+    const res = await api.get('/api/admin/share-users')
+    shareUsers.value = res.data
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '获取分享者列表失败')
   }
 }
 
@@ -151,7 +207,6 @@ function copyLink(row: any) {
 }
 
 async function handleDelete(row: any) {
-  if (!confirm('确认删除此分享链接？')) return
   try {
     await api.delete(`/api/shares/${row.id}`)
     message.success('分享链接已删除')
@@ -213,6 +268,7 @@ onUnmounted(() => {
 
 /* 其他列保持单行 */
 .shares-data-table :deep(.col-status),
+.shares-data-table :deep(.col-owner),
 .shares-data-table :deep(.col-time),
 .shares-data-table :deep(.col-count),
 .shares-data-table :deep(.col-actions) {

@@ -91,6 +91,24 @@ func DeleteShareLink(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "share deleted"})
 }
 
+func ListAllShares(c *gin.Context) {
+	shares, err := services.ListAllShares()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, shares)
+}
+
+func ListShareUsers(c *gin.Context) {
+	users, err := services.ListShareUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, users)
+}
+
 func GetShareInfo(c *gin.Context) {
 	token := c.Param("token")
 

@@ -111,7 +111,13 @@ const menuOptions = computed<MenuOption[]>(() => {
     },
   ]
 
-  if (userStore.hasPermission(8)) {
+  if (userStore.user?.is_admin) {
+    items.push({
+      label: '分享管理',
+      key: '/admin/shares',
+      icon: () => h(NIcon, null, () => h(ShareSocialOutline)),
+    })
+  } else if (userStore.hasPermission(8)) {
     items.push({
       label: '我的分享',
       key: '/shares',
@@ -146,6 +152,7 @@ const menuOptions = computed<MenuOption[]>(() => {
 // 高亮的菜单 key
 const activeMenuKey = computed(() => {
   const p = route.path
+  if (p.startsWith('/admin/shares')) return '/admin/shares'
   if (p.startsWith('/admin/users')) return '/admin/users'
   if (p.startsWith('/admin/settings')) return '/admin/settings'
   if (p === '/shares') return '/shares'
@@ -159,6 +166,7 @@ const pageTitle = computed(() => {
   const map: Record<string, string> = {
     '/': '文件管理',
     '/shares': '我的分享',
+    '/admin/shares': '分享管理',
     '/logs': '操作日志',
     '/admin/users': '用户管理',
     '/admin/settings': '系统设置',

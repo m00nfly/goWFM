@@ -117,6 +117,17 @@
           <n-button type="primary" @click="handleOwnerChange">确认</n-button>
         </template>
       </n-modal>
+
+      <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="showShareModal = false" :mask-closable="false">
+        <n-form label-placement="left" label-width="80">
+          <n-form-item label="文件路径">
+            <n-input :value="shareFilePath" readonly />
+          </n-form-item>
+          <n-form-item label="有效期(天)">
+            <n-input-number v-model:value="shareExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
+          </n-form-item>
+        </n-form>
+      </n-modal>
     </n-card>
 </template>
 
@@ -124,7 +135,7 @@
 import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
+  NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber,
   NBreadcrumb, NBreadcrumbItem, NSelect, NIcon, NTooltip, NResult, useMessage
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
@@ -167,6 +178,10 @@ const showUploadModal = ref(false)
 const showMkdirModal = ref(false)
 const showMoveModal = ref(false)
 const showOwnerModal = ref(false)
+const showShareModal = ref(false)
+const shareFilePath = ref('')
+const shareExpireDays = ref(7)
+const shareLoading = ref(false)
 const uploading = ref(false)
 const mkdirLoading = ref(false)
 const moveLoading = ref(false)
@@ -451,7 +466,26 @@ function downloadFile(row: any) {
 }
 
 function shareFile(row: any) {
-  router.push({ path: '/shares', query: { shareFile: row.path } })
+  shareFilePath.value = row.path
+  shareExpireDays.value = 7
+  showShareModal.value = true
+}
+
+async function handleCreateShare() {
+  shareLoading.value = true
+  try {
+    const res = await api.post('/api/shares', {
+      file_path: shareFilePath.value,
+      expire_days: shareExpireDays.value
+    })
+    message.success('分享创建成功')
+    showShareModal.value = false
+    router.push({ path: '/shares', query: { highlightId: String(res.data.id) } })
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '创建分享失败')
+  } finally {
+    shareLoading.value = false
+  }
 }
 
 function openMoveModal(row: any) {

@@ -119,6 +119,78 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 	return result, nil
 }
 
+func ListAllShares() ([]map[string]interface{}, error) {
+	rows, err := db.DB.Query(
+		`SELECT id, token, file_path, owner_id, expire_at, created_at, access_count FROM shares ORDER BY created_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		var id, ownerID int64
+		var token, filePath string
+		var expireAtStr sqlNullString
+		var createdAt string
+		var accessCount int
+		rows.Scan(&id, &token, &filePath, &ownerID, &expireAtStr, &createdAt, &accessCount)
+
+		formattedCreatedAt := createdAt
+		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+			formattedCreatedAt = t.Format("2006-01-02 15:04:05")
+		}
+
+		status := "valid"
+		var formattedExpireAt interface{}
+		if expireAtStr.Valid {
+			if t, err := time.Parse(time.RFC3339, expireAtStr.String); err == nil {
+				formattedExpireAt = t.Format("2006-01-02 15:04:05")
+				if t.Before(time.Now()) {
+					status = "expired"
+				}
+			} else {
+				formattedExpireAt = expireAtStr.String
+			}
+		}
+
+		entry := map[string]interface{}{
+			"id":           id,
+			"token":        token,
+			"file_name":    path.Base(filePath),
+			"file_path":    filePath,
+			"owner_id":     ownerID,
+			"status":       status,
+			"expire_at":    formattedExpireAt,
+			"created_at":   formattedCreatedAt,
+			"access_count": accessCount,
+		}
+		result = append(result, entry)
+	}
+	return result, nil
+}
+
+func ListShareUsers() ([]map[string]interface{}, error) {
+	rows, err := db.DB.Query(`SELECT id, username FROM users WHERE is_admin = 1 OR (permissions & 8) != 0 ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		var id int64
+		var username string
+		rows.Scan(&id, &username)
+		result = append(result, map[string]interface{}{
+			"id":       id,
+			"username": username,
+		})
+	}
+	return result, nil
+}
+
 func DeleteShare(id int64) error {
 	_, err := db.DB.Exec(`DELETE FROM shares WHERE id = ?`, id)
 	return err
