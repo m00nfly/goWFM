@@ -126,12 +126,22 @@ func (s *sqlNullString) Scan(value interface{}) error {
 		s.Valid = false
 		return nil
 	}
-	s.Valid = true
 	switch v := value.(type) {
 	case string:
 		s.String = v
+		s.Valid = true
 	case []byte:
 		s.String = string(v)
+		s.Valid = true
+	case time.Time:
+		if v.IsZero() {
+			s.Valid = false
+			return nil
+		}
+		s.String = v.Format(time.RFC3339)
+		s.Valid = true
+	default:
+		s.Valid = false
 	}
 	return nil
 }

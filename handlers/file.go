@@ -180,7 +180,7 @@ func Download(c *gin.Context) {
 	}
 
 	filename := filepath.Base(fullPath)
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Header("Content-Disposition", BuildAttachmentDisposition(filename))
 	c.File(fullPath)
 
 	services.CreateLog(user.ID, models.ActionDownload, relativePath, c.ClientIP(), nil)

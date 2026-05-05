@@ -134,10 +134,9 @@ func AccessShare(c *gin.Context) {
 		return
 	}
 
-	services.IncrementShareAccess(token)
 	services.CreateLog(share.OwnerID, models.ActionShareAccess, share.FilePath, c.ClientIP(), map[string]interface{}{"token": token})
 
-	filename := fullPath[len(config.C.DataRootPath):]
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Header("Content-Disposition", BuildAttachmentDisposition(filepath.Base(fullPath)))
 	c.File(fullPath)
+	services.IncrementShareAccess(token)
 }
