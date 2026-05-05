@@ -41,12 +41,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, h } from 'vue'
-import { useRoute } from 'vue-router'
-import { NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber, useMessage } from 'naive-ui'
+import { useRoute, useRouter } from 'vue-router'
+import { NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber, NTooltip, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
 
 const route = useRoute()
+const router = useRouter()
 const message = useMessage()
 const shares = ref<any[]>([])
 const loading = ref(false)
@@ -55,16 +56,66 @@ const createLoading = ref(false)
 const shareFilePath = ref('')
 const expireDays = ref(3)
 
+function navigateToFile(filePath: string) {
+  const dirPath = filePath.substring(0, filePath.lastIndexOf('/')) || '/'
+  const fileName = filePath.split('/').pop()
+  router.push({ path: '/', query: { path: dirPath, highlight: fileName } })
+}
+
+function getStatusTooltip(row: any): string {
+  if (!row.expire_at) return '永久有效'
+  const remaining = Math.ceil((new Date(row.expire_at).getTime() - Date.now()) / 86400000)
+  if (remaining > 0) {
+    return `到期时间: ${row.expire_at}\n剩余: ${remaining}天`
+  }
+  return `到期时间: ${row.expire_at}\n已过期`
+}
+
 const columns: DataTableColumns = [
-  { title: 'ID', key: 'id', width: 60 },
-  { title: '文件路径', key: 'file_path' },
-  { title: '链接', key: 'token', render: (row: any) => `/share/${row.token}` },
-  { title: '过期时间', key: 'expire_at', render: (row: any) => row.expire_at || '永久' },
-  { title: '创建时间', key: 'created_at' },
-  { title: '访问次数', key: 'access_count' },
+  {
+    title: '文件名',
+    key: 'file_name',
+    className: 'col-name',
+    render: (row: any) =>
+      h(NTooltip, { trigger: 'hover' }, {
+        trigger: () => h('span', {
+          class: 'file-link',
+          onClick: () => navigateToFile(row.file_path),
+        }, row.file_name),
+        default: () => row.file_path,
+      }),
+  },
+  {
+    title: '分享状态',
+    key: 'status',
+    width: 100,
+    className: 'col-status',
+    render: (row: any) =>
+      h(NTooltip, { trigger: 'hover', style: 'white-space: pre-line' }, {
+        trigger: () => h(NTag, {
+          type: row.status === 'valid' ? 'success' : 'error',
+          size: 'small',
+        }, () => row.status === 'valid' ? '有效' : '已过期'),
+        default: () => getStatusTooltip(row),
+      }),
+  },
+  {
+    title: '创建时间',
+    key: 'created_at',
+    width: 170,
+    className: 'col-time',
+  },
+  {
+    title: '下载次数',
+    key: 'access_count',
+    width: 100,
+    className: 'col-count',
+  },
   {
     title: '操作',
     key: 'actions',
+    width: 150,
+    className: 'col-actions',
     render: (row: any) =>
       h(NSpace, { size: 'small' }, () => [
         h(NButton, { size: 'small', onClick: () => copyLink(row) }, () => '复制链接'),
@@ -152,13 +203,40 @@ async function handleDelete(row: any) {
   overflow: hidden;
 }
 
+/* 文件名列自适应换行 */
+.shares-data-table :deep(.col-name .n-data-table-td__ellipsis),
+.shares-data-table :deep(.col-name) {
+  white-space: normal !important;
+  max-width: 50%;
+}
+
+.shares-data-table :deep(.col-name .file-link) {
+  color: var(--primary-color);
+  cursor: pointer;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.shares-data-table :deep(.col-name .file-link:hover) {
+  text-decoration: underline;
+}
+
+/* 其他列保持单行 */
+.shares-data-table :deep(.col-status),
+.shares-data-table :deep(.col-time),
+.shares-data-table :deep(.col-count),
+.shares-data-table :deep(.col-actions) {
+  white-space: nowrap;
+}
+
+/* 行高紧凑化 */
 .shares-data-table :deep(.n-data-table-td),
 .shares-data-table :deep(.n-data-table-th) {
   padding-top: 6px !important;
   padding-bottom: 6px !important;
   font-size: 13px;
 }
-
 .shares-data-table :deep(.n-data-table-th) {
   font-weight: 600;
 }

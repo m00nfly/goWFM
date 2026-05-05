@@ -21,6 +21,11 @@ func ListFiles(c *gin.Context) {
 		return
 	}
 
+	if !user.HasPermission(models.PermBrowse) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "browse permission denied"})
+		return
+	}
+
 	relativePath := c.Query("path")
 	if relativePath == "" {
 		relativePath = "/"

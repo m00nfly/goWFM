@@ -14,6 +14,7 @@ import (
 	"goWFM/models"
 )
 
+// SafePath 获取安全的文件路径，防止路径遍历攻击
 func SafePath(relativePath string) (string, error) {
 	if config.C.DataRootPath == "" {
 		return "", fmt.Errorf("data_root_path not configured, please complete setup first")
@@ -32,6 +33,7 @@ func SafePath(relativePath string) (string, error) {
 	return fullPath, nil
 }
 
+// RelativePath 转换绝对路径为安全的相对路径，返回从DataRoot目录开始的相对路径
 func RelativePath(fullPath string) string {
 	rel := strings.TrimPrefix(fullPath, config.C.DataRootPath)
 	if rel == "" {

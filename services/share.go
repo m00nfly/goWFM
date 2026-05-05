@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"path"
 	"time"
 
 	"goWFM/db"
@@ -83,17 +84,35 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 		var accessCount int
 		rows.Scan(&id, &token, &filePath, &expireAtStr, &createdAt, &accessCount)
 
+		// Format created_at
+		formattedCreatedAt := createdAt
+		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+			formattedCreatedAt = t.Format("2006-01-02 15:04:05")
+		}
+
+		// Compute status and format expire_at
+		status := "valid"
+		var formattedExpireAt interface{}
+		if expireAtStr.Valid {
+			if t, err := time.Parse(time.RFC3339, expireAtStr.String); err == nil {
+				formattedExpireAt = t.Format("2006-01-02 15:04:05")
+				if t.Before(time.Now()) {
+					status = "expired"
+				}
+			} else {
+				formattedExpireAt = expireAtStr.String
+			}
+		}
+
 		entry := map[string]interface{}{
 			"id":           id,
 			"token":        token,
 			"file_path":    filePath,
-			"created_at":   createdAt,
+			"file_name":    path.Base(filePath),
+			"status":       status,
+			"created_at":   formattedCreatedAt,
+			"expire_at":    formattedExpireAt,
 			"access_count": accessCount,
-		}
-		if expireAtStr.Valid {
-			entry["expire_at"] = expireAtStr.String
-		} else {
-			entry["expire_at"] = nil
 		}
 		result = append(result, entry)
 	}

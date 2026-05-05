@@ -49,7 +49,15 @@
       </n-space>
 
       <div class="file-table-wrapper">
+        <n-result
+          v-if="permissionDenied"
+          status="403"
+          title="无访问权限"
+          :description="permissionDeniedMsg"
+          class="permission-denied-result"
+        />
         <n-data-table
+          v-else
           class="file-data-table"
           size="small"
           flex-height
@@ -59,6 +67,7 @@
           striped
           :loading="loading"
           :row-key="(row: any) => row.path || row.name"
+          :row-class-name="rowClassName"
           style="height: 100%;"
         />
       </div>
@@ -116,7 +125,7 @@ import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
-  NBreadcrumb, NBreadcrumbItem, NSelect, NIcon, NTooltip, useMessage
+  NBreadcrumb, NBreadcrumbItem, NSelect, NIcon, NTooltip, NResult, useMessage
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
@@ -149,6 +158,10 @@ const userStore = useUserStore()
 
 const entries = ref<any[]>([])
 const loading = ref(false)
+const highlightName = ref<string | null>(null)
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+const permissionDenied = ref(false)
+const permissionDeniedMsg = ref('')
 const currentPath = ref('/')
 const showUploadModal = ref(false)
 const showMkdirModal = ref(false)
@@ -300,6 +313,31 @@ const columns: DataTableColumns = [
   },
 ]
 
+// 高亮行class判断
+function rowClassName(row: any) {
+  if (highlightName.value && row.name === highlightName.value) {
+    return 'highlighted-row'
+  }
+  return ''
+}
+
+// 应用高亮并设置自动消失
+function applyHighlight() {
+  const name = route.query.highlight as string | undefined
+  if (highlightTimer) {
+    clearTimeout(highlightTimer)
+    highlightTimer = null
+  }
+  if (name) {
+    highlightName.value = name
+    highlightTimer = setTimeout(() => {
+      highlightName.value = null
+    }, 4000)
+  } else {
+    highlightName.value = null
+  }
+}
+
 onMounted(() => {
   const p = (route.query.path as string) || '/'
   currentPath.value = p
@@ -315,15 +353,31 @@ watch(() => route.query.path, (newPath) => {
   }
 })
 
+watch(() => route.query.highlight, () => {
+  // 如果只是 highlight 变了但 path 没变，直接应用高亮
+  applyHighlight()
+})
+
 async function fetchFiles() {
   loading.value = true
   try {
     const res = await api.get('/api/files', { params: { path: currentPath.value } })
     entries.value = res.data.entries || []
+    permissionDenied.value = false
+    permissionDeniedMsg.value = ''
+    applyHighlight()
   } catch (err: any) {
     console.error('fetchFiles failed:', err)
-    message.error(err.response?.data?.error || '获取文件列表失败')
     entries.value = []
+    if (err.response?.status === 403) {
+      // 全局拦截器已弹出"权限不足"toast，这里改为页面内的友好占位提示，避免重复打扰
+      permissionDenied.value = true
+      permissionDeniedMsg.value = err.response?.data?.error || '您没有访问此目录的权限'
+    } else {
+      permissionDenied.value = false
+      permissionDeniedMsg.value = ''
+      message.error(err.response?.data?.error || '获取文件列表失败')
+    }
   } finally {
     loading.value = false
   }
@@ -493,6 +547,15 @@ async function fetchAllUsers() {
   overflow: hidden;
 }
 
+.permission-denied-result {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 24px 16px;
+}
+
 /* 紧凑化表格行高 */
 .file-data-table :deep(.n-data-table-td),
 .file-data-table :deep(.n-data-table-th) {
@@ -535,5 +598,11 @@ async function fetchAllUsers() {
 .file-data-table :deep(.col-time),
 .file-data-table :deep(.col-actions) {
   white-space: nowrap;
+}
+
+/* 高亮行样式 */
+.file-data-table :deep(.highlighted-row td) {
+  background-color: rgba(24, 160, 88, 0.08) !important;
+  transition: background-color 0.3s ease;
 }
 </style>
