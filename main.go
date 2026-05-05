@@ -20,6 +20,7 @@ import (
 var Version string = "dev"
 
 func setupRouter() *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
 	r.GET("/api/health", func(c *gin.Context) {
