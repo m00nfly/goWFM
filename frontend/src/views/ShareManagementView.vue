@@ -54,6 +54,7 @@ const filterStatus = ref<string | null>(null)
 const statusOptions = [
   { label: '有效', value: 'valid' },
   { label: '已过期', value: 'expired' },
+  { label: '无效', value: 'deleted' },
 ]
 
 // 分享者数据
@@ -98,6 +99,9 @@ function navigateToFile(filePath: string) {
 }
 
 function getStatusTooltip(row: any): string {
+  if (row.status === 'deleted') {
+    return row.expire_at ? `到期时间: ${row.expire_at}\n源文件已删除` : '到期时间: 永久\n源文件已删除'
+  }
   if (!row.expire_at) return '永久有效'
   const remaining = Math.ceil((new Date(row.expire_at).getTime() - Date.now()) / 86400000)
   if (remaining > 0) {
@@ -134,14 +138,21 @@ const columns: DataTableColumns = [
     key: 'status',
     width: 100,
     className: 'col-status',
-    render: (row: any) =>
-      h(NTooltip, { trigger: 'hover', style: 'white-space: pre-line' }, {
-        trigger: () => h(NTag, {
-          type: row.status === 'valid' ? 'success' : 'error',
-          size: 'small',
-        }, () => row.status === 'valid' ? '有效' : '已过期'),
+    render(row: any) {
+      let tagType: 'success' | 'error' | 'warning' = 'success'
+      let label = '有效'
+      if (row.status === 'expired') {
+        tagType = 'error'
+        label = '已过期'
+      } else if (row.status === 'deleted') {
+        tagType = 'warning'
+        label = '无效'
+      }
+      return h(NTooltip, { trigger: 'hover', style: 'white-space: pre-line' }, {
+        trigger: () => h(NTag, { type: tagType, size: 'small' }, () => label),
         default: () => getStatusTooltip(row),
-      }),
+      })
+    },
   },
   {
     title: '创建时间',

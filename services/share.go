@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"time"
@@ -46,13 +47,15 @@ func CreateShare(relativePath string, ownerID int64, expireDays int) (*models.Sh
 func GetShareByToken(token string) (*models.Share, error) {
 	s := &models.Share{}
 	var expireAtStr sqlNullString
+	var deleted int
 	err := db.DB.QueryRow(
-		`SELECT id, token, file_path, owner_id, expire_at, created_at, access_count FROM shares WHERE token = ?`,
+		`SELECT id, token, file_path, owner_id, deleted, expire_at, created_at, access_count FROM shares WHERE token = ?`,
 		token,
-	).Scan(&s.ID, &s.Token, &s.FilePath, &s.OwnerID, &expireAtStr, &s.CreatedAt, &s.AccessCount)
+	).Scan(&s.ID, &s.Token, &s.FilePath, &s.OwnerID, &deleted, &expireAtStr, &s.CreatedAt, &s.AccessCount)
 	if err != nil {
 		return nil, err
 	}
+	s.Deleted = deleted == 1
 	if expireAtStr.Valid {
 		t, _ := time.Parse(time.RFC3339, expireAtStr.String)
 		s.ExpireAt = &t
@@ -67,7 +70,7 @@ func IncrementShareAccess(token string) error {
 
 func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 	rows, err := db.DB.Query(
-		`SELECT id, token, file_path, expire_at, created_at, access_count FROM shares WHERE owner_id = ? ORDER BY created_at DESC`,
+		`SELECT id, token, file_path, deleted, expire_at, created_at, access_count FROM shares WHERE owner_id = ? ORDER BY created_at DESC`,
 		ownerID,
 	)
 	if err != nil {
@@ -79,10 +82,11 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 	for rows.Next() {
 		var id int64
 		var token, filePath string
+		var deleted int
 		var expireAtStr sqlNullString
 		var createdAt string
 		var accessCount int
-		rows.Scan(&id, &token, &filePath, &expireAtStr, &createdAt, &accessCount)
+		rows.Scan(&id, &token, &filePath, &deleted, &expireAtStr, &createdAt, &accessCount)
 
 		// Format created_at
 		formattedCreatedAt := createdAt
@@ -91,17 +95,23 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 		}
 
 		// Compute status and format expire_at
-		status := "valid"
+		var status string
 		var formattedExpireAt interface{}
+		var expireAt *time.Time
 		if expireAtStr.Valid {
 			if t, err := time.Parse(time.RFC3339, expireAtStr.String); err == nil {
 				formattedExpireAt = t.Format("2006-01-02 15:04:05")
-				if t.Before(time.Now()) {
-					status = "expired"
-				}
+				expireAt = &t
 			} else {
 				formattedExpireAt = expireAtStr.String
 			}
+		}
+		if deleted == 1 {
+			status = "deleted"
+		} else if expireAt != nil && expireAt.Before(time.Now()) {
+			status = "expired"
+		} else {
+			status = "valid"
 		}
 
 		entry := map[string]interface{}{
@@ -121,7 +131,7 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 
 func ListAllShares() ([]map[string]interface{}, error) {
 	rows, err := db.DB.Query(
-		`SELECT id, token, file_path, owner_id, expire_at, created_at, access_count FROM shares ORDER BY created_at DESC`,
+		`SELECT id, token, file_path, owner_id, deleted, expire_at, created_at, access_count FROM shares ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -132,27 +142,34 @@ func ListAllShares() ([]map[string]interface{}, error) {
 	for rows.Next() {
 		var id, ownerID int64
 		var token, filePath string
+		var deleted int
 		var expireAtStr sqlNullString
 		var createdAt string
 		var accessCount int
-		rows.Scan(&id, &token, &filePath, &ownerID, &expireAtStr, &createdAt, &accessCount)
+		rows.Scan(&id, &token, &filePath, &ownerID, &deleted, &expireAtStr, &createdAt, &accessCount)
 
 		formattedCreatedAt := createdAt
 		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
 			formattedCreatedAt = t.Format("2006-01-02 15:04:05")
 		}
 
-		status := "valid"
+		var status string
 		var formattedExpireAt interface{}
+		var expireAt *time.Time
 		if expireAtStr.Valid {
 			if t, err := time.Parse(time.RFC3339, expireAtStr.String); err == nil {
 				formattedExpireAt = t.Format("2006-01-02 15:04:05")
-				if t.Before(time.Now()) {
-					status = "expired"
-				}
+				expireAt = &t
 			} else {
 				formattedExpireAt = expireAtStr.String
 			}
+		}
+		if deleted == 1 {
+			status = "deleted"
+		} else if expireAt != nil && expireAt.Before(time.Now()) {
+			status = "expired"
+		} else {
+			status = "valid"
 		}
 
 		entry := map[string]interface{}{
@@ -201,8 +218,11 @@ func ValidateShareAccess(token string) (*models.Share, error) {
 	if err != nil {
 		return nil, fmt.Errorf("share not found")
 	}
+	if s.Deleted {
+		return nil, errors.New("source file has been deleted")
+	}
 	if s.ExpireAt != nil && s.ExpireAt.Before(time.Now()) {
-		return nil, fmt.Errorf("share link expired")
+		return nil, errors.New("share link expired")
 	}
 	return s, nil
 }

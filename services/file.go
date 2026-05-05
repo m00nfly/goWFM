@@ -166,6 +166,11 @@ func UpdateFileMetadataPath(oldPath, newPath string) error {
 		`UPDATE file_metadata SET file_path = ?, updated_at = CURRENT_TIMESTAMP WHERE file_path = ?`,
 		newPath, oldPath,
 	)
+	if err != nil {
+		return err
+	}
+	// 同步更新分享记录中的文件路径
+	_, err = db.DB.Exec(`UPDATE shares SET file_path = ? WHERE file_path = ?`, newPath, oldPath)
 	return err
 }
 
@@ -242,6 +247,9 @@ func DeleteFileOrDir(relativePath string, user *models.User) error {
 	if err := os.Remove(fullPath); err != nil {
 		return err
 	}
+
+	// 标记相关分享记录为已删除
+	db.DB.Exec(`UPDATE shares SET deleted = 1 WHERE file_path = ?`, relativePath)
 
 	DeleteFileMetadata(relativePath)
 	return nil

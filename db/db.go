@@ -76,6 +76,7 @@ func migrate(d *sql.DB) error {
 			expire_at DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			access_count INTEGER DEFAULT 0,
+			deleted INTEGER DEFAULT 0,
 			FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
 		`CREATE TABLE IF NOT EXISTS operation_logs (
@@ -102,5 +103,9 @@ func migrate(d *sql.DB) error {
 			return fmt.Errorf("exec migration: %w\nquery: %s", err, m)
 		}
 	}
+
+	// 兼容已有数据库，添加 deleted 字段
+	d.Exec(`ALTER TABLE shares ADD COLUMN deleted INTEGER DEFAULT 0`)
+
 	return nil
 }
