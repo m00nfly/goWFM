@@ -32,6 +32,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const router = useRouter()
 const route = useRoute()
@@ -154,10 +155,14 @@ async function fetchShares() {
   }
 }
 
-function copyLink(row: any) {
+async function copyLink(row: any) {
   const link = `${window.location.origin}/share/${row.token}`
-  navigator.clipboard.writeText(link)
-  message.success('链接已复制')
+  const ok = await copyToClipboard(link)
+  if (ok) {
+    message.success('链接已复制')
+  } else {
+    message.error('复制失败，请手动复制')
+  }
 }
 
 async function handleDelete(row: any) {
