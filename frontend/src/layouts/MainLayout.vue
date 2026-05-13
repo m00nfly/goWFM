@@ -1,71 +1,76 @@
 <template>
-  <n-layout class="main-layout" has-sider>
-    <!-- 可折叠侧边栏 -->
-    <n-layout-sider
-      bordered
-      collapse-mode="width"
-      :collapsed-width="64"
-      :width="220"
-      :collapsed="collapsed"
-      show-trigger="bar"
-      @collapse="collapsed = true"
-      @expand="collapsed = false"
-    >
-      <div class="sidebar-inner">
-        <div class="sidebar-top">
-          <div class="sidebar-header" @click="router.push('/')">
-            <n-icon size="24" color="#3B82F6">
+  <n-layout class="main-layout">
+    <!-- 顶部导航栏 - 全宽固定 -->
+    <n-layout-header class="top-header">
+      <div class="header-brand" @click="router.push('/')">
+        <n-icon size="35" color="#3B82F6">
               <folder-open-outline />
-            </n-icon>
-            <span v-show="!collapsed" class="sidebar-title">goWFM</span>
-          </div>
-          <n-menu
-            :value="activeMenuKey"
-            :collapsed="collapsed"
-            :collapsed-icon-size="22"
-            :options="menuOptions"
-            @update:value="onMenuSelect"
-          />
-        </div>
-        <div v-show="!collapsed" class="sidebar-footer">
-          <template v-if="orgLink">
-            <a :href="orgLink" target="_blank" class="org-link">{{ orgName || orgLink }}</a>
-          </template>
-          <template v-else-if="orgName">
-            <span class="org-text">{{ orgName }}</span>
-          </template>
-          <span class="copyright">&copy; 2026 goWFM</span>
-          <span v-if="version" class="version">{{ version }}</span>
-        </div>
+        </n-icon>
+        <span class="brand-text">{{ orgName || 'goWFM' }}</span>
       </div>
-    </n-layout-sider>
+      <div class="header-actions">
+        <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
+          <div class="user-trigger">
+            <n-avatar
+              round
+              :size="32"
+              :style="{ backgroundColor: '#1890ff', cursor: 'pointer', fontSize: '14px' }"
+            >
+              {{ avatarLetter }}
+            </n-avatar>
+            <span class="user-display-name">{{ displayName }}</span>
+          </div>
+        </n-dropdown>
+      </div>
+    </n-layout-header>
 
-    <!-- 右侧主体 -->
-    <n-layout>
-      <!-- 顶部栏 -->
-      <n-layout-header bordered class="main-header">
-        <div class="header-left">
-          <span class="site-name">{{ orgName || 'goWFM' }}</span>
-          <span v-if="pageTitle" class="breadcrumb-sep">&gt;</span>
-          <span v-if="pageTitle" class="page-title">{{ pageTitle }}</span>
+    <!-- 侧边栏 + 内容区 -->
+    <n-layout has-sider class="body-layout">
+      <n-layout-sider
+        class="side-nav"
+        collapse-mode="width"
+        :collapsed-width="64"
+        :width="175"
+        :collapsed="collapsed"
+        show-trigger="bar"
+        @collapse="collapsed = true"
+        @expand="collapsed = false"
+      >
+        <div class="sider-inner">
+          <div class="sider-menu-area">
+            <n-menu
+              :value="activeMenuKey"
+              :collapsed="collapsed"
+              :collapsed-icon-size="22"
+              :options="menuOptions"
+              @update:value="onMenuSelect"
+            />
+          </div>
         </div>
-        <div class="header-right">
-          <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
-            <n-button text class="user-btn">
-              <template #icon>
-                <n-icon size="20"><person-circle-outline /></n-icon>
-              </template>
-              <span class="user-name">{{ userStore.user?.display_name || userStore.user?.username || '用户' }}</span>
-            </n-button>
-          </n-dropdown>
-        </div>
-      </n-layout-header>
+      </n-layout-sider>
 
-      <!-- 内容区 -->
       <n-layout-content class="main-content">
-        <router-view />
+        <div class="content-wrapper">
+          <router-view />
+        </div>
+        <div class="content-footer">
+          <div class="footer-content">
+            <template v-if="orgLink">
+              <a :href="orgLink" target="_blank" class="footer-org-link">{{ orgName || orgLink }}</a>
+              <span class="footer-separator">|</span>
+            </template>
+            <template v-else-if="orgName">
+              <span class="footer-org-text">{{ orgName }}</span>
+              <span class="footer-separator">|</span>
+            </template>
+            <a :href="appLink" target="_blank" class="footer-app-link">goWFM</a>
+            <a v-if="appGithub" :href="appGithub" target="_blank" class="footer-github-link">
+              <n-icon :size="14"><logo-github /></n-icon>
+            </a>
+            <span v-if="version" class="footer-version">ver: {{ version }}</span>
+          </div>
+        </div>
       </n-layout-content>
-
     </n-layout>
   </n-layout>
 </template>
@@ -75,7 +80,7 @@ import { ref, computed, h, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   NLayout, NLayoutSider, NLayoutHeader, NLayoutContent,
-  NMenu, NButton, NDropdown, NIcon,
+  NMenu, NDropdown, NIcon, NAvatar,
 } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
 import {
@@ -87,6 +92,7 @@ import {
   CogOutline,
   PersonCircleOutline,
   LogOutOutline,
+  LogoGithub,
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import api from '@/api'
@@ -96,9 +102,22 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const collapsed = ref(false)
+const version = ref('')
 const orgName = ref('')
 const orgLink = ref('')
-const version = ref('')
+const appLink = ref('https://gowfm.dev')
+const appGithub = ref('https://github.com/m00nfly/gowfm')
+
+// ---------- 用户显示 ----------
+
+const displayName = computed(() =>
+  userStore.user?.display_name || userStore.user?.username || '用户'
+)
+
+const avatarLetter = computed(() => {
+  const name = displayName.value
+  return name ? name.charAt(0).toUpperCase() : 'U'
+})
 
 // ---------- 菜单配置 ----------
 
@@ -161,20 +180,6 @@ const activeMenuKey = computed(() => {
   return '/'
 })
 
-// 页面标题
-const pageTitle = computed(() => {
-  const map: Record<string, string> = {
-    '/': '文件管理',
-    '/shares': '我的分享',
-    '/admin/shares': '分享管理',
-    '/logs': '操作日志',
-    '/admin/users': '用户管理',
-    '/admin/settings': '系统设置',
-    '/settings': '个人设置',
-  }
-  return map[activeMenuKey.value] || ''
-})
-
 // 用户下拉菜单
 const userDropdownOptions = computed(() => [
   {
@@ -223,109 +228,175 @@ onMounted(async () => {
   min-height: 100vh;
 }
 
+/* ---- 顶部导航栏 ---- */
+.top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 24px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.brand-text {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1890ff;
+  margin-left: 10px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.user-trigger:hover {
+  background-color: #f5f5f5;
+}
+
+.user-display-name {
+  font-size: 14px;
+  color: #333;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- 下方布局 ---- */
+.body-layout {
+  height: calc(100vh - 56px);
+}
+
 /* ---- 侧边栏 ---- */
-.sidebar-inner {
+.side-nav {
+  background: #fff !important;
+  border-right: 1px solid #e8e8e8 !important;
+}
+
+.sider-inner {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
-.sidebar-top {
+
+.sider-menu-area {
   flex: 1;
   overflow-y: auto;
-}
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 56px;
-  padding: 0 20px;
-  cursor: pointer;
-  user-select: none;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-.sidebar-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #3B82F6;
-  white-space: nowrap;
+  padding-top: 8px;
 }
 
-/* ---- 顶部栏 ---- */
-.main-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  height: 56px;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.site-name {
-  font-size: 16px;
+/* 菜单选中态: 圆角 + 文字加粗 + 浅色背景 */
+.side-nav :deep(.n-menu-item-content--selected) {
   font-weight: 600;
-  color: #3B82F6;
-}
-.breadcrumb-sep {
-  font-size: 14px;
-  color: #bbb;
-  font-weight: 400;
-}
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-.header-right {
-  display: flex;
-  align-items: center;
-}
-.user-btn {
-  font-size: 14px;
-}
-.user-name {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* ---- 内容区 ---- */
+.side-nav :deep(.n-menu-item-content) {
+  position: relative;
+  font-size: 14px;
+}
+
+.side-nav :deep(.n-menu-item-content__icon) {
+  margin-right: 12px !important;
+  margin-left: 8px !important;
+}
+
+/* ---- 主内容区 ---- */
 .main-content {
-  padding: 24px;
-  background: #f5f7fa;
-  min-height: calc(100vh - 56px);
-}
-
-/* ---- 侧边栏底部信息 ---- */
-.sidebar-footer {
+  background: #f0f2f5;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 12px 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  height: calc(100vh - 56px);
+  overflow: hidden;
+}
+
+.content-wrapper {
+  flex: 1;
+  height: calc(100vh - 135px);
+  width: 95%;
+  margin: 0 auto;
+  padding: 24px 24px 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- 底部版权 ---- */
+.content-footer {
+  text-align: center;
+  padding: 12px;
   font-size: 12px;
   color: #999;
-  line-height: 1.6;
 }
-.org-link {
-  color: #3B82F6;
+
+.footer-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-separator {
+  color: #d9d9d9;
+}
+
+.footer-app-link {
+  color: #1890ff;
   text-decoration: none;
-  font-size: 12px;
+  font-weight: 500;
 }
-.org-link:hover {
+
+.footer-app-link:hover {
   text-decoration: underline;
 }
-.org-text {
-  color: #999;
-}
-.copyright {
+
+.footer-version {
   color: #bbb;
-}
-.version {
-  color: #ccc;
   font-size: 11px;
+}
+
+.footer-org-link {
+  color: #1890ff;
+  text-decoration: none;
+}
+
+.footer-org-link:hover {
+  text-decoration: underline;
+}
+
+.footer-org-text {
+  color: #666;
+}
+
+.footer-github-link {
+  color: #666;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.footer-github-link:hover {
+  color: #333;
 }
 </style>

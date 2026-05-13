@@ -187,7 +187,7 @@ onUnmounted(() => {
 
 <style scoped>
 .shares-card {
-  height: calc(100vh - 112px);
+  height: calc(100vh - 135px);
   display: flex;
   flex-direction: column;
   overflow: hidden;

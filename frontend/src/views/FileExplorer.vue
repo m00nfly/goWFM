@@ -1,149 +1,209 @@
 <template>
-  <n-card class="file-explorer-card" :bordered="false" content-style="display: flex; flex-direction: column; height: 100%;">
-      <template #header>
-        <n-space justify="space-between" align="center">
-          <n-breadcrumb>
-            <n-breadcrumb-item @click="navigateTo('/')">
-              <span class="root-breadcrumb">根目录</span>
-            </n-breadcrumb-item>
-            <n-breadcrumb-item v-for="seg in pathSegments" :key="seg.path" @click="navigateTo(seg.path)">
-              {{ seg.name }}
-            </n-breadcrumb-item>
-          </n-breadcrumb>
-          <n-tooltip trigger="hover">
-            <template #trigger>
-              <n-button size="small" @click="refresh">
-                <template #icon><n-icon><refresh-outline /></n-icon></template>
-              </n-button>
-            </template>
-            刷新
-          </n-tooltip>
-        </n-space>
-      </template>
-
-      <n-space :size="8" class="toolbar-row">
-        <n-tooltip v-if="hasPermUpload" trigger="hover">
-          <template #trigger>
-            <n-button type="primary" @click="showUploadModal = true">
-              <template #icon><n-icon><cloud-upload-outline /></n-icon></template>
-            </n-button>
-          </template>
-          上传文件
-        </n-tooltip>
-        <n-tooltip v-if="hasPermUpload" trigger="hover">
-          <template #trigger>
-            <n-button @click="showMkdirModal = true">
-              <template #icon><n-icon><AddCircleOutline /></n-icon></template>
-            </n-button>
-          </template>
-          新建文件夹
-        </n-tooltip>
-        <n-tooltip v-if="currentPath !== '/'" trigger="hover">
-          <template #trigger>
-            <n-button @click="goToParent">
-              <template #icon><n-icon><arrow-back-outline /></n-icon></template>
-            </n-button>
-          </template>
-          返回上级
-        </n-tooltip>
-      </n-space>
-
-      <div class="file-table-wrapper">
-        <n-result
-          v-if="permissionDenied"
-          status="403"
-          title="无访问权限"
-          :description="permissionDeniedMsg"
-          class="permission-denied-result"
-        />
-        <n-data-table
+  <div class="file-explorer">
+    <!-- 面包屑导航 -->
+    <div class="breadcrumb">
+      <n-icon size="18" color="#666" style="margin-right: 6px; vertical-align: middle;">
+        <FolderOpenOutline />
+      </n-icon>
+      <span class="breadcrumb-link" @click="navigateTo('/')">根目录</span>
+      <template v-for="(seg, idx) in pathSegments" :key="seg.path">
+        <span class="breadcrumb-sep">/</span>
+        <span
+          v-if="idx === pathSegments.length - 1"
+          class="breadcrumb-current"
+        >{{ seg.name }}</span>
+        <span
           v-else
-          class="file-data-table"
-          size="small"
-          flex-height
-          :columns="columns"
-          :data="entries"
-          :bordered="false"
-          striped
-          :loading="loading"
-          :row-key="(row: any) => row.path || row.name"
-          :row-class-name="rowClassName"
-          style="height: 100%;"
-        />
+          class="breadcrumb-link"
+          @click="navigateTo(seg.path)"
+        >{{ seg.name }}</span>
+      </template>
+    </div>
+
+    <!-- 操作工具栏 -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <n-button v-if="hasPermUpload" @click="showMkdirModal = true">
+          <template #icon><n-icon><AddCircleOutline /></n-icon></template>
+          新建文件夹
+        </n-button>
+        <n-button v-if="hasPermUpload" type="primary" @click="showUploadModal = true">
+          <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
+          上传文件
+        </n-button>
+        <n-button v-if="currentPath !== '/'" @click="goToParent">
+          <template #icon><n-icon><ArrowBackOutline /></n-icon></template>
+          返回上级
+        </n-button>
       </div>
+      <!-- 批量操作栏 -->
+      <div v-if="checkedKeys.length > 0" class="batch-bar">
+        <span class="batch-info">已选择 {{ checkedKeys.length }} 项</span>
+        <n-button size="small" @click="batchDownload" v-if="userStore.hasPermission(2)">批量下载</n-button>
+        <n-button size="small" type="error" @click="batchDelete" v-if="userStore.user?.is_admin || userStore.hasPermission(4)">批量删除</n-button>
+        <n-button size="small" quaternary @click="checkedKeys = []">取消选择</n-button>
+      </div>
+      <div class="toolbar-right">
+        <n-input
+          v-model:value="searchKeyword"
+          placeholder="搜索文件..."
+          clearable
+          style="width: 220px;"
+          class="search-input"
+        >
+          <template #prefix>
+            <n-icon><SearchOutline /></n-icon>
+          </template>
+        </n-input>
+        <n-button quaternary circle @click="refresh">
+          <template #icon><n-icon><RefreshOutline /></n-icon></template>
+        </n-button>
+        <n-button quaternary circle @click="toggleViewMode">
+          <template #icon>
+            <n-icon><ListOutline v-if="viewMode === 'grid'" /><GridOutline v-else /></n-icon>
+          </template>
+        </n-button>
+      </div>
+    </div>
 
-      <n-modal v-model:show="showUploadModal" title="上传文件" preset="dialog">
-        <n-form label-placement="left" label-width="80">
-          <n-form-item label="目标目录">
-            <n-input :value="currentPath" :disabled="true" />
-          </n-form-item>
-          <n-form-item label="选择文件">
-            <input type="file" @change="onFileSelect" />
-          </n-form-item>
-        </n-form>
-        <template #action>
-          <n-button @click="showUploadModal = false">取消</n-button>
-          <n-button type="primary" :loading="uploading" @click="handleUpload">上传</n-button>
-        </template>
-      </n-modal>
+    <!-- 无权限提示 -->
+    <n-result
+      v-if="permissionDenied"
+      status="403"
+      title="无访问权限"
+      :description="permissionDeniedMsg"
+      class="permission-denied-result"
+    />
 
-      <n-modal v-model:show="showMkdirModal" title="新建文件夹" preset="dialog">
-        <n-input v-model:value="mkdirName" placeholder="文件夹名称" />
-        <template #action>
-          <n-button @click="showMkdirModal = false">取消</n-button>
-          <n-button type="primary" :loading="mkdirLoading" @click="handleMkdir">创建</n-button>
-        </template>
-      </n-modal>
+    <!-- 文件列表 (列表模式) -->
+    <div v-else-if="viewMode === 'list'" class="file-list">
+      <n-data-table
+        class="file-data-table"
+        size="small"
+        flex-height
+        :columns="columns"
+        :data="filteredFiles"
+        :bordered="false"
+        :loading="loading"
+        :row-key="rowKey"
+        :row-class-name="rowClassName"
+        :checked-row-keys="checkedKeys"
+        @update:checked-row-keys="onCheckedKeysChange"
+      />
+    </div>
 
-      <n-modal v-model:show="showMoveModal" title="移动/重命名" preset="dialog">
-        <n-form label-placement="left" label-width="80">
-          <n-form-item label="原路径">
-            <n-input :value="moveSource" :disabled="true" />
-          </n-form-item>
-          <n-form-item label="新路径">
-            <n-input v-model:value="moveDest" placeholder="输入新路径（相对路径）" />
-          </n-form-item>
-        </n-form>
-        <template #action>
-          <n-button @click="showMoveModal = false">取消</n-button>
-          <n-button type="primary" :loading="moveLoading" @click="handleMove">确认</n-button>
-        </template>
-      </n-modal>
+    <!-- 网格视图 -->
+    <div v-else class="file-grid-container">
+      <div v-if="filteredFiles.length === 0" class="grid-empty">
+        <n-empty description="暂无文件" />
+      </div>
+      <div v-else class="file-grid">
+        <div
+          v-for="file in filteredFiles"
+          :key="file.path || file.name"
+          class="grid-card"
+          :class="{ 'grid-card-selected': checkedKeys.includes(file.path || file.name) }"
+          @click="onGridCardClick(file)"
+        >
+          <n-checkbox
+            class="grid-card-checkbox"
+            :checked="checkedKeys.includes(file.path || file.name)"
+            @update:checked="toggleGridSelection(file.path || file.name, $event)"
+            @click.stop
+          />
+          <div class="grid-card-icon">
+            <n-icon :size="48" :color="getFileIcon(file.name, file.is_directory).color">
+              <component :is="getFileIcon(file.name, file.is_directory).icon" />
+            </n-icon>
+          </div>
+          <div class="grid-card-name" :title="file.name">{{ file.name }}</div>
+          <div class="grid-card-info">
+            <span v-if="!file.is_directory">{{ formatSize(file.size) }}</span>
+            <span v-else>文件夹</span>
+          </div>
+          <div class="grid-card-time">{{ formatTime(file.mod_time) }}</div>
+        </div>
+      </div>
+    </div>
 
-      <n-modal v-model:show="showOwnerModal" title="变更所有者" preset="dialog">
-        <n-select v-model:value="newOwnerId" :options="allUsers" placeholder="选择新所有者" />
-        <template #action>
-          <n-button @click="showOwnerModal = false">取消</n-button>
-          <n-button type="primary" @click="handleOwnerChange">确认</n-button>
-        </template>
-      </n-modal>
+    <!-- 上传文件模态框 -->
+    <n-modal v-model:show="showUploadModal" title="上传文件" preset="dialog">
+      <n-form label-placement="left" label-width="80">
+        <n-form-item label="目标目录">
+          <n-input :value="currentPath" :disabled="true" />
+        </n-form-item>
+        <n-form-item label="选择文件">
+          <input type="file" @change="onFileSelect" />
+        </n-form-item>
+      </n-form>
+      <template #action>
+        <n-button @click="showUploadModal = false">取消</n-button>
+        <n-button type="primary" :loading="uploading" @click="handleUpload">上传</n-button>
+      </template>
+    </n-modal>
 
-      <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="showShareModal = false" :mask-closable="false">
-        <n-form label-placement="left" label-width="80">
-          <n-form-item label="文件路径">
-            <n-input :value="shareFilePath" readonly />
-          </n-form-item>
-          <n-form-item label="有效期(天)">
-            <n-input-number v-model:value="shareExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
-          </n-form-item>
-        </n-form>
-      </n-modal>
-    </n-card>
+    <!-- 新建文件夹模态框 -->
+    <n-modal v-model:show="showMkdirModal" title="新建文件夹" preset="dialog">
+      <n-input v-model:value="mkdirName" placeholder="文件夹名称" />
+      <template #action>
+        <n-button @click="showMkdirModal = false">取消</n-button>
+        <n-button type="primary" :loading="mkdirLoading" @click="handleMkdir">创建</n-button>
+      </template>
+    </n-modal>
+
+    <!-- 移动/重命名模态框 -->
+    <n-modal v-model:show="showMoveModal" title="移动/重命名" preset="dialog">
+      <n-form label-placement="left" label-width="80">
+        <n-form-item label="原路径">
+          <n-input :value="moveSource" :disabled="true" />
+        </n-form-item>
+        <n-form-item label="新路径">
+          <n-input v-model:value="moveDest" placeholder="输入新路径（相对路径）" />
+        </n-form-item>
+      </n-form>
+      <template #action>
+        <n-button @click="showMoveModal = false">取消</n-button>
+        <n-button type="primary" :loading="moveLoading" @click="handleMove">确认</n-button>
+      </template>
+    </n-modal>
+
+    <!-- 变更所有者模态框 -->
+    <n-modal v-model:show="showOwnerModal" title="变更所有者" preset="dialog">
+      <n-select v-model:value="newOwnerId" :options="allUsers" placeholder="选择新所有者" />
+      <template #action>
+        <n-button @click="showOwnerModal = false">取消</n-button>
+        <n-button type="primary" @click="handleOwnerChange">确认</n-button>
+      </template>
+    </n-modal>
+
+    <!-- 创建分享模态框 -->
+    <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="showShareModal = false" :mask-closable="false">
+      <n-form label-placement="left" label-width="80">
+        <n-form-item label="文件路径">
+          <n-input :value="shareFilePath" readonly />
+        </n-form-item>
+        <n-form-item label="有效期(天)">
+          <n-input-number v-model:value="shareExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
+        </n-form-item>
+      </n-form>
+    </n-modal>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber,
-  NBreadcrumb, NBreadcrumbItem, NSelect, NIcon, NTooltip, NResult, useMessage
+  NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber,
+  NSelect, NIcon, NTooltip, NResult, NEmpty, NSpace, NCheckbox, useMessage, useDialog
 } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { formatSize } from '@/utils/format'
 import {
   FolderOpen,
+  FolderOpenOutline,
   Image,
   DocumentText,
   Document,
@@ -160,13 +220,18 @@ import {
   AddCircleOutline,
   RefreshOutline,
   ArrowBackOutline,
+  SearchOutline,
+  ListOutline,
+  GridOutline,
 } from '@vicons/ionicons5'
 
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
+const dialog = useDialog()
 const userStore = useUserStore()
 
+// === 状态 ===
 const entries = ref<any[]>([])
 const loading = ref(false)
 const highlightName = ref<string | null>(null)
@@ -193,6 +258,12 @@ const ownerChangePath = ref('')
 const newOwnerId = ref<number | null>(null)
 const allUsers = ref<{ label: string; value: number }[]>([])
 
+// === 新增状态 ===
+const searchKeyword = ref('')
+const checkedKeys = ref<DataTableRowKey[]>([])
+const viewMode = ref<'list' | 'grid'>('list')
+
+// === 计算属性 ===
 const hasPermUpload = computed(() => userStore.hasPermission(4))
 const hasPermShare = computed(() => userStore.hasPermission(8))
 const isAdmin = computed(() => userStore.user?.is_admin)
@@ -206,7 +277,6 @@ const pathSegments = computed(() => {
   }))
 })
 
-// 上级目录路径
 const parentPath = computed(() => {
   if (currentPath.value === '/') return '/'
   const parts = currentPath.value.split('/').filter(Boolean)
@@ -214,48 +284,67 @@ const parentPath = computed(() => {
   return '/' + parts.join('/') || '/'
 })
 
-// 根据文件名和类型返回对应的图标和颜色
+// 前端搜索过滤
+const filteredFiles = computed(() => {
+  if (!searchKeyword.value) return entries.value
+  const keyword = searchKeyword.value.toLowerCase()
+  return entries.value.filter((f: any) => f.name.toLowerCase().includes(keyword))
+})
+
+// === 文件图标 ===
 function getFileIcon(name: string, isDir: boolean): { icon: any; color: string } {
-  if (isDir) return { icon: FolderOpen, color: '#e6a23c' }
+  if (isDir) return { icon: FolderOpen, color: '#faad14' }
 
   const ext = name.toLowerCase().split('.').pop() || ''
 
-  // 图片
   if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'tif'].includes(ext))
-    return { icon: Image, color: '#67c23a' }
-  // 视频
+    return { icon: Image, color: '#52c41a' }
   if (['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v'].includes(ext))
-    return { icon: Videocam, color: '#e6a23c' }
-  // 音频
+    return { icon: Videocam, color: '#fa8c16' }
   if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape'].includes(ext))
-    return { icon: MusicalNotes, color: '#f56c6c' }
-  // 压缩包
+    return { icon: MusicalNotes, color: '#eb2f96' }
   if (['zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'zst'].includes(ext))
-    return { icon: Archive, color: '#909399' }
-  // 代码
+    return { icon: Archive, color: '#8c8c8c' }
   if (['js', 'ts', 'jsx', 'tsx', 'vue', 'py', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb',
        'php', 'swift', 'kt', 'html', 'css', 'scss', 'less', 'json', 'xml', 'yaml',
        'yml', 'toml', 'sql', 'sh', 'bash', 'cmd', 'ps1', 'bat'].includes(ext))
-    return { icon: CodeSlash, color: '#409eff' }
-  // 文档
+    return { icon: CodeSlash, color: '#1890ff' }
   if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'log', 'csv', 'rtf'].includes(ext))
-    return { icon: DocumentText, color: '#409eff' }
-  // 默认
-  return { icon: Document, color: '#909399' }
+    return { icon: DocumentText, color: '#722ed1' }
+
+  return { icon: Document, color: '#8c8c8c' }
 }
 
-// 图标按钮 + Tooltip（render 函数中用）
+// === 时间格式化 ===
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+// === 图标按钮渲染 ===
 function iconBtn(iconComp: any, tooltip: string, onClick: () => void, color?: string) {
   return h(NTooltip, { trigger: 'hover', placement: 'top' }, {
     default: () => tooltip,
     trigger: () =>
-      h(NButton, { size: 'small', quaternary: true, onClick }, {
+      h(NButton, { size: 'small', quaternary: true, onClick, class: 'action-btn' }, {
         icon: () => h(NIcon, { size: 18, color: color || undefined }, () => h(iconComp)),
       }),
   })
 }
 
-const columns: DataTableColumns = [
+// === 行标识 ===
+function rowKey(row: any) {
+  return row.path || row.name
+}
+
+// === 表格列定义 ===
+const columns = computed<DataTableColumns>(() => [
+  { type: 'selection' },
   {
     title: '名称',
     key: 'name',
@@ -263,7 +352,7 @@ const columns: DataTableColumns = [
     sorter: (a: any, b: any) => a.name.localeCompare(b.name),
     render(row: any) {
       const { icon, color } = getFileIcon(row.name, row.is_directory)
-      const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '6px', verticalAlign: 'middle', flexShrink: 0 } }, () => h(icon))
+      const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '8px', verticalAlign: 'middle', flexShrink: '0' } }, () => h(icon))
       if (row.is_directory) {
         return h('div', { class: 'name-cell' },
           h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => [iconEl, h('span', { class: 'name-text' }, row.name)]),
@@ -278,8 +367,7 @@ const columns: DataTableColumns = [
   {
     title: '大小',
     key: 'size',
-    className: 'col-size',
-    width: 110,
+    width: 80,
     sorter: (a: any, b: any) => a.size - b.size,
     render(row: any) {
       return row.is_directory ? '—' : formatSize(row.size)
@@ -288,55 +376,134 @@ const columns: DataTableColumns = [
   {
     title: '修改时间',
     key: 'mod_time',
-    className: 'col-time',
-    width: 170,
+    width: 140,
     sorter: (a: any, b: any) => new Date(a.mod_time).getTime() - new Date(b.mod_time).getTime(),
     render(row: any) {
-      return new Date(row.mod_time).toLocaleString()
+      return formatTime(row.mod_time)
     },
   },
   {
     title: '所有者',
     key: 'owner_name',
-    className: 'col-owner',
-    width: 140,
+    width: 120,
     render(row: any) {
       return isAdmin.value
         ? h(NButton, { text: true, type: 'primary', onClick: () => openOwnerModal(row) }, () => row.owner_name)
-        : row.owner_name as string
+        : (row.owner_name as string)
     },
   },
   {
     title: '操作',
     key: 'actions',
+    width: 180,
     className: 'col-actions',
-    width: 175,
     render(row: any) {
       const btns: any[] = []
 
       if (row.is_directory) {
-        btns.push(iconBtn(EnterOutline, '进入目录', () => navigateTo(row.path), '#3B82F6'))
+        btns.push(iconBtn(EnterOutline, '进入目录', () => navigateTo(row.path), '#1890ff'))
       } else {
-        if (row.can_download) btns.push(iconBtn(CloudDownloadOutline, '下载文件', () => downloadFile(row), '#3B82F6'))
-        if (hasPermShare.value) btns.push(iconBtn(ShareSocialOutline, '分享文件', () => shareFile(row), '#3B82F6'))
+        if (row.can_download) btns.push(iconBtn(CloudDownloadOutline, '下载文件', () => downloadFile(row), '#1890ff'))
+        if (hasPermShare.value) btns.push(iconBtn(ShareSocialOutline, '分享文件', () => shareFile(row), '#1890ff'))
       }
       if (row.can_delete) btns.push(iconBtn(TrashOutline, '删除', () => deleteEntry(row), '#d03050'))
       if (row.can_change) btns.push(iconBtn(CreateOutline, '移动/重命名', () => openMoveModal(row)))
 
-      return h(NSpace, { size: 2 }, () => btns)
+      return h(NSpace, { size: 2, wrap: false }, () => btns)
     },
   },
-]
+])
 
-// 高亮行class判断
+// === 行样式 ===
 function rowClassName(row: any) {
+  const classes: string[] = []
   if (highlightName.value && row.name === highlightName.value) {
-    return 'highlighted-row'
+    classes.push('highlighted-row')
   }
-  return ''
+  const key = row.path || row.name
+  if (checkedKeys.value.includes(key)) {
+    classes.push('checked-row')
+  }
+  return classes.join(' ')
 }
 
-// 应用高亮并设置自动消失
+// === 多选 ===
+function onCheckedKeysChange(keys: DataTableRowKey[]) {
+  checkedKeys.value = keys
+}
+
+// === 批量操作 ===
+function batchDelete() {
+  const keys = [...checkedKeys.value]
+  const count = keys.length
+  const d = dialog.warning({
+    title: '确认批量删除',
+    content: `确认删除选中的 ${count} 个项目？此操作不可恢复。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      d.loading = true
+      let successCount = 0
+      for (const key of keys) {
+        try {
+          await api.delete('/api/files', { data: { path: key } })
+          successCount++
+        } catch (err: any) {
+          message.error(`删除 "${key}" 失败: ${err.response?.data?.error || '未知错误'}`)
+        }
+      }
+      if (successCount > 0) {
+        message.success(`成功删除 ${successCount} 项`)
+      }
+      checkedKeys.value = []
+      d.loading = false
+      await fetchFiles()
+    },
+  })
+}
+
+function batchDownload() {
+  const files = entries.value.filter(
+    (f: any) => !f.is_directory && checkedKeys.value.includes(f.path || f.name)
+  )
+  if (files.length === 0) {
+    message.warning('选中项中没有可下载的文件')
+    return
+  }
+  for (const f of files) {
+    window.open(`/api/download?path=${encodeURIComponent(f.path)}`, '_blank')
+  }
+}
+
+// === 视图切换 ===
+function toggleViewMode() {
+  viewMode.value = viewMode.value === 'list' ? 'grid' : 'list'
+}
+
+// === 网格视图选中（仅 checkbox 触发）===
+function toggleGridSelection(key: string, checked: boolean) {
+  if (checked) {
+    checkedKeys.value = [...checkedKeys.value, key]
+  } else {
+    checkedKeys.value = checkedKeys.value.filter(k => k !== key)
+  }
+}
+
+// === 网格卡片点击（非 checkbox 区域）===
+function onGridCardClick(file: any) {
+  if (file.is_directory) {
+    navigateTo(file.path)
+  }
+  // 文件暂不做任何操作，预留后期文件预览功能入口
+}
+
+function downloadIfAllowed(file: any) {
+  if (file.can_download) {
+    downloadFile(file)
+  }
+}
+
+// === 高亮逻辑 ===
 function applyHighlight() {
   const name = route.query.highlight as string | undefined
   if (highlightTimer) {
@@ -353,6 +520,7 @@ function applyHighlight() {
   }
 }
 
+// === 生命周期 ===
 onMounted(() => {
   const p = (route.query.path as string) || '/'
   currentPath.value = p
@@ -364,15 +532,17 @@ watch(() => route.query.path, (newPath) => {
   const p = (newPath as string) || '/'
   if (p !== currentPath.value) {
     currentPath.value = p
+    searchKeyword.value = ''
+    checkedKeys.value = []
     fetchFiles()
   }
 })
 
 watch(() => route.query.highlight, () => {
-  // 如果只是 highlight 变了但 path 没变，直接应用高亮
   applyHighlight()
 })
 
+// === 数据获取 ===
 async function fetchFiles() {
   loading.value = true
   try {
@@ -385,7 +555,6 @@ async function fetchFiles() {
     console.error('fetchFiles failed:', err)
     entries.value = []
     if (err.response?.status === 403) {
-      // 全局拦截器已弹出"权限不足"toast，这里改为页面内的友好占位提示，避免重复打扰
       permissionDenied.value = true
       permissionDeniedMsg.value = err.response?.data?.error || '您没有访问此目录的权限'
     } else {
@@ -398,6 +567,7 @@ async function fetchFiles() {
   }
 }
 
+// === 导航 ===
 function navigateTo(path: string) {
   router.push({ query: { path } })
 }
@@ -410,6 +580,7 @@ function refresh() {
   fetchFiles()
 }
 
+// === 文件操作 ===
 function onFileSelect(e: Event) {
   const target = e.target as HTMLInputElement
   selectedFile.value = target.files?.[0] || null
@@ -450,15 +621,25 @@ async function handleMkdir() {
   }
 }
 
-async function deleteEntry(row: any) {
-  if (!confirm(`确认删除 "${row.name}"？`)) return
-  try {
-    await api.delete('/api/files', { data: { path: row.path } })
-    message.success('删除成功')
-    await fetchFiles()
-  } catch (err: any) {
-    message.error(err.response?.data?.error || '删除失败')
-  }
+function deleteEntry(row: any) {
+  const d = dialog.warning({
+    title: '确认删除',
+    content: `确认删除 "${row.name}"？此操作不可恢复。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      d.loading = true
+      try {
+        await api.delete('/api/files', { data: { path: row.path } })
+        message.success('删除成功')
+      } catch (err: any) {
+        message.error(err.response?.data?.error || '删除失败')
+      } finally {
+        d.loading = false
+      }
+      await fetchFiles()
+    },
+  })
 }
 
 function downloadFile(row: any) {
@@ -537,50 +718,197 @@ async function fetchAllUsers() {
 </script>
 
 <style scoped>
-.file-explorer-card {
-  height: calc(100vh - 100px);
+.file-explorer {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.file-explorer-card :deep(.n-card__content) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+/* 面包屑 */
+.breadcrumb {
+  padding: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
-/* 顶部路径面包屑区域：灰色圆角边框 */
-.file-explorer-card :deep(.n-card-header) {
-  padding-top: 24px;
-  padding-bottom: 0;
+.breadcrumb-link {
+  color: #1890ff;
+  cursor: pointer;
+  transition: all 0.2s;
 }
-.file-explorer-card :deep(.n-card-header__main) {
-  padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+
+.breadcrumb-link:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb-sep {
+  margin: 0 6px;
+  color: #999;
+}
+
+.breadcrumb-current {
+  font-weight: 700;
+  color: #333;
+}
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  min-height: 50px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.search-input :deep(.n-input) {
   border-radius: 8px;
-  background: #fafafa;
 }
 
-/* 根目录默认粗体 */
-.root-breadcrumb {
-  font-weight: 600;
+/* 批量操作栏 */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 10px;
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 8px;
+  animation: slideIn 0.2s ease;
 }
 
-/* 工具栏与面包屑目视觉间距 ≈ .n-card-header__main padding-top (10px) */
-.toolbar-row {
-  margin-top: 10px;
-  margin-bottom: 10px;
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.file-table-wrapper {
+.batch-info {
+  font-size: 13px;
+  color: #1890ff;
+  font-weight: 500;
+}
+
+/* 文件列表容器 */
+.file-list {
   flex: 1;
-  min-height: 0;
+  height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
+/* 网格视图 */
+.file-grid-container {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 2px;
+}
+
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.grid-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px 16px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.grid-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: #d9d9d9;
+}
+
+.grid-card-selected {
+  background: #e6f7ff;
+  border-color: #1890ff;
+}
+
+.grid-card-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.grid-card:hover .grid-card-checkbox,
+.grid-card-selected .grid-card-checkbox {
+  opacity: 1;
+}
+
+.grid-card-icon {
+  margin-bottom: 12px;
+}
+
+.grid-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.grid-card-info {
+  font-size: 12px;
+  color: #999;
+}
+
+.grid-card-time {
+  font-size: 11px;
+  color: #bbb;
+  margin-top: 4px;
+}
+
+.grid-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+/* 权限拒绝 */
 .permission-denied-result {
   flex: 1;
   display: flex;
@@ -590,11 +918,15 @@ async function fetchAllUsers() {
   padding: 24px 16px;
 }
 
-/* 紧凑化表格行高 */
+/* 表格样式 */
+.file-data-table {
+  flex: 1;
+}
+
 .file-data-table :deep(.n-data-table-td),
 .file-data-table :deep(.n-data-table-th) {
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
   font-size: 13px;
 }
 
@@ -602,24 +934,56 @@ async function fetchAllUsers() {
   font-weight: 600;
 }
 
-/* 名称列：自动吸纳剩余宽度，长文件名按字符换行，不被截断 */
+/* 行悬停 */
+.file-data-table :deep(.n-data-table-tr:hover > .n-data-table-td) {
+  background-color: #f5f7fa !important;
+}
+
+/* 操作按钮悬停显隐 */
+.file-data-table :deep(.col-actions .action-btn) {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.file-data-table :deep(.n-data-table-tr:hover .col-actions .action-btn) {
+  opacity: 1;
+}
+
+/* 选中行操作按钮始终可见 */
+.file-data-table :deep(.checked-row .col-actions .action-btn) {
+  opacity: 1;
+}
+
+/* 选中行背景 */
+.file-data-table :deep(.checked-row > .n-data-table-td) {
+  background-color: #e6f7ff !important;
+}
+
+/* 高亮行样式 */
+.file-data-table :deep(.highlighted-row > .n-data-table-td) {
+  background-color: rgba(24, 160, 88, 0.08) !important;
+  transition: background-color 0.3s ease;
+}
+
+/* 名称列 */
 .file-data-table :deep(.col-name .n-data-table-td__ellipsis),
 .file-data-table :deep(.col-name) {
   white-space: normal !important;
 }
-.file-data-table :deep(.col-name .name-cell) {
+
+.file-data-table :deep(.name-cell) {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   min-width: 0;
-  word-break: break-all;
-  overflow-wrap: anywhere;
 }
-.file-data-table :deep(.col-name .name-text) {
+
+.file-data-table :deep(.name-text) {
   white-space: normal;
   word-break: break-all;
   overflow-wrap: anywhere;
   line-height: 1.5;
 }
+
 .file-data-table :deep(.col-name .n-button__content) {
   white-space: normal;
   word-break: break-all;
@@ -628,15 +992,8 @@ async function fetchAllUsers() {
   line-height: 1.5;
 }
 
-/* 非名称列：紧凑不换行 */
-.file-data-table :deep(.col-time),
+/* 操作列不换行 */
 .file-data-table :deep(.col-actions) {
   white-space: nowrap;
-}
-
-/* 高亮行样式 */
-.file-data-table :deep(.highlighted-row td) {
-  background-color: rgba(24, 160, 88, 0.08) !important;
-  transition: background-color 0.3s ease;
 }
 </style>
