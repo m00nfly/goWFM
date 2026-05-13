@@ -36,3 +36,9 @@ gowfm
 gowfm.exe
 gowfm-darwin
 gowfm-linux
+
+# 后端嵌入的前端构建产物
+# Keep a placeholder file so `//go:embed all:dist` always has a match in CI/lint,
+# while still ignoring generated frontend build outputs.
+backend/internal/web-dist/*
+!backend/internal/web-dist/.keep
