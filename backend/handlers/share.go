@@ -146,9 +146,6 @@ func GetShareInfo(c *gin.Context) {
 		return
 	}
 
-	// 每次访问分享页面，递增访问计数
-	services.IncrementShareAccess(token)
-
 	shareFiles, err := services.GetShareFiles(share.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "get share files failed"})
@@ -187,7 +184,17 @@ func GetShareInfo(c *gin.Context) {
 
 // AccessShareEntry serves the SPA index.html for all share access.
 // The frontend handles token validation via /share/:token/info API.
+// Only direct browser visits to this route count as share link access.
 func AccessShareEntry(c *gin.Context) {
+	token := c.Param("token")
+
+	// Validate share before counting access; silently ignore invalid tokens
+	// (the frontend will show an appropriate error via /share/:token/info)
+	if share, err := services.ValidateShareAccess(token); err == nil {
+		_ = share
+		services.IncrementShareAccess(token)
+	}
+
 	serveIndexHTML(c)
 }
 
@@ -236,8 +243,7 @@ func ShareFileDownload(c *gin.Context) {
 	// 5. Serve file
 	c.File(fullPath)
 
-	// 6. Increment access count + file download count + audit log
-	services.IncrementShareAccess(token)
+	// 6. Increment file download count + audit log
 	services.IncrementFileDownload(matchedFile.ID)
 	services.CreateLog(0, models.ActionShareAccess, matchedFile.FilePath, c.ClientIP(), map[string]interface{}{
 		"token": token,
