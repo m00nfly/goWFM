@@ -1,5 +1,5 @@
 <template>
-  <div class="file-explorer">
+  <div class="file-explorer" :class="{ dark: themeStore.isDark }">
     <!-- 面包屑导航 -->
     <div class="breadcrumb">
       <n-icon size="18" color="#666" style="margin-right: 6px; vertical-align: middle;">
@@ -112,8 +112,54 @@
             @update:checked="toggleGridSelection(file.path || file.name, $event)"
             @click.stop
           />
-          <div class="grid-card-icon">
-            <n-icon :size="48" :color="getFileIcon(file.name, file.is_directory).color">
+          <!-- 操作按钮组 - hover 时显示 -->
+          <div class="grid-card-actions">
+            <n-tooltip v-if="file.is_directory" trigger="hover" placement="top">
+              <template #trigger>
+                <button class="card-action-btn" @click.stop="navigateTo(file.path)">
+                  <n-icon size="16" color="#3b82f6"><EnterOutline /></n-icon>
+                </button>
+              </template>
+              进入目录
+            </n-tooltip>
+            <template v-else>
+              <n-tooltip v-if="file.can_download" trigger="hover" placement="top">
+                <template #trigger>
+                  <button class="card-action-btn" @click.stop="downloadFile(file)">
+                    <n-icon size="16" color="#3b82f6"><CloudDownloadOutline /></n-icon>
+                  </button>
+                </template>
+                下载
+              </n-tooltip>
+              <n-tooltip v-if="hasPermShare" trigger="hover" placement="top">
+                <template #trigger>
+                  <button class="card-action-btn" @click.stop="shareFile(file)">
+                    <n-icon size="16" color="#3b82f6"><ShareSocialOutline /></n-icon>
+                  </button>
+                </template>
+                分享
+              </n-tooltip>
+            </template>
+            <n-tooltip v-if="file.can_delete" trigger="hover" placement="top">
+              <template #trigger>
+                <button class="card-action-btn" @click.stop="deleteEntry(file)">
+                  <n-icon size="16" color="#ef4444"><TrashOutline /></n-icon>
+                </button>
+              </template>
+              删除
+            </n-tooltip>
+            <n-tooltip v-if="file.can_change" trigger="hover" placement="top">
+              <template #trigger>
+                <button class="card-action-btn" @click.stop="openMoveModal(file)">
+                  <n-icon size="16" color="#64748b"><CreateOutline /></n-icon>
+                </button>
+              </template>
+              移动/重命名
+            </n-tooltip>
+          </div>
+          <!-- 图标 - 带彩色背景 -->
+          <div class="grid-card-icon" :class="{ 'icon-folder': file.is_directory, 'icon-file': !file.is_directory }">
+            <n-icon :size="32" :color="getFileIcon(file.name, file.is_directory).color">
               <component :is="getFileIcon(file.name, file.is_directory).icon" />
             </n-icon>
           </div>
@@ -122,7 +168,6 @@
             <span v-if="!file.is_directory">{{ formatSize(file.size) }}</span>
             <span v-else>文件夹</span>
           </div>
-          <div class="grid-card-time">{{ formatTime(file.mod_time) }}</div>
         </div>
       </div>
     </div>
@@ -207,6 +252,7 @@ import {
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
+import { useThemeStore } from '@/stores/theme'
 import { formatSize } from '@/utils/format'
 import {
   FolderOpen,
@@ -237,6 +283,7 @@ const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const userStore = useUserStore()
+const themeStore = useThemeStore()
 
 // === 状态 ===
 const entries = ref<any[]>([])
@@ -760,7 +807,7 @@ async function fetchAllUsers() {
 }
 
 .breadcrumb-link {
-  color: #1890ff;
+  color: #3b82f6;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -771,12 +818,16 @@ async function fetchAllUsers() {
 
 .breadcrumb-sep {
   margin: 0 6px;
-  color: #999;
+  color: #94a3b8;
 }
 
 .breadcrumb-current {
   font-weight: 700;
-  color: #333;
+  color: #1e293b;
+}
+
+.dark .breadcrumb-current {
+  color: #f1f5f9;
 }
 
 /* 工具栏 */
@@ -811,10 +862,15 @@ async function fetchAllUsers() {
   align-items: center;
   gap: 12px;
   padding: 3px 10px;
-  background: #e6f7ff;
-  border: 1px solid #91d5ff;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   border-radius: 8px;
   animation: slideIn 0.2s ease;
+}
+
+.dark .batch-bar {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
 }
 
 @keyframes slideIn {
@@ -830,7 +886,7 @@ async function fetchAllUsers() {
 
 .batch-info {
   font-size: 13px;
-  color: #1890ff;
+  color: #3b82f6;
   font-weight: 500;
 }
 
@@ -853,7 +909,7 @@ async function fetchAllUsers() {
 
 .file-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 16px;
   padding: 16px 10px;
 }
@@ -863,26 +919,47 @@ async function fetchAllUsers() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  text-align: center;
   padding: 20px 16px 16px;
   background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
 }
 
+.dark .grid-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
 .grid-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
-  border-color: #d9d9d9;
+  border-color: #cbd5e1;
+}
+
+.dark .grid-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border-color: #475569;
 }
 
 .grid-card-selected {
-  background: #e6f7ff;
-  border-color: #1890ff;
+  background: #eff6ff;
+  border-color: #3b82f6;
 }
 
+.dark .grid-card-selected {
+  background: #1e3a5f;
+  border-color: #3b82f6;
+}
+
+.grid-card-selected:hover {
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+}
+
+/* 复选框 - hover 和选中时显示 */
 .grid-card-checkbox {
   position: absolute;
   top: 8px;
@@ -896,14 +973,78 @@ async function fetchAllUsers() {
   opacity: 1;
 }
 
+/* 操作按钮组 - 右上角 hover 显示 */
+.grid-card-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.grid-card:hover .grid-card-actions {
+  opacity: 1;
+}
+
+.card-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.card-action-btn:hover {
+  background: #e2e8f0;
+}
+
+.dark .card-action-btn {
+  background: #334155;
+}
+
+.dark .card-action-btn:hover {
+  background: #475569;
+}
+
+/* 图标 - 带彩色背景 */
 .grid-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
   margin-bottom: 12px;
+}
+
+.grid-card-icon.icon-folder {
+  background: #fef3c7;
+}
+
+.dark .grid-card-icon.icon-folder {
+  background: #422006;
+}
+
+.grid-card-icon.icon-file {
+  background: #eff6ff;
+}
+
+.dark .grid-card-icon.icon-file {
+  background: #172554;
 }
 
 .grid-card-name {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: #1e293b;
   text-align: center;
   width: 100%;
   overflow: hidden;
@@ -912,15 +1053,13 @@ async function fetchAllUsers() {
   margin-bottom: 4px;
 }
 
-.grid-card-info {
-  font-size: 12px;
-  color: #999;
+.dark .grid-card-name {
+  color: #f1f5f9;
 }
 
-.grid-card-time {
+.grid-card-info {
   font-size: 11px;
-  color: #bbb;
-  margin-top: 4px;
+  color: #94a3b8;
 }
 
 .grid-empty {
@@ -979,7 +1118,11 @@ async function fetchAllUsers() {
 
 /* 选中行背景 */
 .file-data-table :deep(.checked-row > .n-data-table-td) {
-  background-color: #e6f7ff !important;
+  background-color: #eff6ff !important;
+}
+
+.dark .file-data-table :deep(.checked-row > .n-data-table-td) {
+  background-color: #1e3a5f !important;
 }
 
 /* 高亮行样式 */
@@ -1025,5 +1168,10 @@ async function fetchAllUsers() {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
+}
+
+/* ============ 暗色模式 - 表格 ============ */
+.dark .file-data-table :deep(.n-data-table-tr:hover > .n-data-table-td) {
+  background-color: #1e293b !important;
 }
 </style>

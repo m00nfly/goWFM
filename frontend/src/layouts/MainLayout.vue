@@ -1,88 +1,128 @@
 <template>
-  <n-layout class="main-layout">
-    <!-- 顶部导航栏 - 全宽固定 -->
-    <n-layout-header class="top-header">
-      <div class="header-brand" @click="router.push('/')">
-        <n-icon size="35" color="#3B82F6">
-              <folder-open-outline />
-        </n-icon>
-        <span class="brand-text">{{ orgName || 'goWFM' }}</span>
-      </div>
-      <div class="header-actions">
-        <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
-          <div class="user-trigger">
-            <n-avatar
-              round
-              :size="32"
-              :style="{ backgroundColor: '#1890ff', cursor: 'pointer', fontSize: '14px' }"
-            >
-              {{ avatarLetter }}
-            </n-avatar>
-            <span class="user-display-name">{{ displayName }}</span>
+  <div class="main-layout" :class="{ dark: themeStore.isDark }">
+    <!-- 顶部导航栏 - 固定毛玻璃效果 -->
+    <header class="top-header">
+      <div class="header-inner">
+        <!-- Logo -->
+        <div class="header-brand" @click="router.push('/')">
+          <div class="brand-icon">
+            <n-icon size="20" color="#fff"><FolderOpenOutline /></n-icon>
           </div>
-        </n-dropdown>
-      </div>
-    </n-layout-header>
+          <span class="brand-text">{{ orgName || 'goWFM' }}</span>
+        </div>
 
-    <!-- 侧边栏 + 内容区 -->
-    <n-layout has-sider class="body-layout">
-      <n-layout-sider
-        class="side-nav"
-        collapse-mode="width"
-        :collapsed-width="64"
-        :width="175"
-        :collapsed="collapsed"
-        show-trigger="bar"
-        @collapse="collapsed = true"
-        @expand="collapsed = false"
-      >
-        <div class="sider-inner">
-          <div class="sider-menu-area">
-            <n-menu
-              :value="activeMenuKey"
-              :collapsed="collapsed"
-              :collapsed-icon-size="22"
-              :options="menuOptions"
-              @update:value="onMenuSelect"
-            />
-          </div>
-        </div>
-      </n-layout-sider>
+        <!-- 右侧操作区 -->
+        <div class="header-actions">
+          <!-- 导航图标 -->
+          <div class="nav-icons">
+            <n-tooltip trigger="hover" placement="bottom">
+              <template #trigger>
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/' }" @click="router.push('/')">
+                  <n-icon size="20"><FolderOpenOutline /></n-icon>
+                </button>
+              </template>
+              文件管理
+            </n-tooltip>
 
-      <n-layout-content class="main-content">
-        <div class="content-wrapper">
-          <router-view />
-        </div>
-        <div class="content-footer">
-          <div class="footer-content">
-            <template v-if="orgLink">
-              <a :href="orgLink" target="_blank" class="footer-org-link">{{ orgName || orgLink }}</a>
-              <span class="footer-separator">|</span>
-            </template>
-            <template v-else-if="orgName">
-              <span class="footer-org-text">{{ orgName }}</span>
-              <span class="footer-separator">|</span>
-            </template>
-            <a :href="appLink" target="_blank" class="footer-app-link">goWFM</a>
-            <a v-if="appGithub" :href="appGithub" target="_blank" class="footer-github-link">
-              <n-icon :size="14"><logo-github /></n-icon>
-            </a>
-            <span v-if="version" class="footer-version">ver: {{ version }}</span>
+            <n-tooltip v-if="userStore.user?.is_admin || userStore.hasPermission(8)" trigger="hover" placement="bottom">
+              <template #trigger>
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === shareMenuKey }" @click="router.push(shareMenuKey)">
+                  <n-icon size="20"><ShareSocialOutline /></n-icon>
+                </button>
+              </template>
+              {{ userStore.user?.is_admin ? '分享管理' : '我的分享' }}
+            </n-tooltip>
+
+            <n-tooltip v-if="userStore.hasPermission(16)" trigger="hover" placement="bottom">
+              <template #trigger>
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/logs' }" @click="router.push('/logs')">
+                  <n-icon size="20"><DocumentTextOutline /></n-icon>
+                </button>
+              </template>
+              操作日志
+            </n-tooltip>
+
+            <n-tooltip v-if="userStore.user?.is_admin" trigger="hover" placement="bottom">
+              <template #trigger>
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/admin/users' }" @click="router.push('/admin/users')">
+                  <n-icon size="20"><PeopleOutline /></n-icon>
+                </button>
+              </template>
+              用户管理
+            </n-tooltip>
+
+            <n-tooltip v-if="userStore.user?.is_admin" trigger="hover" placement="bottom">
+              <template #trigger>
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/admin/settings' }" @click="router.push('/admin/settings')">
+                  <n-icon size="20"><CogOutline /></n-icon>
+                </button>
+              </template>
+              系统设置
+            </n-tooltip>
           </div>
+
+          <!-- 主题切换 -->
+          <n-tooltip trigger="hover" placement="bottom">
+            <template #trigger>
+              <button class="nav-icon-btn theme-btn" @click="themeStore.toggleTheme()">
+                <n-icon size="20"><SunnyOutline v-if="themeStore.isDark" /><MoonOutline v-else /></n-icon>
+              </button>
+            </template>
+            {{ themeStore.isDark ? '切换亮色' : '切换暗色' }}
+          </n-tooltip>
+
+          <!-- 分隔线 -->
+          <div class="header-divider"></div>
+
+          <!-- 用户下拉 -->
+          <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
+            <div class="user-trigger">
+              <n-avatar
+                round
+                :size="32"
+                :style="{ backgroundColor: '#3b82f6', cursor: 'pointer', fontSize: '14px' }"
+              >
+                {{ avatarLetter }}
+              </n-avatar>
+              <span class="user-display-name">{{ displayName }}</span>
+            </div>
+          </n-dropdown>
         </div>
-      </n-layout-content>
-    </n-layout>
-  </n-layout>
+      </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <div class="content-wrapper">
+        <router-view />
+      </div>
+      <div class="content-footer">
+        <div class="footer-content">
+          <template v-if="orgLink">
+            <a :href="orgLink" target="_blank" class="footer-org-link">{{ orgName || orgLink }}</a>
+            <span class="footer-separator">|</span>
+          </template>
+          <template v-else-if="orgName">
+            <span class="footer-org-text">{{ orgName }}</span>
+            <span class="footer-separator">|</span>
+          </template>
+          <a :href="appLink" target="_blank" class="footer-app-link">goWFM</a>
+          <a v-if="appGithub" :href="appGithub" target="_blank" class="footer-github-link">
+            <n-icon :size="14"><LogoGithub /></n-icon>
+          </a>
+          <span v-if="version" class="footer-version">ver: {{ version }}</span>
+        </div>
+      </div>
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, h, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  NLayout, NLayoutSider, NLayoutHeader, NLayoutContent,
-  NMenu, NDropdown, NIcon, NAvatar,
+  NDropdown, NIcon, NAvatar, NTooltip,
 } from 'naive-ui'
-import type { MenuOption } from 'naive-ui'
 import {
   FolderOpenOutline,
   ShareSocialOutline,
@@ -90,18 +130,20 @@ import {
   PeopleOutline,
   SettingsOutline,
   CogOutline,
-  PersonCircleOutline,
   LogOutOutline,
   LogoGithub,
+  SunnyOutline,
+  MoonOutline,
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
+import { useThemeStore } from '@/stores/theme'
 import api from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const themeStore = useThemeStore()
 
-const collapsed = ref(false)
 const version = ref('')
 const orgName = ref('')
 const orgLink = ref('')
@@ -119,56 +161,13 @@ const avatarLetter = computed(() => {
   return name ? name.charAt(0).toUpperCase() : 'U'
 })
 
-// ---------- 菜单配置 ----------
+// ---------- 导航配置 ----------
 
-const menuOptions = computed<MenuOption[]>(() => {
-  const items: MenuOption[] = [
-    {
-      label: '文件管理',
-      key: '/',
-      icon: () => h(NIcon, null, () => h(FolderOpenOutline)),
-    },
-  ]
+const shareMenuKey = computed(() =>
+  userStore.user?.is_admin ? '/admin/shares' : '/shares'
+)
 
-  if (userStore.user?.is_admin) {
-    items.push({
-      label: '分享管理',
-      key: '/admin/shares',
-      icon: () => h(NIcon, null, () => h(ShareSocialOutline)),
-    })
-  } else if (userStore.hasPermission(8)) {
-    items.push({
-      label: '我的分享',
-      key: '/shares',
-      icon: () => h(NIcon, null, () => h(ShareSocialOutline)),
-    })
-  }
-
-  if (userStore.hasPermission(16)) {
-    items.push({
-      label: '操作日志',
-      key: '/logs',
-      icon: () => h(NIcon, null, () => h(DocumentTextOutline)),
-    })
-  }
-
-  if (userStore.user?.is_admin) {
-    items.push({
-      label: '用户管理',
-      key: '/admin/users',
-      icon: () => h(NIcon, null, () => h(PeopleOutline)),
-    })
-    items.push({
-      label: '系统设置',
-      key: '/admin/settings',
-      icon: () => h(NIcon, null, () => h(CogOutline)),
-    })
-  }
-
-  return items
-})
-
-// 高亮的菜单 key
+// 高亮的导航 key
 const activeMenuKey = computed(() => {
   const p = route.path
   if (p.startsWith('/admin/shares')) return '/admin/shares'
@@ -197,10 +196,6 @@ const userDropdownOptions = computed(() => [
 
 // ---------- 事件处理 ----------
 
-function onMenuSelect(key: string) {
-  router.push(key)
-}
-
 async function onUserAction(key: string) {
   if (key === 'settings') {
     router.push('/settings')
@@ -226,116 +221,196 @@ onMounted(async () => {
 <style scoped>
 .main-layout {
   min-height: 100vh;
+  background: #f8fafc;
+  transition: background 0.3s ease;
 }
 
-/* ---- 顶部导航栏 ---- */
+.dark.main-layout {
+  background: #0f172a;
+}
+
+/* ---- 顶部导航栏 - 毛玻璃效果 ---- */
 .top-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+  background-color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid #e2e8f0;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.dark .top-header {
+  background-color: rgba(15, 23, 42, 0.85);
+  border-bottom: 1px solid #1e293b;
+}
+
+.header-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 56px;
-  padding: 0 24px;
-  background: #fff;
-  border-bottom: 1px solid #e8e8e8;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 100;
 }
 
+/* ---- Logo ---- */
 .header-brand {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-.brand-text {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1890ff;
-  margin-left: 10px;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-}
-
-.user-trigger {
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
+  user-select: none;
+}
+
+.brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #3b82f6;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.brand-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.025em;
+  transition: color 0.3s ease;
+}
+
+.dark .brand-text {
+  color: #f1f5f9;
+}
+
+@media (max-width: 640px) {
+  .brand-text {
+    display: none;
+  }
+}
+
+/* ---- 右侧操作区 ---- */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---- 导航图标 ---- */
+.nav-icons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nav-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.nav-icon-btn:hover {
+  background: #f1f5f9;
+  color: #3b82f6;
+}
+
+.nav-icon-btn.active {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.dark .nav-icon-btn {
+  color: #94a3b8;
+}
+
+.dark .nav-icon-btn:hover {
+  background: #1e293b;
+  color: #60a5fa;
+}
+
+.dark .nav-icon-btn.active {
+  background: #1e3a5f;
+  color: #60a5fa;
+}
+
+/* ---- 分隔线 ---- */
+.header-divider {
+  width: 1px;
+  height: 24px;
+  background: #e2e8f0;
+  margin: 0 8px;
+  transition: background 0.3s ease;
+}
+
+.dark .header-divider {
+  background: #334155;
+}
+
+/* ---- 用户触发 ---- */
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 8px 4px 4px;
+  border-radius: 8px;
   transition: background-color 0.2s;
 }
 
 .user-trigger:hover {
-  background-color: #f5f5f5;
+  background-color: #f1f5f9;
+}
+
+.dark .user-trigger:hover {
+  background-color: #1e293b;
 }
 
 .user-display-name {
-  font-size: 14px;
-  color: #333;
-  max-width: 120px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.3s ease;
 }
 
-/* ---- 下方布局 ---- */
-.body-layout {
-  height: calc(100vh - 56px);
+.dark .user-display-name {
+  color: #cbd5e1;
 }
 
-/* ---- 侧边栏 ---- */
-.side-nav {
-  background: #fff !important;
-  border-right: 1px solid #e8e8e8 !important;
-}
-
-.sider-inner {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.sider-menu-area {
-  flex: 1;
-  overflow-y: auto;
-  padding-top: 8px;
-}
-
-/* 菜单选中态: 圆角 + 文字加粗 + 浅色背景 */
-.side-nav :deep(.n-menu-item-content--selected) {
-  font-weight: 600;
-}
-
-.side-nav :deep(.n-menu-item-content) {
-  position: relative;
-  font-size: 14px;
-}
-
-.side-nav :deep(.n-menu-item-content__icon) {
-  margin-right: 12px !important;
-  margin-left: 8px !important;
+@media (max-width: 768px) {
+  .user-display-name {
+    display: none;
+  }
 }
 
 /* ---- 主内容区 ---- */
 .main-content {
-  background: #f0f2f5;
+  padding-top: 56px;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 56px);
-  overflow: hidden;
 }
 
 .content-wrapper {
   flex: 1;
-  height: calc(100vh - 135px);
   width: 95%;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 24px 24px 12px;
   overflow: hidden;
@@ -348,7 +423,12 @@ onMounted(async () => {
   text-align: center;
   padding: 12px;
   font-size: 12px;
-  color: #999;
+  color: #94a3b8;
+  transition: color 0.3s ease;
+}
+
+.dark .content-footer {
+  color: #475569;
 }
 
 .footer-content {
@@ -358,11 +438,15 @@ onMounted(async () => {
 }
 
 .footer-separator {
-  color: #d9d9d9;
+  color: #cbd5e1;
+}
+
+.dark .footer-separator {
+  color: #334155;
 }
 
 .footer-app-link {
-  color: #1890ff;
+  color: #3b82f6;
   text-decoration: none;
   font-weight: 500;
 }
@@ -372,12 +456,16 @@ onMounted(async () => {
 }
 
 .footer-version {
-  color: #bbb;
+  color: #cbd5e1;
   font-size: 11px;
 }
 
+.dark .footer-version {
+  color: #334155;
+}
+
 .footer-org-link {
-  color: #1890ff;
+  color: #3b82f6;
   text-decoration: none;
 }
 
@@ -386,17 +474,25 @@ onMounted(async () => {
 }
 
 .footer-org-text {
-  color: #666;
+  color: #64748b;
+}
+
+.dark .footer-org-text {
+  color: #64748b;
 }
 
 .footer-github-link {
-  color: #666;
+  color: #64748b;
   display: inline-flex;
   align-items: center;
   transition: color 0.2s;
 }
 
 .footer-github-link:hover {
-  color: #333;
+  color: #334155;
+}
+
+.dark .footer-github-link:hover {
+  color: #cbd5e1;
 }
 </style>
