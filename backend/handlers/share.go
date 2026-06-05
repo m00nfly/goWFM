@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,26 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// frontendFileServer holds the http.Handler for serving embedded SPA files.
+// Must be initialized via SetFrontendFS from main.go.
+var frontendFileServer http.Handler
+
+// SetFrontendFS sets the frontend file server for serving SPA index.html.
+func SetFrontendFS(h http.Handler) {
+	frontendFileServer = h
+}
+
+// serveIndexHTML serves the embedded SPA index.html to the client.
+func serveIndexHTML(c *gin.Context) {
+	if frontendFileServer == nil {
+		c.String(http.StatusInternalServerError, "frontend not available")
+		return
+	}
+	c.Request.URL.Path = "/"
+	c.Status(http.StatusOK)
+	frontendFileServer.ServeHTTP(c.Writer, c.Request)
+}
 
 func CreateShareLink(c *gin.Context) {
 	userID := c.GetInt64("userID")
@@ -28,32 +49,39 @@ func CreateShareLink(c *gin.Context) {
 	}
 
 	var req struct {
-		FilePath   string `json:"file_path" binding:"required"`
-		ExpireDays int    `json:"expire_days"`
+		FilePaths  []string `json:"file_paths" binding:"required"`
+		ExpireDays int      `json:"expire_days"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	_, err = services.SafePath(req.FilePath)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if len(req.FilePaths) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file_paths must contain at least one file"})
 		return
 	}
 
-	if _, err := services.DownloadFile(req.FilePath); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file not found or is directory"})
-		return
+	// Validate each file path
+	for _, fp := range req.FilePaths {
+		if _, err := services.SafePath(fp); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid path %q: %s", fp, err.Error())})
+			return
+		}
+		if _, err := services.DownloadFile(fp); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("file not found or is directory: %s", fp)})
+			return
+		}
 	}
 
-	share, err := services.CreateShare(req.FilePath, user.ID, req.ExpireDays)
+	share, err := services.CreateShare(req.FilePaths, user.ID, req.ExpireDays)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create share failed"})
 		return
 	}
 
-	services.CreateLog(user.ID, models.ActionShareCreate, req.FilePath, c.ClientIP(), map[string]interface{}{"token": share.Token})
+	pathsJSON, _ := json.Marshal(req.FilePaths)
+	services.CreateLog(user.ID, models.ActionShareCreate, string(pathsJSON), c.ClientIP(), map[string]interface{}{"token": share.Token})
 
 	link := fmt.Sprintf("%s/share/%s", config.C.OrgLink, share.Token)
 	c.JSON(http.StatusOK, gin.H{
@@ -118,43 +146,101 @@ func GetShareInfo(c *gin.Context) {
 		return
 	}
 
-	fullPath, err := services.DownloadFile(share.FilePath)
+	// 每次访问分享页面，递增访问计数
+	services.IncrementShareAccess(token)
+
+	shareFiles, err := services.GetShareFiles(share.ID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "get share files failed"})
 		return
 	}
 
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "file stat failed"})
-		return
+	type fileInfo struct {
+		FileName      string `json:"file_name"`
+		FileSize      int64  `json:"file_size"`
+		FilePath      string `json:"file_path"`
+		DownloadCount int    `json:"download_count"`
 	}
 
-	filename := filepath.Base(fullPath)
+	files := make([]fileInfo, 0, len(shareFiles))
+	for _, f := range shareFiles {
+		fullPath, err := services.DownloadFile(f.FilePath)
+		if err != nil {
+			continue // skip unavailable files
+		}
+		info, statErr := os.Stat(fullPath)
+		if statErr != nil {
+			continue // skip files that can't be stat'd
+		}
+		files = append(files, fileInfo{
+			FileName:      filepath.Base(fullPath),
+			FileSize:      info.Size(),
+			FilePath:      f.FilePath,
+			DownloadCount: f.DownloadCount,
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"file_name": filename,
-		"file_size": info.Size(),
+		"files": files,
 	})
 }
 
-func AccessShare(c *gin.Context) {
-	token := c.Param("token")
+// AccessShareEntry serves the SPA index.html for all share access.
+// The frontend handles token validation via /share/:token/info API.
+func AccessShareEntry(c *gin.Context) {
+	serveIndexHTML(c)
+}
 
+// ShareFileDownload handles file download via /share/:token/:filename.
+// The filename in URL allows wget/curl to save with the correct name.
+func ShareFileDownload(c *gin.Context) {
+	token := c.Param("token")
+	filename := c.Param("filename")
+
+	// 1. Validate token
 	share, err := services.ValidateShareAccess(token)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
 
-	fullPath, err := services.DownloadFile(share.FilePath)
+	// 2. Get share files and find matching filename
+	shareFiles, err := services.GetShareFiles(share.ID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "get share files failed"})
 		return
 	}
 
-	services.CreateLog(share.OwnerID, models.ActionShareAccess, share.FilePath, c.ClientIP(), map[string]interface{}{"token": token})
+	var matchedFile *models.ShareFile
+	for i, f := range shareFiles {
+		if filepath.Base(f.FilePath) == filename {
+			matchedFile = &shareFiles[i]
+			break
+		}
+	}
+	if matchedFile == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
 
-	c.Header("Content-Disposition", BuildAttachmentDisposition(filepath.Base(fullPath)))
+	// 3. Get full file path
+	fullPath, err := services.DownloadFile(matchedFile.FilePath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	// 4. Set Content-Disposition for browser download
+	c.Header("Content-Disposition", BuildAttachmentDisposition(filename))
+
+	// 5. Serve file
 	c.File(fullPath)
+
+	// 6. Increment access count + file download count + audit log
 	services.IncrementShareAccess(token)
+	services.IncrementFileDownload(matchedFile.ID)
+	services.CreateLog(0, models.ActionShareAccess, matchedFile.FilePath, c.ClientIP(), map[string]interface{}{
+		"token": token,
+		"ip":    c.ClientIP(),
+	})
 }

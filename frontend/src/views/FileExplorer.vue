@@ -40,6 +40,7 @@
       <div v-if="checkedKeys.length > 0" class="batch-bar">
         <span class="batch-info">已选择 {{ checkedKeys.length }} 项</span>
         <n-button size="small" @click="batchDownload" v-if="userStore.hasPermission(2)">批量下载</n-button>
+        <n-button size="small" @click="batchShare" v-if="hasPermShare">批量分享</n-button>
         <n-button size="small" type="error" @click="batchDelete" v-if="userStore.user?.is_admin || userStore.hasPermission(4)">批量删除</n-button>
         <n-button size="small" quaternary @click="checkedKeys = []">取消选择</n-button>
       </div>
@@ -179,8 +180,14 @@
     <!-- 创建分享模态框 -->
     <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="showShareModal = false" :mask-closable="false">
       <n-form label-placement="left" label-width="80">
-        <n-form-item label="文件路径">
-          <n-input :value="shareFilePath" readonly />
+        <n-form-item label="文件">
+          <div v-if="shareFilePaths.length === 1">
+            <n-input :value="shareFilePaths[0]" readonly />
+          </div>
+          <div v-else class="share-file-list">
+            <n-tag v-for="p in shareFilePaths" :key="p" size="small" style="margin: 2px 4px;">{{ p.split('/').pop() }}</n-tag>
+            <p style="color: #999; font-size: 12px; margin-top: 4px;">共 {{ shareFilePaths.length }} 个文件</p>
+          </div>
         </n-form-item>
         <n-form-item label="有效期(天)">
           <n-input-number v-model:value="shareExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
@@ -195,7 +202,7 @@ import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber,
-  NSelect, NIcon, NTooltip, NResult, NEmpty, NSpace, NCheckbox, useMessage, useDialog
+  NSelect, NIcon, NTooltip, NResult, NEmpty, NSpace, NCheckbox, NTag, useMessage, useDialog
 } from 'naive-ui'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import api from '@/api'
@@ -244,7 +251,7 @@ const showMkdirModal = ref(false)
 const showMoveModal = ref(false)
 const showOwnerModal = ref(false)
 const showShareModal = ref(false)
-const shareFilePath = ref('')
+const shareFilePaths = ref<string[]>([])
 const shareExpireDays = ref(7)
 const shareLoading = ref(false)
 const uploading = ref(false)
@@ -475,6 +482,22 @@ function batchDownload() {
   }
 }
 
+function batchShare() {
+  const filePaths = checkedKeys.value.filter((key: any) => {
+    const item = entries.value.find((f: any) => (f.path || f.name) === key)
+    return item && !item.is_directory
+  }) as string[]
+
+  if (filePaths.length === 0) {
+    message.warning('请至少选择一个文件（目录不可分享）')
+    return
+  }
+
+  shareFilePaths.value = filePaths
+  shareExpireDays.value = 7
+  showShareModal.value = true
+}
+
 // === 视图切换 ===
 function toggleViewMode() {
   viewMode.value = viewMode.value === 'list' ? 'grid' : 'list'
@@ -647,7 +670,7 @@ function downloadFile(row: any) {
 }
 
 function shareFile(row: any) {
-  shareFilePath.value = row.path
+  shareFilePaths.value = [row.path]
   shareExpireDays.value = 7
   showShareModal.value = true
 }
@@ -656,8 +679,8 @@ async function handleCreateShare() {
   shareLoading.value = true
   try {
     const res = await api.post('/api/shares', {
-      file_path: shareFilePath.value,
-      expire_days: shareExpireDays.value
+      file_paths: shareFilePaths.value,
+      expire_days: shareExpireDays.value,
     })
     message.success('分享创建成功')
     showShareModal.value = false
@@ -832,7 +855,7 @@ async function fetchAllUsers() {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
-  padding: 16px 0;
+  padding: 16px 10px;
 }
 
 .grid-card {
@@ -995,5 +1018,12 @@ async function fetchAllUsers() {
 /* 操作列不换行 */
 .file-data-table :deep(.col-actions) {
   white-space: nowrap;
+}
+
+/* 分享文件列表 */
+.share-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
 }
 </style>

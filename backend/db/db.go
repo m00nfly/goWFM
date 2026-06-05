@@ -71,7 +71,7 @@ func migrate(d *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS shares (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			token TEXT UNIQUE NOT NULL,
-			file_path TEXT NOT NULL,
+			file_path TEXT DEFAULT '',
 			owner_id INTEGER NOT NULL,
 			expire_at DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -96,6 +96,13 @@ func migrate(d *sql.DB) error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS share_files (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			share_id INTEGER NOT NULL,
+			file_path TEXT NOT NULL,
+			download_count INTEGER DEFAULT 0,
+			FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE
+		)`,
 	}
 
 	for _, m := range migrations {
@@ -106,6 +113,14 @@ func migrate(d *sql.DB) error {
 
 	// 兼容已有数据库，添加 deleted 字段
 	d.Exec(`ALTER TABLE shares ADD COLUMN deleted INTEGER DEFAULT 0`)
+
+	// 迁移：将已有 shares.file_path 数据同步到 share_files
+	d.Exec(`INSERT OR IGNORE INTO share_files (share_id, file_path)
+		SELECT id, file_path FROM shares WHERE file_path != '' AND file_path IS NOT NULL
+		AND id NOT IN (SELECT share_id FROM share_files)`)
+
+	// 迁移：share_files 增加 download_count 字段
+	d.Exec(`ALTER TABLE share_files ADD COLUMN download_count INTEGER DEFAULT 0`)
 
 	return nil
 }

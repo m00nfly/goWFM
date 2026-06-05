@@ -66,13 +66,15 @@ func setupRouter() *gin.Engine {
 		auth.GET("/admin/share-users", middleware.AdminRequired(), handlers.ListShareUsers)
 	}
 
-	r.GET("/share/:token", handlers.AccessShare)
+	r.GET("/share/:token", handlers.AccessShareEntry)
 	r.GET("/share/:token/info", handlers.GetShareInfo)
+	r.GET("/share/:token/:filename", handlers.ShareFileDownload)
 
 	staticFS, err := getFrontendFS()
 	if err == nil {
 		httpFS := http.FS(staticFS)
 		fileServer := http.FileServer(httpFS)
+		handlers.SetFrontendFS(fileServer)
 		r.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 			if path == "/favicon.ico" || strings.HasPrefix(path, "/assets/") {

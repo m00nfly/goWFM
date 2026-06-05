@@ -8,7 +8,7 @@
         当前共有 {{ totalCount }} 个文件分享，{{ validCount }} 个有效，{{ expiredCount }} 个已过期
       </div>
       <n-space align="center" style="margin-bottom: 12px;">
-        <n-input v-model:value="filterFileName" placeholder="按文件名筛选" clearable size="small" style="width: 200px;" />
+        <n-input v-model:value="filterFileName" placeholder="按文件名/Token筛选" clearable size="small" style="width: 200px;" />
         <n-select v-model:value="filterOwnerId" :options="ownerOptions" placeholder="按分享者筛选" clearable size="small" style="width: 160px;" />
         <n-select v-model:value="filterStatus" :options="statusOptions" placeholder="按状态筛选" clearable size="small" style="width: 130px;" />
       </n-space>
@@ -29,12 +29,24 @@
       </div>
 
     </n-card>
+
+    <n-modal v-model:show="showFilesModal" preset="card" title="分享文件列表" style="width: 600px; max-width: 90vw;">
+      <n-spin :show="filesModalLoading">
+        <div v-if="modalFiles.length > 0" class="files-modal-list">
+          <div v-for="file in modalFiles" :key="file.file_name" class="file-item">
+            <span class="file-name-link" @click="navigateToFile(file.file_path)">{{ file.file_name }}</span>
+            <span class="file-download-count">下载 {{ file.download_count }} 次</span>
+          </div>
+        </div>
+        <n-empty v-else description="暂无文件" />
+      </n-spin>
+    </n-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, NInput, NSelect, NPopconfirm, useMessage } from 'naive-ui'
+import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, NInput, NSelect, NPopconfirm, NModal, NSpin, NEmpty, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -68,10 +80,18 @@ const totalCount = computed(() => shares.value.length)
 const validCount = computed(() => shares.value.filter((s: any) => s.status === 'valid').length)
 const expiredCount = computed(() => shares.value.filter((s: any) => s.status === 'expired').length)
 
-// 筛选过滤
+// 文件详情 modal 状态
+const showFilesModal = ref(false)
+const filesModalLoading = ref(false)
+const modalFiles = ref<Array<{file_name: string, file_path: string, file_size: number, download_count: number}>>([])
+
+// 筛选过滤（同时匹配 file_name 和 token）
 const filteredShares = computed(() => {
   return shares.value.filter(s => {
-    if (filterFileName.value && !s.file_name.toLowerCase().includes(filterFileName.value.toLowerCase())) return false
+    if (filterFileName.value) {
+      const keyword = filterFileName.value.toLowerCase()
+      if (!s.file_name.toLowerCase().includes(keyword) && !(s.token && s.token.toLowerCase().includes(keyword))) return false
+    }
     if (filterOwnerId.value && s.owner_id !== filterOwnerId.value) return false
     if (filterStatus.value && s.status !== filterStatus.value) return false
     return true
@@ -111,19 +131,52 @@ function getStatusTooltip(row: any): string {
   return `到期时间: ${row.expire_at}\n已过期`
 }
 
+async function openFilesModal(row: any) {
+  showFilesModal.value = true
+  filesModalLoading.value = true
+  try {
+    const res = await api.get(`/share/${row.token}/info`)
+    modalFiles.value = res.data.files || []
+  } catch (err: any) {
+    message.error('获取文件列表失败')
+    modalFiles.value = []
+  } finally {
+    filesModalLoading.value = false
+  }
+}
+
 const columns: DataTableColumns = [
   {
-    title: '文件名',
+    title: '分享ID',
+    key: 'token',
+    className: 'col-token',
+    width: 300,
+    render: (row: any) => {
+      // const shortToken = row.token ? row.token.substring(0, 8) + '...' : ''
+      // return h(NTooltip, { trigger: 'hover' }, {
+      //   trigger: () => h('span', {}, shortToken),
+      //   default: () => row.token,
+      // })
+      return h('span', {}, row.token)
+    },
+  },
+  {
+    title: '分享文件',
     key: 'file_name',
-    className: 'col-name',
-    render: (row: any) =>
-      h(NTooltip, { trigger: 'hover' }, {
-        trigger: () => h('span', {
+    className: 'col-files',
+    render: (row: any) => {
+      const isMulti = row.file_count && row.file_count > 1
+      if (isMulti) {
+        return h('span', {
           class: 'file-link',
-          onClick: () => navigateToFile(row.file_path),
-        }, row.file_name),
-        default: () => row.file_path,
-      }),
+          onClick: () => openFilesModal(row),
+        }, `分享${row.file_count}个文件`)
+      }
+      return h('span', {
+        class: 'file-link',
+        onClick: () => navigateToFile(row.file_path),
+      }, row.file_name)
+    },
   },
   {
     title: '分享者',
@@ -156,16 +209,16 @@ const columns: DataTableColumns = [
     },
   },
   {
+    title: '访问次数',
+    key: 'access_count',
+    width: 90,
+    className: 'col-count',
+  },
+  {
     title: '创建时间',
     key: 'created_at',
     width: 170,
     className: 'col-time',
-  },
-  {
-    title: '下载次数',
-    key: 'access_count',
-    width: 100,
-    className: 'col-count',
   },
   {
     title: '操作',
@@ -263,14 +316,20 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* 文件名列自适应换行 */
-.shares-data-table :deep(.col-name .n-data-table-td__ellipsis),
-.shares-data-table :deep(.col-name) {
+/* 分享ID列 */
+.shares-data-table :deep(.col-token) {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+/* 分享文件列自适应换行 */
+.shares-data-table :deep(.col-files .n-data-table-td__ellipsis),
+.shares-data-table :deep(.col-files) {
   white-space: normal !important;
   max-width: 50%;
 }
 
-.shares-data-table :deep(.col-name .file-link) {
+.shares-data-table :deep(.col-files .file-link) {
   color: var(--primary-color);
   cursor: pointer;
   word-break: break-all;
@@ -278,7 +337,7 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
-.shares-data-table :deep(.col-name .file-link:hover) {
+.shares-data-table :deep(.col-files .file-link:hover) {
   text-decoration: underline;
 }
 
@@ -286,7 +345,6 @@ onUnmounted(() => {
 .shares-data-table :deep(.col-status),
 .shares-data-table :deep(.col-owner),
 .shares-data-table :deep(.col-time),
-.shares-data-table :deep(.col-count),
 .shares-data-table :deep(.col-actions) {
   white-space: nowrap;
 }
@@ -312,5 +370,38 @@ onUnmounted(() => {
   font-size: 14px;
   color: #666;
   padding: 8px 0;
+}
+
+/* 文件列表 modal */
+.files-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.files-modal-list .file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #f9f9f9;
+}
+
+.files-modal-list .file-name-link {
+  color: var(--primary-color);
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.files-modal-list .file-name-link:hover {
+  text-decoration: underline;
+}
+
+.files-modal-list .file-download-count {
+  white-space: nowrap;
+  color: #999;
+  font-size: 12px;
+  margin-left: 16px;
 }
 </style>

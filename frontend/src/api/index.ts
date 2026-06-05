@@ -12,9 +12,9 @@ api.interceptors.response.use(
     const configUrl = err.config?.url || ''
 
     if (status === 401) {
-      const isAuthEndpoint = configUrl.includes('/api/auth/login') || configUrl.includes('/api/setup')
-      const isLoginPage = window.location.pathname === '/login'
-      if (!isAuthEndpoint && !isLoginPage) {
+      const isAuthEndpoint = configUrl.includes('/api/auth/login') || configUrl.includes('/api/setup') || configUrl.includes('/api/auth/me')
+      const isPublicPage = window.location.pathname === '/login' || window.location.pathname.startsWith('/share/')
+      if (!isAuthEndpoint && !isPublicPage) {
         window.location.href = '/login'
         return new Promise(() => {})
       }

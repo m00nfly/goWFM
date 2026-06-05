@@ -1,40 +1,53 @@
 <template>
   <div class="share-access-page">
-    <n-card class="share-card">
+    <div class="share-container">
       <n-result v-if="error" status="error" :title="error" description="分享链接无效或已过期" />
       <n-spin v-else :show="loading">
-        <div v-if="fileInfo" class="share-info">
-          <h2>{{ fileInfo.name }}</h2>
-          <p>大小: {{ formatSize(fileInfo.size) }}</p>
-          <n-button type="primary" @click="downloadFile">下载文件</n-button>
+        <div v-if="files.length > 0" class="file-grid">
+          <n-card v-for="file in files" :key="file.name" class="file-card" hoverable>
+            <div class="file-info">
+              <h3 class="file-name">{{ file.name }}</h3>
+              <p class="file-size">{{ formatSize(file.size) }}</p>
+            </div>
+            <div class="file-actions">
+              <n-button type="primary" size="small" @click="downloadFile(file)">下载文件</n-button>
+              <n-tooltip trigger="hover">
+                <template #trigger>
+                  <n-button size="small" @click="copyDownloadLink(file)">复制链接</n-button>
+                </template>
+                复制链接使用wget/curl直接下载
+              </n-tooltip>
+            </div>
+          </n-card>
         </div>
       </n-spin>
-    </n-card>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { NCard, NResult, NSpin, NButton, useMessage } from 'naive-ui'
+import { NCard, NResult, NSpin, NButton, NTooltip, useMessage } from 'naive-ui'
 import api from '@/api'
 import { formatSize } from '@/utils/format'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const route = useRoute()
 const message = useMessage()
 const loading = ref(true)
 const error = ref('')
-const fileInfo = ref<{ name: string; size: number } | null>(null)
+const files = ref<Array<{ name: string; size: number }>>([])
 
 onMounted(async () => {
   loading.value = true
   try {
     const token = route.params.token as string
     const res = await api.get(`/share/${token}/info`)
-    fileInfo.value = {
-      name: res.data.file_name,
-      size: res.data.file_size,
-    }
+    files.value = (res.data.files || []).map((f: any) => ({
+      name: f.file_name,
+      size: f.file_size,
+    }))
   } catch (err: any) {
     error.value = err.response?.data?.error || '获取分享信息失败'
   } finally {
@@ -42,18 +55,20 @@ onMounted(async () => {
   }
 })
 
-async function downloadFile() {
-  try {
-    const token = route.params.token as string
-    const res = await api.get(`/share/${token}`, { responseType: 'blob' })
-    const url = window.URL.createObjectURL(res.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileInfo.value?.name || 'file'
-    a.click()
-    window.URL.revokeObjectURL(url)
-  } catch {
-    message.error('下载失败')
+function downloadFile(file: { name: string; size: number }) {
+  const token = route.params.token as string
+  const url = `/share/${token}/${encodeURIComponent(file.name)}`
+  window.location.href = url
+}
+
+async function copyDownloadLink(file: { name: string; size: number }) {
+  const token = route.params.token as string
+  const url = `${window.location.origin}/share/${token}/${encodeURIComponent(file.name)}`
+  const ok = await copyToClipboard(url)
+  if (ok) {
+    message.success('下载链接已复制到剪贴板')
+  } else {
+    message.error('复制失败！')
   }
 }
 </script>
@@ -62,21 +77,49 @@ async function downloadFile() {
 .share-access-page {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   min-height: 100vh;
+  padding: 60px 20px;
   background: #f5f5f5;
 }
-.share-card {
-  width: 480px;
+
+.share-container {
+  width: 100%;
+  max-width: 900px;
 }
-.share-info {
+
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+/* 单文件时居中 */
+.file-grid:has(:only-child) {
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.file-card {
   text-align: center;
 }
-.share-info h2 {
-  margin-bottom: 8px;
+
+.file-name {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 6px;
+  word-break: break-all;
 }
-.share-info p {
+
+.file-size {
   color: #666;
-  margin-bottom: 16px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.file-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
 }
 </style>
