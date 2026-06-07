@@ -25,7 +25,7 @@
       <div class="toolbar-left">
         <n-button v-if="hasPermUpload" @click="showMkdirModal = true">
           <template #icon><n-icon><AddCircleOutline /></n-icon></template>
-          新建文件夹
+          新建目录
         </n-button>
         <n-button v-if="hasPermUpload" type="primary" @click="showUploadModal = true">
           <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
@@ -33,7 +33,7 @@
         </n-button>
         <n-button v-if="currentPath !== '/'" @click="goToParent">
           <template #icon><n-icon><ArrowBackOutline /></n-icon></template>
-          返回上级
+          返回上层
         </n-button>
       </div>
       <!-- 批量操作栏 -->
@@ -790,7 +790,7 @@ async function fetchAllUsers() {
 <style scoped>
 .file-explorer {
   flex: 1;
-  min-height: 0;
+  height: calc(100vh - 135px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -798,7 +798,6 @@ async function fetchAllUsers() {
 
 /* 面包屑 */
 .breadcrumb {
-  padding: 0 0 12px 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -901,8 +900,6 @@ async function fetchAllUsers() {
 
 /* 网格视图 */
 .file-grid-container {
-  flex: 1;
-  min-height: 0;
   overflow-y: auto;
   padding: 0 2px;
 }
@@ -1173,5 +1170,31 @@ async function fetchAllUsers() {
 /* ============ 暗色模式 - 表格 ============ */
 .dark .file-data-table :deep(.n-data-table-tr:hover > .n-data-table-td) {
   background-color: #1e293b !important;
+}
+
+/* 暗色模式 - 表格容器配色（比背景稍浅） */
+.dark .file-data-table :deep(.n-data-table) {
+  background-color: #1e293b;
+}
+
+.dark .file-data-table :deep(.n-data-table-wrapper) {
+  background-color: #1e293b;
+}
+
+.dark .file-data-table :deep(.n-data-table-th) {
+  background-color: #1e293b !important;
+}
+
+.dark .file-data-table :deep(.n-data-table-td) {
+  background-color: transparent;
+}
+
+.dark .file-data-table :deep(.n-data-table-base-table) {
+  border-color: #334155;
+}
+
+.dark .file-list {
+  background: #1e293b;
+  border-radius: 8px;
 }
 </style>

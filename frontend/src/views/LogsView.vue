@@ -98,7 +98,12 @@ function formatTime(iso: string): string {
 
 // ---------- 表格列定义 ----------
 const columns: DataTableColumns = [
-  { title: 'ID', key: 'id', width: 60 },
+  {
+    title: '时间',
+    key: 'created_at',
+    width: 165,
+    render: (row: any) => formatTime(row.created_at),
+  },
   { title: '用户', key: 'username', width: 100 },
   {
     title: '操作类型',
@@ -109,12 +114,6 @@ const columns: DataTableColumns = [
   { title: '目标路径', key: 'target_path', ellipsis: { tooltip: true } },
   { title: 'IP地址', key: 'ip_address', width: 130 },
   { title: '详情', key: 'details', ellipsis: { tooltip: true } },
-  {
-    title: '时间',
-    key: 'created_at',
-    width: 165,
-    render: (row: any) => formatTime(row.created_at),
-  },
 ]
 
 onMounted(async () => {

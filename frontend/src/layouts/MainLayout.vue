@@ -18,7 +18,7 @@
             <n-tooltip trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/' }" @click="router.push('/')">
-                  <n-icon size="20"><FolderOpenOutline /></n-icon>
+                  <n-icon size="22"><FolderOpenOutline /></n-icon>
                 </button>
               </template>
               文件管理
@@ -27,7 +27,7 @@
             <n-tooltip v-if="userStore.user?.is_admin || userStore.hasPermission(8)" trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === shareMenuKey }" @click="router.push(shareMenuKey)">
-                  <n-icon size="20"><ShareSocialOutline /></n-icon>
+                  <n-icon size="22"><ShareSocialOutline /></n-icon>
                 </button>
               </template>
               {{ userStore.user?.is_admin ? '分享管理' : '我的分享' }}
@@ -36,7 +36,7 @@
             <n-tooltip v-if="userStore.hasPermission(16)" trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/logs' }" @click="router.push('/logs')">
-                  <n-icon size="20"><DocumentTextOutline /></n-icon>
+                  <n-icon size="22"><DocumentTextOutline /></n-icon>
                 </button>
               </template>
               操作日志
@@ -45,7 +45,7 @@
             <n-tooltip v-if="userStore.user?.is_admin" trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/admin/users' }" @click="router.push('/admin/users')">
-                  <n-icon size="20"><PeopleOutline /></n-icon>
+                  <n-icon size="22"><PeopleOutline /></n-icon>
                 </button>
               </template>
               用户管理
@@ -54,7 +54,7 @@
             <n-tooltip v-if="userStore.user?.is_admin" trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/admin/settings' }" @click="router.push('/admin/settings')">
-                  <n-icon size="20"><CogOutline /></n-icon>
+                  <n-icon size="22"><SettingsOutline /></n-icon>
                 </button>
               </template>
               系统设置
@@ -64,8 +64,8 @@
           <!-- 主题切换 -->
           <n-tooltip trigger="hover" placement="bottom">
             <template #trigger>
-              <button class="nav-icon-btn theme-btn" @click="themeStore.toggleTheme()">
-                <n-icon size="20"><SunnyOutline v-if="themeStore.isDark" /><MoonOutline v-else /></n-icon>
+              <button class="nav-icon-btn" @click="themeStore.toggleTheme()">
+                <n-icon size="22"><SunnyOutline v-if="themeStore.isDark" /><MoonOutline v-else /></n-icon>
               </button>
             </template>
             {{ themeStore.isDark ? '切换亮色' : '切换暗色' }}
@@ -312,14 +312,15 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border: none;
   background: transparent;
   border-radius: 8px;
   cursor: pointer;
-  color: #64748b;
+  color: #0f172a;
   transition: all 0.2s ease;
+  font-size: 22px;
 }
 
 .nav-icon-btn:hover {
@@ -333,7 +334,7 @@ onMounted(async () => {
 }
 
 .dark .nav-icon-btn {
-  color: #94a3b8;
+  color: #f1f5f9
 }
 
 .dark .nav-icon-btn:hover {
@@ -402,7 +403,7 @@ onMounted(async () => {
 /* ---- 主内容区 ---- */
 .main-content {
   padding-top: 56px;
-  min-height: 100vh;
+  height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
 }
@@ -412,7 +413,7 @@ onMounted(async () => {
   width: 95%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 24px 12px;
+  padding: 24px 24px 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;

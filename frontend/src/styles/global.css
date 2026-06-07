@@ -9,5 +9,12 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #333;
-  background: #f5f5f5;
+  background: #f8fafc;
+  height: 100%;
+  overflow: hidden;
+}
+
+html.dark, html.dark body {
+  background: #0f172a;
+  color: #e2e8f0;
 }
