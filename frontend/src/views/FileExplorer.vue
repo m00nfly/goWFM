@@ -246,7 +246,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, h, watch } from 'vue'
+import { ref, computed, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber,
@@ -602,20 +602,12 @@ onMounted(() => {
   currentPath.value = p
   fetchFiles()
   if (isAdmin.value) fetchAllUsers()
-})
 
-watch(() => route.query.path, (newPath) => {
-  const p = (newPath as string) || '/'
-  if (p !== currentPath.value) {
-    currentPath.value = p
-    searchKeyword.value = ''
-    checkedKeys.value = []
-    fetchFiles()
+  // 读取外部跳转带入的 highlight 参数后，清除 URL 中的 query 参数
+  if (route.query.path || route.query.highlight) {
+    applyHighlight()
+    router.replace({ query: {} })
   }
-})
-
-watch(() => route.query.highlight, () => {
-  applyHighlight()
 })
 
 // === 数据获取 ===
@@ -645,7 +637,11 @@ async function fetchFiles() {
 
 // === 导航 ===
 function navigateTo(path: string) {
-  router.push({ query: { path } })
+  if (path === currentPath.value) return
+  currentPath.value = path
+  searchKeyword.value = ''
+  checkedKeys.value = []
+  fetchFiles()
 }
 
 function goToParent() {

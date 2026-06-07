@@ -51,7 +51,6 @@
                 placeholder="••••••••"
                 class="input-field"
                 autocomplete="current-password"
-                @keyup.enter="handleLogin"
               />
               <button type="button" class="eye-btn" @click="showPassword = !showPassword">
                 <EyeOffOutline v-if="showPassword" class="eye-icon" />
