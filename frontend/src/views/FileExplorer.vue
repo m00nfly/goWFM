@@ -234,6 +234,9 @@
             <p style="color: #999; font-size: 12px; margin-top: 4px;">共 {{ shareFilePaths.length }} 个文件</p>
           </div>
         </n-form-item>
+        <n-form-item label="分享名称">
+          <n-input v-model:value="shareName" placeholder="自动生成（可自定义）" clearable :maxlength="100" />
+        </n-form-item>
         <n-form-item label="有效期(天)">
           <n-input-number v-model:value="shareExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
         </n-form-item>
@@ -299,6 +302,7 @@ const showMoveModal = ref(false)
 const showOwnerModal = ref(false)
 const showShareModal = ref(false)
 const shareFilePaths = ref<string[]>([])
+const shareName = ref('')
 const shareExpireDays = ref(7)
 const shareLoading = ref(false)
 const uploading = ref(false)
@@ -541,7 +545,9 @@ function batchShare() {
   }
 
   shareFilePaths.value = filePaths
-  shareExpireDays.value = 7
+  shareExpireDays.value = 3
+  const displayName = userStore.user?.display_name || userStore.user?.username || ''
+  shareName.value = `由${displayName}分享的${filePaths.length}个文件`
   showShareModal.value = true
 }
 
@@ -719,6 +725,7 @@ function downloadFile(row: any) {
 function shareFile(row: any) {
   shareFilePaths.value = [row.path]
   shareExpireDays.value = 7
+  shareName.value = row.name
   showShareModal.value = true
 }
 
@@ -728,6 +735,7 @@ async function handleCreateShare() {
     const res = await api.post('/api/shares', {
       file_paths: shareFilePaths.value,
       expire_days: shareExpireDays.value,
+      name: shareName.value,
     })
     message.success('分享创建成功')
     showShareModal.value = false

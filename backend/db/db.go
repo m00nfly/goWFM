@@ -71,6 +71,7 @@ func migrate(d *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS shares (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			token TEXT UNIQUE NOT NULL,
+			name TEXT DEFAULT '',
 			file_path TEXT DEFAULT '',
 			owner_id INTEGER NOT NULL,
 			expire_at DATETIME,
@@ -121,6 +122,9 @@ func migrate(d *sql.DB) error {
 
 	// 迁移：share_files 增加 download_count 字段
 	d.Exec(`ALTER TABLE share_files ADD COLUMN download_count INTEGER DEFAULT 0`)
+
+	// 迁移：shares 增加 name 字段
+	d.Exec(`ALTER TABLE shares ADD COLUMN name TEXT DEFAULT ''`)
 
 	// 迁移：确保 Guest 系统账户存在（id=0，用于匿名用户操作日志）
 	d.Exec(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name, is_admin, permissions) VALUES (0, 'Guest', '', 'Guest', 0, 0)`)

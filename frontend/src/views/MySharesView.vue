@@ -36,13 +36,26 @@
         <n-empty v-else description="暂无文件" />
       </n-spin>
     </n-modal>
+
+    <!-- 编辑分享弹窗 -->
+    <n-modal v-model:show="showEditModal" preset="dialog" title="编辑分享" positive-text="保存" negative-text="取消" :positive-button-props="{ loading: editLoading }" @positive-click="handleEditSave" @negative-click="showEditModal = false" :mask-closable="false">
+      <n-form label-placement="left" label-width="80">
+        <n-form-item label="分享名称">
+          <n-input v-model:value="editName" placeholder="分享名称" clearable :maxlength="100" />
+        </n-form-item>
+        <n-form-item label="有效期(天)">
+          <n-input-number v-model:value="editExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
+        </n-form-item>
+      </n-form>
+    </n-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, NPopconfirm, NModal, NSpin, NEmpty, useMessage } from 'naive-ui'
+import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, NPopconfirm, NModal, NSpin, NEmpty, NIcon, NForm, NFormItem, NInput, NInputNumber, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import { CopyOutline, TrashOutline, CreateOutline } from '@vicons/ionicons5'
 import api from '@/api'
 import { copyToClipboard } from '@/utils/clipboard'
 
@@ -61,6 +74,13 @@ const expiredCount = computed(() => shares.value.filter((s: any) => s.status ===
 const showFilesModal = ref(false)
 const filesModalLoading = ref(false)
 const modalFiles = ref<Array<{file_name: string, file_path: string, file_size: number, download_count: number}>>([])
+
+// 编辑 modal 状态
+const showEditModal = ref(false)
+const editLoading = ref(false)
+const editId = ref<number>(0)
+const editName = ref('')
+const editExpireDays = ref<number>(7)
 
 function rowClassName(row: any) {
   return row.id === highlightId.value ? 'highlighted-row' : ''
@@ -178,15 +198,31 @@ const columns: DataTableColumns = [
   {
     title: '操作',
     key: 'actions',
-    width: 150,
+    width: 120,
     className: 'col-actions',
     render: (row: any) =>
-      h(NSpace, { size: 'small' }, () => [
-        h(NButton, { size: 'small', onClick: () => copyLink(row) }, () => '复制链接'),
+      h(NSpace, { size: 2, wrap: false }, () => [
+        h(NTooltip, { trigger: 'hover', placement: 'top' }, {
+          default: () => '复制链接',
+          trigger: () => h(NButton, { size: 'small', quaternary: true, class: 'action-btn', onClick: () => copyLink(row) }, {
+            icon: () => h(NIcon, { size: 18, color: '#1890ff' }, () => h(CopyOutline)),
+          }),
+        }),
+        h(NTooltip, { trigger: 'hover', placement: 'top' }, {
+          default: () => '编辑',
+          trigger: () => h(NButton, { size: 'small', quaternary: true, class: 'action-btn', onClick: () => openEditModal(row) }, {
+            icon: () => h(NIcon, { size: 18, color: '#faad14' }, () => h(CreateOutline)),
+          }),
+        }),
         h(NPopconfirm, {
           onPositiveClick: () => handleDelete(row),
         }, {
-          trigger: () => h(NButton, { size: 'small', type: 'error' }, () => '删除'),
+          trigger: () => h(NTooltip, { trigger: 'hover', placement: 'top' }, {
+            default: () => '删除',
+            trigger: () => h(NButton, { size: 'small', quaternary: true, class: 'action-btn' }, {
+              icon: () => h(NIcon, { size: 18, color: '#d03050' }, () => h(TrashOutline)),
+            }),
+          }),
           default: () => '确认删除此分享链接？',
         }),
       ]),
@@ -227,6 +263,30 @@ async function handleDelete(row: any) {
     fetchShares()
   } catch (err: any) {
     message.error(err.response?.data?.error || '删除失败')
+  }
+}
+
+function openEditModal(row: any) {
+  editId.value = row.id
+  editName.value = row.name || row.file_name || ''
+  editExpireDays.value = 7
+  showEditModal.value = true
+}
+
+async function handleEditSave() {
+  editLoading.value = true
+  try {
+    await api.put(`/api/shares/${editId.value}`, {
+      name: editName.value,
+      expire_days: editExpireDays.value,
+    })
+    message.success('分享已更新')
+    showEditModal.value = false
+    fetchShares()
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '更新失败')
+  } finally {
+    editLoading.value = false
   }
 }
 

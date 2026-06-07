@@ -51,6 +51,7 @@ func CreateShareLink(c *gin.Context) {
 	var req struct {
 		FilePaths  []string `json:"file_paths" binding:"required"`
 		ExpireDays int      `json:"expire_days"`
+		Name       string   `json:"name"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -74,7 +75,7 @@ func CreateShareLink(c *gin.Context) {
 		}
 	}
 
-	share, err := services.CreateShare(req.FilePaths, user.ID, req.ExpireDays)
+	share, err := services.CreateShare(req.FilePaths, user.ID, req.ExpireDays, req.Name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create share failed"})
 		return
@@ -87,6 +88,7 @@ func CreateShareLink(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":         share.ID,
 		"token":      share.Token,
+		"name":       share.Name,
 		"link":       link,
 		"expire_at":  share.ExpireAt,
 		"created_at": share.CreatedAt,
@@ -117,6 +119,30 @@ func DeleteShareLink(c *gin.Context) {
 
 	services.CreateLog(c.GetInt64("userID"), models.ActionShareDelete, "", c.ClientIP(), map[string]interface{}{"share_id": id})
 	c.JSON(http.StatusOK, gin.H{"message": "share deleted"})
+}
+
+func UpdateShareLink(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid share id"})
+		return
+	}
+
+	var req struct {
+		Name       string `json:"name"`
+		ExpireDays *int   `json:"expire_days"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := services.UpdateShare(id, req.Name, req.ExpireDays); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "update share failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "share updated"})
 }
 
 func ListAllShares(c *gin.Context) {
@@ -152,6 +178,15 @@ func GetShareInfo(c *gin.Context) {
 		return
 	}
 
+	// 查询分享者信息
+	ownerName := ""
+	if owner, ownerErr := services.GetUserByID(share.OwnerID); ownerErr == nil && owner != nil {
+		ownerName = owner.DisplayName
+		if ownerName == "" {
+			ownerName = owner.Username
+		}
+	}
+
 	type fileInfo struct {
 		FileName      string `json:"file_name"`
 		FileSize      int64  `json:"file_size"`
@@ -159,6 +194,7 @@ func GetShareInfo(c *gin.Context) {
 		DownloadCount int    `json:"download_count"`
 	}
 
+	var totalSize int64
 	files := make([]fileInfo, 0, len(shareFiles))
 	for _, f := range shareFiles {
 		fullPath, err := services.DownloadFile(f.FilePath)
@@ -169,6 +205,7 @@ func GetShareInfo(c *gin.Context) {
 		if statErr != nil {
 			continue // skip files that can't be stat'd
 		}
+		totalSize += info.Size()
 		files = append(files, fileInfo{
 			FileName:      filepath.Base(fullPath),
 			FileSize:      info.Size(),
@@ -178,7 +215,13 @@ func GetShareInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"files": files,
+		"name":       share.Name,
+		"owner_name": ownerName,
+		"expire_at":  share.ExpireAt,
+		"created_at": share.CreatedAt,
+		"file_count": len(files),
+		"total_size": totalSize,
+		"files":      files,
 	})
 }
 

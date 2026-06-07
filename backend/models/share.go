@@ -5,6 +5,7 @@ import "time"
 type Share struct {
 	ID          int64      `json:"id"`
 	Token       string     `json:"token"`
+	Name        string     `json:"name"`
 	OwnerID     int64      `json:"owner_id"`
 	ExpireAt    *time.Time `json:"expire_at"`
 	CreatedAt   time.Time  `json:"created_at"`

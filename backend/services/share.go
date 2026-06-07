@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreateShare(filePaths []string, ownerID int64, expireDays int) (*models.Share, error) {
+func CreateShare(filePaths []string, ownerID int64, expireDays int, name string) (*models.Share, error) {
 	if len(filePaths) == 0 {
 		return nil, errors.New("at least one file path is required")
 	}
@@ -30,8 +30,8 @@ func CreateShare(filePaths []string, ownerID int64, expireDays int) (*models.Sha
 	}
 
 	result, err := db.DB.Exec(
-		`INSERT INTO shares (token, file_path, owner_id, expire_at) VALUES (?, '', ?, ?)`,
-		token, ownerID, expireAtStr,
+		`INSERT INTO shares (token, name, file_path, owner_id, expire_at) VALUES (?, ?, '', ?, ?)`,
+		token, name, ownerID, expireAtStr,
 	)
 	if err != nil {
 		return nil, err
@@ -50,6 +50,7 @@ func CreateShare(filePaths []string, ownerID int64, expireDays int) (*models.Sha
 	return &models.Share{
 		ID:        id,
 		Token:     token,
+		Name:      name,
 		OwnerID:   ownerID,
 		ExpireAt:  expireAt,
 		CreatedAt: time.Now(),
@@ -60,14 +61,18 @@ func GetShareByToken(token string) (*models.Share, error) {
 	s := &models.Share{}
 	var expireAtStr sqlNullString
 	var deleted int
+	var name sqlNullString
 	err := db.DB.QueryRow(
-		`SELECT id, token, owner_id, deleted, expire_at, created_at, access_count FROM shares WHERE token = ?`,
+		`SELECT id, token, COALESCE(name,''), owner_id, deleted, expire_at, created_at, access_count FROM shares WHERE token = ?`,
 		token,
-	).Scan(&s.ID, &s.Token, &s.OwnerID, &deleted, &expireAtStr, &s.CreatedAt, &s.AccessCount)
+	).Scan(&s.ID, &s.Token, &name, &s.OwnerID, &deleted, &expireAtStr, &s.CreatedAt, &s.AccessCount)
 	if err != nil {
 		return nil, err
 	}
 	s.Deleted = deleted == 1
+	if name.Valid {
+		s.Name = name.String
+	}
 	if expireAtStr.Valid {
 		t, _ := time.Parse(time.RFC3339, expireAtStr.String)
 		s.ExpireAt = &t
@@ -104,7 +109,7 @@ func IncrementFileDownload(fileID int64) error {
 
 func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 	rows, err := db.DB.Query(
-		`SELECT s.id, s.token, s.deleted, s.expire_at, s.created_at, s.access_count,
+		`SELECT s.id, s.token, COALESCE(s.name,''), s.deleted, s.expire_at, s.created_at, s.access_count,
 			(SELECT COUNT(*) FROM share_files WHERE share_id = s.id) as file_count,
 			COALESCE((SELECT file_path FROM share_files WHERE share_id = s.id LIMIT 1), '') as first_file_path
 		FROM shares s WHERE s.owner_id = ? ORDER BY s.created_at DESC`,
@@ -119,13 +124,14 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 	for rows.Next() {
 		var id int64
 		var token string
+		var shareName string
 		var deleted int
 		var expireAtStr sqlNullString
 		var createdAt string
 		var accessCount int
 		var fileCount int
 		var firstFilePath string
-		rows.Scan(&id, &token, &deleted, &expireAtStr, &createdAt, &accessCount, &fileCount, &firstFilePath)
+		rows.Scan(&id, &token, &shareName, &deleted, &expireAtStr, &createdAt, &accessCount, &fileCount, &firstFilePath)
 
 		// Format created_at
 		formattedCreatedAt := createdAt
@@ -153,9 +159,11 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 			status = "valid"
 		}
 
-		// 文件名展示逻辑：单文件显示文件名，多文件显示 "分享N个文件"
+		// 文件名展示逻辑：优先使用 name，为空时退回原有逻辑
 		var fileName string
-		if fileCount > 1 {
+		if shareName != "" {
+			fileName = shareName
+		} else if fileCount > 1 {
 			fileName = fmt.Sprintf("分享%d个文件", fileCount)
 		} else {
 			fileName = path.Base(firstFilePath)
@@ -164,6 +172,7 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 		entry := map[string]interface{}{
 			"id":           id,
 			"token":        token,
+			"name":         shareName,
 			"file_path":    firstFilePath,
 			"file_name":    fileName,
 			"file_count":   fileCount,
@@ -179,7 +188,7 @@ func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
 
 func ListAllShares() ([]map[string]interface{}, error) {
 	rows, err := db.DB.Query(
-		`SELECT s.id, s.token, s.owner_id, s.deleted, s.expire_at, s.created_at, s.access_count,
+		`SELECT s.id, s.token, COALESCE(s.name,''), s.owner_id, s.deleted, s.expire_at, s.created_at, s.access_count,
 			(SELECT COUNT(*) FROM share_files WHERE share_id = s.id) as file_count,
 			COALESCE((SELECT file_path FROM share_files WHERE share_id = s.id LIMIT 1), '') as first_file_path
 		FROM shares s ORDER BY s.created_at DESC`,
@@ -193,13 +202,14 @@ func ListAllShares() ([]map[string]interface{}, error) {
 	for rows.Next() {
 		var id, ownerID int64
 		var token string
+		var shareName string
 		var deleted int
 		var expireAtStr sqlNullString
 		var createdAt string
 		var accessCount int
 		var fileCount int
 		var firstFilePath string
-		rows.Scan(&id, &token, &ownerID, &deleted, &expireAtStr, &createdAt, &accessCount, &fileCount, &firstFilePath)
+		rows.Scan(&id, &token, &shareName, &ownerID, &deleted, &expireAtStr, &createdAt, &accessCount, &fileCount, &firstFilePath)
 
 		formattedCreatedAt := createdAt
 		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
@@ -225,9 +235,11 @@ func ListAllShares() ([]map[string]interface{}, error) {
 			status = "valid"
 		}
 
-		// 文件名展示逻辑：单文件显示文件名，多文件显示 "分享N个文件"
+		// 文件名展示逻辑：优先使用 name，为空时退回原有逻辑
 		var fileName string
-		if fileCount > 1 {
+		if shareName != "" {
+			fileName = shareName
+		} else if fileCount > 1 {
 			fileName = fmt.Sprintf("分享%d个文件", fileCount)
 		} else {
 			fileName = path.Base(firstFilePath)
@@ -236,6 +248,7 @@ func ListAllShares() ([]map[string]interface{}, error) {
 		entry := map[string]interface{}{
 			"id":           id,
 			"token":        token,
+			"name":         shareName,
 			"file_name":    fileName,
 			"file_path":    firstFilePath,
 			"file_count":   fileCount,
@@ -268,6 +281,20 @@ func ListShareUsers() ([]map[string]interface{}, error) {
 		})
 	}
 	return result, nil
+}
+
+func UpdateShare(id int64, name string, expireDays *int) error {
+	if expireDays != nil {
+		var expireAtStr interface{}
+		if *expireDays > 0 {
+			t := time.Now().Add(time.Duration(*expireDays) * 24 * time.Hour)
+			expireAtStr = t.Format(time.RFC3339)
+		}
+		_, err := db.DB.Exec(`UPDATE shares SET name = ?, expire_at = ? WHERE id = ?`, name, expireAtStr, id)
+		return err
+	}
+	_, err := db.DB.Exec(`UPDATE shares SET name = ? WHERE id = ?`, name, id)
+	return err
 }
 
 func DeleteShare(id int64) error {

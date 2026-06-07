@@ -57,6 +57,7 @@ func setupRouter() *gin.Engine {
 
 		auth.POST("/shares", handlers.CreateShareLink)
 		auth.GET("/shares/my", handlers.ListMyShares)
+		auth.PUT("/shares/:id", handlers.UpdateShareLink)
 		auth.DELETE("/shares/:id", handlers.DeleteShareLink)
 
 		auth.GET("/logs", handlers.ListLogs)
