@@ -193,6 +193,12 @@ func AccessShareEntry(c *gin.Context) {
 	if share, err := services.ValidateShareAccess(token); err == nil {
 		_ = share
 		services.IncrementShareAccess(token)
+
+		// Log share access: use logged-in userID or 0 for Guest
+		userID := c.GetInt64("userID")
+		services.CreateLog(userID, models.ActionShareAccess, token, c.ClientIP(), map[string]interface{}{
+			"user_agent": c.Request.UserAgent(),
+		})
 	}
 
 	serveIndexHTML(c)
@@ -245,8 +251,9 @@ func ShareFileDownload(c *gin.Context) {
 
 	// 6. Increment file download count + audit log
 	services.IncrementFileDownload(matchedFile.ID)
-	services.CreateLog(0, models.ActionShareAccess, matchedFile.FilePath, c.ClientIP(), map[string]interface{}{
-		"token": token,
-		"ip":    c.ClientIP(),
+	userID := c.GetInt64("userID")
+	services.CreateLog(userID, models.ActionDownload, matchedFile.FilePath, c.ClientIP(), map[string]interface{}{
+		"token":      token,
+		"user_agent": c.Request.UserAgent(),
 	})
 }

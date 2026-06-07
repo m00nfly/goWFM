@@ -118,10 +118,12 @@ const columns: DataTableColumns = [
     title: '操作',
     key: 'actions',
     render: (row: any) =>
-      h(NSpace, { size: 'small' }, () => [
-        h(NButton, { size: 'small', onClick: () => openEdit(row) }, () => '编辑'),
-        h(NButton, { size: 'small', type: 'error', onClick: () => handleDelete(row) }, () => '删除'),
-      ]),
+      row.id === 0
+        ? null
+        : h(NSpace, { size: 'small' }, () => [
+            h(NButton, { size: 'small', onClick: () => openEdit(row) }, () => '编辑'),
+            h(NButton, { size: 'small', type: 'error', onClick: () => handleDelete(row) }, () => '删除'),
+          ]),
   },
 ]
 

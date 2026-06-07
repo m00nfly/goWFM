@@ -65,6 +65,11 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
+	if id == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify system Guest account"})
+		return
+	}
+
 	var req UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -104,6 +109,11 @@ func DeleteUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if id == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot delete system Guest account"})
 		return
 	}
 

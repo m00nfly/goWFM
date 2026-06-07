@@ -81,7 +81,7 @@ func migrate(d *sql.DB) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS operation_logs (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL DEFAULT 0,
 			action TEXT NOT NULL,
 			target_path TEXT,
 			details TEXT,
@@ -121,6 +121,9 @@ func migrate(d *sql.DB) error {
 
 	// 迁移：share_files 增加 download_count 字段
 	d.Exec(`ALTER TABLE share_files ADD COLUMN download_count INTEGER DEFAULT 0`)
+
+	// 迁移：确保 Guest 系统账户存在（id=0，用于匿名用户操作日志）
+	d.Exec(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name, is_admin, permissions) VALUES (0, 'Guest', '', 'Guest', 0, 0)`)
 
 	return nil
 }

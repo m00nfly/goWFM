@@ -97,9 +97,13 @@ func QueryLogs(startTime, endTime, userID, action, targetPath string, page, page
 	result := make([]map[string]interface{}, 0, len(rawLogs))
 	for _, r := range rawLogs {
 		username := ""
-		u, _ := GetUserByID(r.userID)
-		if u != nil {
-			username = u.Username
+		if r.userID == 0 {
+			username = "Guest"
+		} else {
+			u, _ := GetUserByID(r.userID)
+			if u != nil {
+				username = u.Username
+			}
 		}
 
 		result = append(result, map[string]interface{}{

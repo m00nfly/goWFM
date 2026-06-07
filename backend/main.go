@@ -66,9 +66,13 @@ func setupRouter() *gin.Engine {
 		auth.GET("/admin/share-users", middleware.AdminRequired(), handlers.ListShareUsers)
 	}
 
-	r.GET("/share/:token", handlers.AccessShareEntry)
-	r.GET("/share/:token/info", handlers.GetShareInfo)
-	r.GET("/share/:token/:filename", handlers.ShareFileDownload)
+	sharePublic := r.Group("/share")
+	sharePublic.Use(middleware.OptionalAuth())
+	{
+		sharePublic.GET("/:token", handlers.AccessShareEntry)
+		sharePublic.GET("/:token/info", handlers.GetShareInfo)
+		sharePublic.GET("/:token/:filename", handlers.ShareFileDownload)
+	}
 
 	staticFS, err := getFrontendFS()
 	if err == nil {
