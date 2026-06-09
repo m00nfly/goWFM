@@ -735,6 +735,7 @@ async function handleCreateShare() {
     })
     message.success('分享创建成功')
     showShareModal.value = false
+    userStore.onShareCreated()
     router.push({ path: '/shares', query: { highlightId: String(res.data.id) } })
   } catch (e: any) {
     message.error(e.response?.data?.error || '创建分享失败')

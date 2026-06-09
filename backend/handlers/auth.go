@@ -69,12 +69,30 @@ func GetMe(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "get user failed"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+
+	result := gin.H{
 		"id":           user.ID,
 		"username":     user.Username,
 		"display_name": user.DisplayName,
 		"email":        user.Email,
 		"is_admin":     user.IsAdmin,
 		"permissions":  user.Permissions,
-	})
+	}
+
+	// Include share stats if user has share permission
+	if user.IsAdmin || (user.Permissions&8) != 0 {
+		ownerID := user.ID
+		if user.IsAdmin {
+			ownerID = 0 // admin sees all shares
+		}
+		expired, valid, err := services.GetShareStats(ownerID)
+		if err == nil {
+			result["share_stats"] = gin.H{
+				"expired": expired,
+				"valid":   valid,
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
 }

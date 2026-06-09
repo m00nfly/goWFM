@@ -13,8 +13,8 @@
 
         <!-- 右侧操作区 -->
         <div class="header-actions">
-          <!-- 导航图标 -->
-          <div class="nav-icons">
+          <!-- 导航图标 - 宽屏 -->
+          <div v-show="!isNarrow" class="nav-icons">
             <n-tooltip trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/' }" @click="router.push('/')">
@@ -27,7 +27,9 @@
             <n-tooltip v-if="userStore.user?.is_admin || userStore.hasPermission(8)" trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === shareMenuKey }" @click="router.push(shareMenuKey)">
-                  <n-icon size="22"><ShareSocialOutline /></n-icon>
+                  <n-badge :value="shareBadgeCount" :type="shareBadgeType" :show="shareBadgeCount > 0" :offset="[-4, 4]">
+                    <n-icon size="22"><ShareSocialOutline /></n-icon>
+                  </n-badge>
                 </button>
               </template>
               {{ userStore.user?.is_admin ? '分享管理' : '我的分享' }}
@@ -60,6 +62,21 @@
               系统设置
             </n-tooltip>
           </div>
+
+          <!-- 导航图标 - 窄屏折叠菜单 -->
+          <n-popselect
+            v-if="isNarrow"
+            v-model:value="popNavValue"
+            :options="popNavOptions"
+            trigger="click"
+            @update:value="onPopNavSelect"
+          >
+            <button class="nav-icon-btn">
+              <n-badge :value="shareBadgeCount" :type="shareBadgeType" :show="shareBadgeCount > 0" dot :offset="[-2, 2]">
+                <n-icon size="22"><MenuOutline /></n-icon>
+              </n-badge>
+            </button>
+          </n-popselect>
 
           <!-- 主题切换 -->
           <n-tooltip trigger="hover" placement="bottom">
@@ -118,10 +135,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, onMounted } from 'vue'
+import { ref, computed, h, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  NDropdown, NIcon, NAvatar, NTooltip,
+  NDropdown, NIcon, NAvatar, NTooltip, NBadge, NPopselect,
 } from 'naive-ui'
 import {
   FolderOpenOutline,
@@ -129,11 +146,11 @@ import {
   DocumentTextOutline,
   PeopleOutline,
   SettingsOutline,
-  CogOutline,
   LogOutOutline,
   LogoGithub,
   SunnyOutline,
   MoonOutline,
+  MenuOutline,
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
@@ -149,6 +166,29 @@ const orgName = ref('')
 const orgLink = ref('')
 const appLink = ref('https://gowfm.dev')
 const appGithub = ref('https://github.com/m00nfly/gowfm')
+
+// ---------- 响应式导航 ----------
+
+const NAV_BREAKPOINT = 768
+const windowWidth = ref(window.innerWidth)
+const isNarrow = computed(() => windowWidth.value < NAV_BREAKPOINT)
+
+function onResize() {
+  windowWidth.value = window.innerWidth
+}
+
+// ---------- 分享 Badge ----------
+
+const shareBadgeCount = computed(() => {
+  if (userStore.shareExpiredCount > 0) return userStore.shareExpiredCount
+  if (userStore.shareValidCount > 0) return userStore.shareValidCount
+  return 0
+})
+
+const shareBadgeType = computed<'error' | 'info'>(() => {
+  if (userStore.shareExpiredCount > 0) return 'error'
+  return 'info'
+})
 
 // ---------- 用户显示 ----------
 
@@ -178,6 +218,36 @@ const activeMenuKey = computed(() => {
   if (p === '/settings') return '/settings'
   return '/'
 })
+
+// ---------- 窄屏折叠导航 ----------
+
+const popNavValue = ref<string | null>(null)
+
+const popNavOptions = computed(() => {
+  const opts: Array<{ label: string; value: string }> = [
+    { label: '文件管理', value: '/' },
+  ]
+  if (userStore.user?.is_admin || userStore.hasPermission(8)) {
+    const label = userStore.user?.is_admin ? '分享管理' : '我的分享'
+    const badgeText = shareBadgeCount.value > 0
+      ? ` (${shareBadgeCount.value})`
+      : ''
+    opts.push({ label: label + badgeText, value: shareMenuKey.value })
+  }
+  if (userStore.hasPermission(16)) {
+    opts.push({ label: '操作日志', value: '/logs' })
+  }
+  if (userStore.user?.is_admin) {
+    opts.push({ label: '用户管理', value: '/admin/users' })
+    opts.push({ label: '系统设置', value: '/admin/settings' })
+  }
+  return opts
+})
+
+function onPopNavSelect(value: string) {
+  router.push(value)
+  popNavValue.value = null
+}
 
 // 用户下拉菜单
 const userDropdownOptions = computed(() => [
@@ -209,12 +279,18 @@ async function onUserAction(key: string) {
 // ---------- 生命周期 ----------
 
 onMounted(async () => {
+  window.addEventListener('resize', onResize)
+
   try {
     const res = await api.get('/api/config/info')
     orgName.value = res.data.org_name || ''
     orgLink.value = res.data.org_link || ''
     version.value = res.data.version || ''
   } catch { /* ignore */ }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
 })
 </script>
 

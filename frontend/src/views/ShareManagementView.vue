@@ -63,6 +63,7 @@ import type { DataTableColumns } from 'naive-ui'
 import { CopyOutline, TrashOutline, CreateOutline } from '@vicons/ionicons5'
 import api from '@/api'
 import { copyToClipboard } from '@/utils/clipboard'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const route = useRoute()
@@ -315,6 +316,8 @@ async function handleDelete(row: any) {
   try {
     await api.delete(`/api/shares/${row.id}`)
     message.success('分享链接已删除')
+    const userStore = useUserStore()
+    userStore.onShareDeleted(row.status === 'expired' ? 'expired' : 'valid')
     fetchShares()
   } catch (err: any) {
     message.error(err.response?.data?.error || '删除失败')

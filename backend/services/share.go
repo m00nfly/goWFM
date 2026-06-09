@@ -12,6 +12,27 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetShareStats returns expired and valid share counts.
+// If ownerID > 0, counts only that user's shares; otherwise counts all shares.
+func GetShareStats(ownerID int64) (expired int, valid int, err error) {
+	var query string
+	var args []interface{}
+	if ownerID > 0 {
+		query = `SELECT
+			COUNT(CASE WHEN deleted = 0 AND expire_at IS NOT NULL AND expire_at < datetime('now') THEN 1 END),
+			COUNT(CASE WHEN deleted = 0 AND (expire_at IS NULL OR expire_at >= datetime('now')) THEN 1 END)
+			FROM shares WHERE owner_id = ?`
+		args = append(args, ownerID)
+	} else {
+		query = `SELECT
+			COUNT(CASE WHEN deleted = 0 AND expire_at IS NOT NULL AND expire_at < datetime('now') THEN 1 END),
+			COUNT(CASE WHEN deleted = 0 AND (expire_at IS NULL OR expire_at >= datetime('now')) THEN 1 END)
+			FROM shares`
+	}
+	err = db.DB.QueryRow(query, args...).Scan(&expired, &valid)
+	return
+}
+
 func CreateShare(filePaths []string, ownerID int64, expireDays int, name string) (*models.Share, error) {
 	if len(filePaths) == 0 {
 		return nil, errors.New("at least one file path is required")
