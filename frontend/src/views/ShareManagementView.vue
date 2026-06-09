@@ -30,7 +30,7 @@
 
     </n-card>
 
-    <n-modal v-model:show="showFilesModal" preset="card" title="分享文件列表" style="width: 600px; max-width: 90vw;">
+    <n-modal v-model:show="showFilesModal" preset="card" title="文件列表" style="width: 600px; max-width: 90vw;">
       <n-spin :show="filesModalLoading">
         <div v-if="modalFiles.length > 0" class="files-modal-list">
           <div v-for="file in modalFiles" :key="file.file_name" class="file-item">
@@ -449,6 +449,10 @@ onUnmounted(() => {
   padding: 8px 12px;
   border-radius: 6px;
   background: #f9f9f9;
+}
+
+.dark .files-modal-list .file-item {
+  background: rgb(70, 70, 80);
 }
 
 .files-modal-list .file-name-link {

@@ -479,7 +479,7 @@ onUnmounted(() => {
 /* ---- 主内容区 ---- */
 .main-content {
   padding-top: 56px;
-  height: calc(100vh - 56px);
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -498,7 +498,7 @@ onUnmounted(() => {
 /* ---- 底部版权 ---- */
 .content-footer {
   text-align: center;
-  padding: 12px;
+  padding: 18px;
   font-size: 12px;
   color: #94a3b8;
   transition: color 0.3s ease;
