@@ -114,8 +114,9 @@ func PostSetup(c *gin.Context) {
 
 func GetConfigInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"org_name": config.C.OrgName,
-		"org_link": config.C.OrgLink,
-		"version":  Version,
+		"org_name":     config.C.OrgName,
+		"org_link":     config.C.OrgLink,
+		"version":      Version,
+		"login_bg_url": config.C.LoginBgURL,
 	})
 }

@@ -1,8 +1,10 @@
 <template>
-  <div class="login-page" :class="{ dark: themeStore.isDark }">
+  <div class="login-page" :class="{ dark: themeStore.isDark }" :style="loginBgStyle">
     <!-- 背景装饰 -->
-    <div class="blob blob-blue"></div>
-    <div class="blob blob-purple"></div>
+    <template v-if="!loginBgUrl">
+      <div class="blob blob-blue"></div>
+      <div class="blob blob-purple"></div>
+    </template>
 
     <!-- 主题切换按钮 -->
     <button class="theme-toggle" @click="themeStore.toggleTheme()" :title="themeStore.isDark ? '切换亮色' : '切换暗色'">
@@ -18,8 +20,8 @@
           <div class="logo-icon">
             <FolderOutline />
           </div>
-          <h1 class="title">欢迎回来</h1>
-          <p class="subtitle">请登录您的 goWFM 账号</p>
+          <h1 class="title">{{ orgName || 'goWFM' }}</h1>
+          <p class="subtitle">登录您的账号</p>
         </div>
 
         <!-- 登录表单 -->
@@ -72,9 +74,16 @@
 
         <!-- 底部链接 -->
         <div class="bottom-links">
-          <a href="#">隐私政策</a>
-          <a href="#">服务条款</a>
-          <a href="#">联系支持</a>
+          <template v-if="orgName">
+            <a v-if="orgLink" :href="orgLink" target="_blank" rel="noopener noreferrer">{{ orgName }}</a>
+            <span v-else>{{ orgName }}</span>
+            <span class="sep">·</span>
+          </template>
+          <a href="https://gowfm.dev" target="_blank" rel="noopener noreferrer">goWFM</a>
+          <span class="sep">·</span>
+          <a href="https://github.com/m00nfly/gowfm" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <span v-if="version" class="sep">·</span>
+          <span v-if="version" class="version-text">ver: {{ version }}</span>
         </div>
       </div>
     </div>
@@ -82,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import {
@@ -106,6 +115,11 @@ const loading = ref(false)
 const showPassword = ref(false)
 const passwordRef = ref<HTMLInputElement | null>(null)
 
+const orgName = ref('')
+const orgLink = ref('')
+const version = ref('')
+const loginBgUrl = ref('')
+
 const form = reactive({
   username: '',
   password: '',
@@ -113,10 +127,33 @@ const form = reactive({
 
 const rememberMe = ref(false)
 
-onMounted(() => {
+const loginBgStyle = computed(() => {
+  if (loginBgUrl.value) {
+    return {
+      backgroundImage: `url(${loginBgUrl.value})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    }
+  }
+  return {}
+})
+
+onMounted(async () => {
   // 已登录则跳转首页
   if (userStore.user) {
     router.replace('/')
+    return
+  }
+  // 获取配置信息
+  try {
+    const res = await api.get('/api/config/info')
+    orgName.value = res.data.org_name || ''
+    orgLink.value = res.data.org_link || ''
+    version.value = res.data.version || ''
+    loginBgUrl.value = res.data.login_bg_url || ''
+  } catch {
+    // 忽略错误，使用默认值
   }
 })
 
@@ -464,9 +501,12 @@ async function handleLogin() {
 .bottom-links {
   margin-top: 40px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 6px;
   font-size: 12px;
+  color: #94a3b8;
+  flex-wrap: wrap;
 }
 
 .bottom-links a {
@@ -481,6 +521,20 @@ async function handleLogin() {
 
 .dark .bottom-links a:hover {
   color: #cbd5e1;
+}
+
+.bottom-links .sep {
+  margin: 0 2px;
+  color: #cbd5e1;
+}
+
+.dark .bottom-links .sep {
+  color: #4b5563;
+}
+
+.bottom-links .version-text {
+  color: #94a3b8;
+  font-size: 11px;
 }
 
 /* ============ 响应式 ============ */

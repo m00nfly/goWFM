@@ -13,6 +13,7 @@ import (
 type Config struct {
 	OrgName       string `json:"org_name"`
 	OrgLink       string `json:"org_link"`
+	LoginBgURL    string `json:"login_bg_url"`
 	DataRootPath  string `json:"data_root_path"`
 	ServerPort    int    `json:"server_port"`
 	SessionSecret string `json:"session_secret"`

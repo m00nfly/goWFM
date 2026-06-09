@@ -1,6 +1,7 @@
 {
   "org_name": "Site name",
   "org_link": "http://your-site.link",
+  "login_bg_url": "",
   "data_root_path": "/absolute/path/to/data",
   "server_port": 8080,
   "session_secret": "",
