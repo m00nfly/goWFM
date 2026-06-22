@@ -1,0 +1,49 @@
+name: Automated Release CI
+
+on:
+  push:
+    tags:
+      - 'v*' # 当本地推送如 v1.0.0, v2.1.3 等标签时触发
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取源代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Node.js 环境
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: 提取版本号
+        id: get_version
+        run: |
+          TAG_NAME="${{ gitea.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: 构建前端资产
+        run: make build-frontend
+
+      - name: 编译并打包所有平台
+        run: make build-all-platforms
+
+      - name: 发布 Gitea Release
+        uses: https://gitea.com/actions/release-action@main
+        with:
+          files: |-
+            dist/*.tar.gz
+            dist/*.zip
+          api_key: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.get_version.outputs.TAG_NAME }}
+          name: "Release v${{ steps.get_version.outputs.VERSION }}"
