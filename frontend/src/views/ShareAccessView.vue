@@ -240,8 +240,8 @@ onMounted(async () => {
   ])
 
   if (configRes.status === 'fulfilled') {
-    orgName.value = configRes.value.data.org_name || ''
-    orgLink.value = configRes.value.data.org_link || ''
+    orgName.value = configRes.value.data.site_name || ''
+    orgLink.value = configRes.value.data.site_link || ''
     version.value = configRes.value.data.version || ''
   }
 

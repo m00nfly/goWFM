@@ -3,6 +3,8 @@ package handlers
 import (
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"goWFM/config"
 	"goWFM/models"
@@ -25,13 +27,10 @@ func GetSetupStatus(c *gin.Context) {
 }
 
 type SetupRequest struct {
-	OrgName       string `json:"org_name"`
-	OrgLink       string `json:"org_link"`
+	SiteName      string `json:"site_name"`
+	SiteLink      string `json:"site_link"`
 	DataRootPath  string `json:"data_root_path"`
 	ServerPort    int    `json:"server_port"`
-	SessionSecret string `json:"session_secret"`
-	LogLevel      string `json:"log_level"`
-	DBPath        string `json:"db_path"`
 	AdminPassword string `json:"admin_password"`
 	MaxUploadSize int64  `json:"max_upload_size"`
 }
@@ -62,45 +61,48 @@ func PostSetup(c *gin.Context) {
 		return
 	}
 
-	newCfg := &config.Config{
-		OrgName:       req.OrgName,
-		OrgLink:       req.OrgLink,
-		DataRootPath:  req.DataRootPath,
-		ServerPort:    req.ServerPort,
-		SessionSecret: req.SessionSecret,
-		LogLevel:      req.LogLevel,
-		DBPath:        req.DBPath,
-		MaxUploadSize: req.MaxUploadSize,
+	// 解析为绝对路径
+	absPath, err := filepath.Abs(req.DataRootPath)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid data_root_path"})
+		return
+	}
+	if !strings.HasSuffix(absPath, string(filepath.Separator)) {
+		absPath += string(filepath.Separator)
 	}
 
-	if newCfg.ServerPort == 0 {
-		newCfg.ServerPort = 8080
-	}
-	if newCfg.LogLevel == "" {
-		newCfg.LogLevel = "info"
-	}
-	if newCfg.DBPath == "" {
-		newCfg.DBPath = "gowfm.db"
-	}
-	if newCfg.SessionSecret == "" {
-		newCfg.SessionSecret = config.RandomSecret()
-	}
-	if newCfg.MaxUploadSize == 0 {
-		newCfg.MaxUploadSize = 1073741824 // 默认 1 GB
-	}
-
-	if err := os.MkdirAll(req.DataRootPath, 0755); err != nil {
+	// 创建数据目录
+	if err := os.MkdirAll(absPath, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create data directory failed"})
 		return
 	}
 
-	if err := config.Save("config.json", newCfg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "save config failed"})
+	// 更新基础设置
+	basicSettings := config.BasicSettings{
+		SiteName:      req.SiteName,
+		SiteLink:      req.SiteLink,
+		DataRootPath:  absPath,
+		MaxUploadSize: req.MaxUploadSize,
+	}
+	if basicSettings.MaxUploadSize == 0 {
+		basicSettings.MaxUploadSize = 1073741824 // 默认 1 GB
+	}
+	if err := services.UpdateBasicSettings(basicSettings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "save basic settings failed"})
 		return
 	}
 
-	*config.C = *newCfg
+	// 更新外观设置（端口）
+	if req.ServerPort > 0 {
+		appSettings := config.GetAppearance()
+		appSettings.ServerPort = req.ServerPort
+		if err := services.UpdateAppearanceSettings(appSettings); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "save appearance settings failed"})
+			return
+		}
+	}
 
+	// 创建管理员用户
 	admin, err := services.CreateUser("admin", req.AdminPassword, "Administrator", "", true, models.PermAll)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create admin user failed"})
@@ -110,13 +112,4 @@ func PostSetup(c *gin.Context) {
 	services.CreateLog(admin.ID, models.ActionLogin, "", c.ClientIP(), nil)
 
 	c.JSON(http.StatusOK, gin.H{"message": "setup completed", "admin_username": "admin"})
-}
-
-func GetConfigInfo(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"org_name":     config.C.OrgName,
-		"org_link":     config.C.OrgLink,
-		"version":      Version,
-		"login_bg_url": config.C.LoginBgURL,
-	})
 }

@@ -16,18 +16,19 @@ import (
 
 // SafePath 获取安全的文件路径，防止路径遍历攻击
 func SafePath(relativePath string) (string, error) {
-	if config.C.DataRootPath == "" {
+	dataRoot := config.GetBasic().DataRootPath
+	if dataRoot == "" {
 		return "", fmt.Errorf("data_root_path not configured, please complete setup first")
 	}
 	if relativePath == "" || relativePath == "/" {
-		return config.C.DataRootPath, nil
+		return dataRoot, nil
 	}
 	cleaned := filepath.Clean(relativePath)
 	if strings.Contains(cleaned, "..") {
 		return "", fmt.Errorf("path traversal detected")
 	}
-	fullPath := filepath.Join(config.C.DataRootPath, cleaned)
-	if !strings.HasPrefix(fullPath+string(filepath.Separator), config.C.DataRootPath) && fullPath != config.C.DataRootPath {
+	fullPath := filepath.Join(dataRoot, cleaned)
+	if !strings.HasPrefix(fullPath+string(filepath.Separator), dataRoot) && fullPath != dataRoot {
 		return "", fmt.Errorf("path traversal detected")
 	}
 	return fullPath, nil
@@ -35,7 +36,8 @@ func SafePath(relativePath string) (string, error) {
 
 // RelativePath 转换绝对路径为安全的相对路径，返回从DataRoot目录开始的相对路径
 func RelativePath(fullPath string) string {
-	rel := strings.TrimPrefix(fullPath, config.C.DataRootPath)
+	dataRoot := config.GetBasic().DataRootPath
+	rel := strings.TrimPrefix(fullPath, dataRoot)
 	if rel == "" {
 		return "/"
 	}

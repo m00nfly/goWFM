@@ -104,6 +104,11 @@ func migrate(d *sql.DB) error {
 			download_count INTEGER DEFAULT 0,
 			FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS gowfm_config (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL DEFAULT '{}',
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, m := range migrations {

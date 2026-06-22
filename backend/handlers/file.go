@@ -65,8 +65,8 @@ func UploadFile(c *gin.Context) {
 		return
 	}
 
-	if file.Size > config.C.MaxUploadSize {
-		maxMB := config.C.MaxUploadSize / 1024 / 1024
+	if file.Size > config.GetBasic().MaxUploadSize {
+		maxMB := config.GetBasic().MaxUploadSize / 1024 / 1024
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("file too large, max size: %d MB", maxMB)})
 		return
 	}
@@ -157,7 +157,8 @@ func DeleteFile(c *gin.Context) {
 	}
 
 	action := models.ActionDeleteFile
-	if info, e := os.Stat(config.C.DataRootPath + req.Path); e == nil && info.IsDir() {
+	dataRoot := config.GetBasic().DataRootPath
+	if info, e := os.Stat(dataRoot + req.Path); e == nil && info.IsDir() {
 		action = models.ActionDeleteDir
 	}
 	services.CreateLog(user.ID, action, req.Path, c.ClientIP(), nil)

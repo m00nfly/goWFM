@@ -84,7 +84,7 @@ func CreateShareLink(c *gin.Context) {
 	pathsJSON, _ := json.Marshal(req.FilePaths)
 	services.CreateLog(user.ID, models.ActionShareCreate, string(pathsJSON), c.ClientIP(), map[string]interface{}{"token": share.Token})
 
-	link := fmt.Sprintf("%s/share/%s", config.C.OrgLink, share.Token)
+	link := fmt.Sprintf("%s/share/%s", config.GetBasic().SiteLink, share.Token)
 	c.JSON(http.StatusOK, gin.H{
 		"id":         share.ID,
 		"token":      share.Token,

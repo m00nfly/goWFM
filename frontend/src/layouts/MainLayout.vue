@@ -283,8 +283,8 @@ onMounted(async () => {
 
   try {
     const res = await api.get('/api/config/info')
-    orgName.value = res.data.org_name || ''
-    orgLink.value = res.data.org_link || ''
+    orgName.value = res.data.site_name || ''
+    orgLink.value = res.data.site_link || ''
     version.value = res.data.version || ''
   } catch { /* ignore */ }
 })

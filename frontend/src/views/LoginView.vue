@@ -148,8 +148,8 @@ onMounted(async () => {
   // 获取配置信息
   try {
     const res = await api.get('/api/config/info')
-    orgName.value = res.data.org_name || ''
-    orgLink.value = res.data.org_link || ''
+    orgName.value = res.data.site_name || ''
+    orgLink.value = res.data.site_link || ''
     version.value = res.data.version || ''
     loginBgUrl.value = res.data.login_bg_url || ''
   } catch {

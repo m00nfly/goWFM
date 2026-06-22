@@ -15,6 +15,9 @@ type OperationLog struct {
 const (
 	ActionLogin        = "LOGIN"
 	ActionLoginFail    = "LOGIN_FAIL"
+	ActionBlockIP      = "BLOCK_IP"
+	ActionBlockAccount = "BLOCK_ACCOUNT"
+	ActionConfigChange = "CONFIG_CHANGE"
 	ActionCreateDir    = "CREATE_DIR"
 	ActionUpload       = "UPLOAD"
 	ActionDownload     = "DOWNLOAD"
@@ -29,3 +32,13 @@ const (
 	ActionUserDelete   = "USER_DELETE"
 	ActionMove         = "MOVE"
 )
+
+// AllLogTypes 返回所有日志类型列表
+func AllLogTypes() []string {
+	return []string{
+		ActionLogin, ActionLoginFail, ActionBlockIP, ActionBlockAccount, ActionConfigChange,
+		ActionCreateDir, ActionUpload, ActionDownload, ActionDeleteFile, ActionDeleteDir,
+		ActionShareCreate, ActionShareAccess, ActionShareDelete,
+		ActionChangeOwner, ActionUserCreate, ActionUserUpdate, ActionUserDelete, ActionMove,
+	}
+}

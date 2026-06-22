@@ -8,11 +8,11 @@
         </n-form-item>
 
         <n-divider>系统配置</n-divider>
-        <n-form-item label="站点名称" path="org_name">
-          <n-input v-model:value="form.org_name" placeholder="可选，显示在页脚" />
+        <n-form-item label="站点名称" path="site_name">
+          <n-input v-model:value="form.site_name" placeholder="可选，显示在页脚" />
         </n-form-item>
-        <n-form-item label="站点链接" path="org_link">
-          <n-input v-model:value="form.org_link" placeholder="可选，站点名称的超链接" />
+        <n-form-item label="站点链接" path="site_link">
+          <n-input v-model:value="form.site_link" placeholder="可选，站点名称的超链接" />
         </n-form-item>
         <n-form-item label="数据存储路径" path="data_root_path">
           <n-input v-model:value="form.data_root_path" placeholder="/absolute/path/to/data" />
@@ -65,8 +65,8 @@ const logLevelOptions = [
 
 const form = reactive({
   admin_password: '',
-  org_name: '',
-  org_link: '',
+  site_name: '',
+  site_link: '',
   data_root_path: '',
   server_port: 8080,
   session_secret: '',

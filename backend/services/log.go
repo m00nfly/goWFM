@@ -5,11 +5,31 @@ import (
 	"fmt"
 	"strings"
 
+	"goWFM/config"
 	"goWFM/db"
 	"goWFM/models"
 )
 
+// isLogTypeEnabled 检查日志类型是否启用
+func isLogTypeEnabled(action string, enabledTypes []string) bool {
+	if len(enabledTypes) == 0 {
+		return true // 空列表表示记录全部
+	}
+	for _, t := range enabledTypes {
+		if t == action {
+			return true
+		}
+	}
+	return false
+}
+
 func CreateLog(userID int64, action, targetPath, ipAddress string, details map[string]interface{}) error {
+	// 检查日志类型是否启用
+	logCfg := config.GetLog()
+	if !isLogTypeEnabled(action, logCfg.EnabledLogTypes) {
+		return nil
+	}
+
 	var detailsJSON string
 	if details != nil {
 		b, _ := json.Marshal(details)
@@ -119,4 +139,19 @@ func QueryLogs(startTime, endTime, userID, action, targetPath string, page, page
 	}
 
 	return result, total, nil
+}
+
+// CleanOldLogs 删除超过保留天数的日志记录
+func CleanOldLogs(retentionDays int) (int64, error) {
+	if retentionDays <= 0 {
+		return 0, nil
+	}
+	result, err := db.DB.Exec(
+		`DELETE FROM operation_logs WHERE created_at < datetime('now', ? || ' days')`,
+		fmt.Sprintf("-%d", retentionDays),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

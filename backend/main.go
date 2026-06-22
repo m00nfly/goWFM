@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -65,6 +67,10 @@ func setupRouter() *gin.Engine {
 
 		auth.GET("/admin/shares", middleware.AdminRequired(), handlers.ListAllShares)
 		auth.GET("/admin/share-users", middleware.AdminRequired(), handlers.ListShareUsers)
+
+		// 配置管理 API
+		auth.GET("/admin/config/:category", middleware.AdminRequired(), handlers.GetConfig)
+		auth.PUT("/admin/config/:category", middleware.AdminRequired(), handlers.UpdateConfig)
 	}
 
 	sharePublic := r.Group("/share")
@@ -97,50 +103,86 @@ func setupRouter() *gin.Engine {
 }
 
 func main() {
-	configPath := "config.json"
-	if len(os.Args) > 1 {
-		configPath = os.Args[1]
-	}
+	dbPath := flag.String("db", "./gowfm.db", "数据库文件路径")
+	flag.Parse()
 
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
-
-	if config.C.DataRootPath != "" {
-		if err := os.MkdirAll(config.C.DataRootPath, 0755); err != nil {
-			log.Fatalf("Failed to create data root path: %v", err)
-		}
-	}
-
-	if err := db.Init(config.C.DBPath); err != nil {
+	// 1. 初始化数据库
+	if err := db.Init(*dbPath); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
 
+	// 2. 从数据库加载配置（首次启动自动初始化默认值）
+	if err := services.LoadAllConfigs(); err != nil {
+		log.Fatalf("Failed to load configs: %v", err)
+	}
+
+	// 3. 确保数据目录存在
+	basicCfg := config.GetBasic()
+	if basicCfg.DataRootPath != "" {
+		if err := os.MkdirAll(basicCfg.DataRootPath, 0755); err != nil {
+			log.Fatalf("Failed to create data root path: %v", err)
+		}
+	}
+
 	handlers.Version = Version
 
+	// 4. 设置路由
 	r := setupRouter()
-	r.MaxMultipartMemory = cfg.MaxUploadSize
+	r.MaxMultipartMemory = basicCfg.MaxUploadSize
 
+	// 5. 后台定时任务
 	go func() {
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
+			// 清理过期会话
 			count, err := services.CleanExpiredSessions()
 			if err != nil {
 				log.Printf("Failed to clean expired sessions: %v", err)
-				continue
-			}
-			if count > 0 {
+			} else if count > 0 {
 				log.Printf("Cleaned %d expired sessions", count)
+			}
+
+			// 清理过期日志
+			logCfg := config.GetLog()
+			if logCfg.RetentionDays > 0 {
+				logCount, err := services.CleanOldLogs(logCfg.RetentionDays)
+				if err != nil {
+					log.Printf("Failed to clean old logs: %v", err)
+				} else if logCount > 0 {
+					log.Printf("Cleaned %d old log entries", logCount)
+				}
 			}
 		}
 	}()
 
-	addr := fmt.Sprintf(":%d", config.C.ServerPort)
-	log.Printf("goWFM server starting on %s", addr)
-	if err := r.Run(addr); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	// 6. 启动封锁引擎后台清理
+	go services.StartBlockerCleanup()
+
+	// 7. 启动 HTTP/HTTPS 服务器
+	appCfg := config.GetAppearance()
+	addr := fmt.Sprintf(":%d", appCfg.ServerPort)
+	log.Printf("goWFM server starting on %s (HTTPS: %v)", addr, appCfg.EnableHTTPS)
+
+	if appCfg.EnableHTTPS {
+		tlsCert, err := services.EnsureTLSCert(appCfg.SSLCert, appCfg.SSLKey)
+		if err != nil {
+			log.Fatalf("Failed to setup TLS: %v", err)
+		}
+		server := &http.Server{
+			Addr:    addr,
+			Handler: r,
+			TLSConfig: &tls.Config{
+				Certificates: []tls.Certificate{tlsCert},
+			},
+		}
+		if err := server.ListenAndServeTLS("", ""); err != nil {
+			log.Fatalf("HTTPS server failed: %v", err)
+		}
+	} else {
+		if err := r.Run(addr); err != nil {
+			log.Fatalf("Server failed: %v", err)
+		}
 	}
 }

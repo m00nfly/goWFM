@@ -4,91 +4,103 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
+	"sync"
 )
 
-type Config struct {
-	OrgName       string `json:"org_name"`
-	OrgLink       string `json:"org_link"`
-	LoginBgURL    string `json:"login_bg_url"`
-	DataRootPath  string `json:"data_root_path"`
-	ServerPort    int    `json:"server_port"`
-	SessionSecret string `json:"session_secret"`
-	LogLevel      string `json:"log_level"`
-	DBPath        string `json:"db_path"`
-	MaxUploadSize int64  `json:"max_upload_size"`
+// 配置分类 key 常量
+const (
+	KeyBasic      = "basic_settings"
+	KeySecurity   = "security_settings"
+	KeyLog        = "log_settings"
+	KeyEmail      = "email_settings"
+	KeyAppearance = "appearance_settings"
+	KeyShare      = "share_settings"
+)
+
+// AllKeys 返回所有配置分类 key
+func AllKeys() []string {
+	return []string{KeyBasic, KeySecurity, KeyLog, KeyEmail, KeyAppearance, KeyShare}
 }
 
-var C *Config
+// 全局配置实例（读写锁保护）
+var (
+	mu         sync.RWMutex
+	basic      BasicSettings
+	security   SecuritySettings
+	logCfg     LogSettings
+	email      EmailSettings
+	appearance AppearanceSettings
+	share      ShareSettings
+)
 
-func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		c := &Config{
-			ServerPort:    8080,
-			LogLevel:      "info",
-			DBPath:        "wfm.db",
-			SessionSecret: RandomSecret(),
-			MaxUploadSize: 1073741824,
-		}
-		C = c
-		return c, nil
-	}
+// --- 对外只读访问（返回副本） ---
 
-	var c Config
-	if err := json.Unmarshal(data, &c); err != nil {
-		return nil, fmt.Errorf("parse config file: %w", err)
-	}
-	if c.DataRootPath != "" {
-		absPath, err := filepath.Abs(c.DataRootPath)
-		if err != nil {
-			return nil, fmt.Errorf("resolve data_root_path: %w", err)
-		}
-		c.DataRootPath = absPath
-		if !strings.HasSuffix(c.DataRootPath, string(filepath.Separator)) {
-			c.DataRootPath += string(filepath.Separator)
-		}
-	}
-	if c.ServerPort == 0 {
-		c.ServerPort = 8080
-	}
-	if c.LogLevel == "" {
-		c.LogLevel = "info"
-	}
-	if c.DBPath == "" {
-		c.DBPath = "wfm.db"
-	}
-	if c.SessionSecret == "" {
-		c.SessionSecret = RandomSecret()
-	}
-	if c.MaxUploadSize == 0 {
-		c.MaxUploadSize = 1073741824
-	}
-	C = &c
-	return &c, nil
+func GetBasic() BasicSettings           { mu.RLock(); defer mu.RUnlock(); return basic }
+func GetSecurity() SecuritySettings     { mu.RLock(); defer mu.RUnlock(); return security }
+func GetLog() LogSettings               { mu.RLock(); defer mu.RUnlock(); return logCfg }
+func GetEmail() EmailSettings           { mu.RLock(); defer mu.RUnlock(); return email }
+func GetAppearance() AppearanceSettings { mu.RLock(); defer mu.RUnlock(); return appearance }
+func GetShare() ShareSettings           { mu.RLock(); defer mu.RUnlock(); return share }
+
+// --- 更新（由 service 层调用） ---
+
+func SetBasic(s BasicSettings)           { mu.Lock(); defer mu.Unlock(); basic = s }
+func SetSecurity(s SecuritySettings)     { mu.Lock(); defer mu.Unlock(); security = s }
+func SetLog(s LogSettings)               { mu.Lock(); defer mu.Unlock(); logCfg = s }
+func SetEmail(s EmailSettings)           { mu.Lock(); defer mu.Unlock(); email = s }
+func SetAppearance(s AppearanceSettings) { mu.Lock(); defer mu.Unlock(); appearance = s }
+func SetShare(s ShareSettings)           { mu.Lock(); defer mu.Unlock(); share = s }
+
+// InitDefaults 将所有配置设为默认值（内存中）
+func InitDefaults() {
+	mu.Lock()
+	defer mu.Unlock()
+	basic = DefaultBasic()
+	security = DefaultSecurity()
+	logCfg = DefaultLog()
+	email = DefaultEmail()
+	appearance = DefaultAppearance()
+	share = DefaultShare()
 }
 
-func Save(path string, c *Config) error {
-	if c.DataRootPath != "" {
-		absPath, err := filepath.Abs(c.DataRootPath)
-		if err != nil {
-			return fmt.Errorf("resolve data_root_path: %w", err)
-		}
-		c.DataRootPath = absPath
-		if !strings.HasSuffix(c.DataRootPath, string(filepath.Separator)) {
-			c.DataRootPath += string(filepath.Separator)
-		}
+// LoadFromDB 从数据库加载所有配置到内存
+// getter 是从数据库获取指定 key 值的回调函数
+func LoadFromDB(getter func(key string) (string, error)) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// 先设置默认值
+	basic = DefaultBasic()
+	security = DefaultSecurity()
+	logCfg = DefaultLog()
+	email = DefaultEmail()
+	appearance = DefaultAppearance()
+	share = DefaultShare()
+
+	// 从数据库覆盖
+	if val, err := getter(KeyBasic); err == nil && val != "" {
+		json.Unmarshal([]byte(val), &basic)
 	}
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
+	if val, err := getter(KeySecurity); err == nil && val != "" {
+		json.Unmarshal([]byte(val), &security)
 	}
-	return os.WriteFile(path, data, 0644)
+	if val, err := getter(KeyLog); err == nil && val != "" {
+		json.Unmarshal([]byte(val), &logCfg)
+	}
+	if val, err := getter(KeyEmail); err == nil && val != "" {
+		json.Unmarshal([]byte(val), &email)
+	}
+	if val, err := getter(KeyAppearance); err == nil && val != "" {
+		json.Unmarshal([]byte(val), &appearance)
+	}
+	if val, err := getter(KeyShare); err == nil && val != "" {
+		json.Unmarshal([]byte(val), &share)
+	}
+
+	return nil
 }
 
+// RandomSecret 生成随机 32 字节十六进制密钥
 func RandomSecret() string {
 	b := make([]byte, 32)
 	rand.Read(b)
