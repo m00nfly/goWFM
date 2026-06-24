@@ -9,7 +9,9 @@ NPM := npm
 
 GIT_TAG := $(shell git describe --tags --always --dirty 2>/dev/null || echo "untagged")
 VERSION := $(GIT_TAG)
-LDFLAGS := -s -w -X 'goWFM.Version=$(VERSION)'
+LDFLAGS := -s -w -X 'goWFM/config.Version=$(VERSION)'
+
+ARGS ?=
 
 all: build
 
@@ -19,7 +21,9 @@ dev-frontend:
 	$(NPM) --prefix $(FRONTEND_DIR) run dev
 
 dev-backend:
-	$(GO) -C $(BACKEND_DIR) run .
+	@echo "==> Starting Go backend with args: $(ARGS)"
+	touch  $(BACKEND_DIR)/internal/web-dist/.keep
+	$(GO) -C $(BACKEND_DIR) run . $(ARGS)
 
 build: build-frontend build-binary
 

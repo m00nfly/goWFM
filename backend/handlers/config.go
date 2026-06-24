@@ -71,6 +71,7 @@ func GetConfig(c *gin.Context) {
 		data = gin.H{
 			"session_timeout":            cfg.SessionTimeout,
 			"enable_captcha":             cfg.EnableCaptcha,
+			"captcha_code_length":        cfg.CaptchaCodeLength,
 			"ip_block_enabled":           cfg.IPBlockEnabled,
 			"ip_block_max_failures":      cfg.IPBlockMaxFailures,
 			"ip_block_window":            cfg.IPBlockWindow,
@@ -99,14 +100,14 @@ func GetConfig(c *gin.Context) {
 		cfg := config.GetAppearance()
 		// 不返回 SSL 证书和私钥完整内容
 		data = gin.H{
-			"login_bg_url":   cfg.LoginBgURL,
-			"default_theme":  cfg.DefaultTheme,
-			"theme_color":    cfg.ThemeColor,
-			"custom_logo":    cfg.CustomLogo,
-			"server_port":    cfg.ServerPort,
-			"enable_https":   cfg.EnableHTTPS,
-			"has_ssl_cert":   cfg.SSLCert != "",
-			"has_ssl_key":    cfg.SSLKey != "",
+			"login_bg_url":  cfg.LoginBgURL,
+			"default_theme": cfg.DefaultTheme,
+			"theme_color":   cfg.ThemeColor,
+			"custom_logo":   cfg.CustomLogo,
+			"server_port":   cfg.ServerPort,
+			"enable_https":  cfg.EnableHTTPS,
+			"has_ssl_cert":  cfg.SSLCert != "",
+			"has_ssl_key":   cfg.SSLKey != "",
 		}
 	case "share":
 		data = config.GetShare()
@@ -225,14 +226,16 @@ func UpdateConfig(c *gin.Context) {
 func GetConfigInfo(c *gin.Context) {
 	basicCfg := config.GetBasic()
 	appearanceCfg := config.GetAppearance()
+	securityCfg := config.GetSecurity()
 
 	c.JSON(http.StatusOK, gin.H{
-		"site_name":     basicCfg.SiteName,
-		"site_link":     basicCfg.SiteLink,
-		"version":       Version,
-		"login_bg_url":  appearanceCfg.LoginBgURL,
-		"default_theme": appearanceCfg.DefaultTheme,
-		"theme_color":   appearanceCfg.ThemeColor,
-		"custom_logo":   appearanceCfg.CustomLogo,
+		"site_name":      basicCfg.SiteName,
+		"site_link":      basicCfg.SiteLink,
+		"version":        config.Version,
+		"login_bg_url":   appearanceCfg.LoginBgURL,
+		"default_theme":  appearanceCfg.DefaultTheme,
+		"theme_color":    appearanceCfg.ThemeColor,
+		"custom_logo":    appearanceCfg.CustomLogo,
+		"enable_captcha": securityCfg.EnableCaptcha,
 	})
 }

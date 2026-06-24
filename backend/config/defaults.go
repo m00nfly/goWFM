@@ -14,8 +14,9 @@ func DefaultBasic() BasicSettings {
 func DefaultSecurity() SecuritySettings {
 	return SecuritySettings{
 		SessionSecret:        RandomSecret(),
-		SessionTimeout:       10080, // 7天 = 7*24*60
+		SessionTimeout:       720, // 12小时 = 12*60 分钟
 		EnableCaptcha:        false,
+		CaptchaCodeLength:    6,
 		IPBlockEnabled:       false,
 		IPBlockMaxFailures:   5,
 		IPBlockWindow:        300,  // 5分钟
@@ -73,7 +74,7 @@ func DefaultAppearance() AppearanceSettings {
 func DefaultShare() ShareSettings {
 	return ShareSettings{
 		DefaultExpireDays:      7,
-		MaxSharesPerUser:       0,    // 0 表示无限制
+		MaxSharesPerUser:       0, // 0 表示无限制
 		AllowAnonymousDownload: true,
 	}
 }

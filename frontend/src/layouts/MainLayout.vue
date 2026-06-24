@@ -5,9 +5,14 @@
       <div class="header-inner">
         <!-- Logo -->
         <div class="header-brand" @click="router.push('/')">
-          <div class="brand-icon">
-            <n-icon size="20" color="#fff"><FolderOpenOutline /></n-icon>
-          </div>
+          <template v-if="customLogo">
+            <img :src="customLogo" class="brand-logo-img" alt="Logo" />
+          </template>
+          <template v-else>
+            <div class="brand-icon">
+              <n-icon size="20" color="#fff"><FolderOpenOutline /></n-icon>
+            </div>
+          </template>
           <span class="brand-text">{{ orgName || 'goWFM' }}</span>
         </div>
 
@@ -97,7 +102,7 @@
               <n-avatar
                 round
                 :size="32"
-                :style="{ backgroundColor: '#3b82f6', cursor: 'pointer', fontSize: '14px' }"
+                :style="{ backgroundColor: 'var(--theme-color, #3b82f6)', cursor: 'pointer', fontSize: '14px' }"
               >
                 {{ avatarLetter }}
               </n-avatar>
@@ -164,6 +169,7 @@ const themeStore = useThemeStore()
 const version = ref('')
 const orgName = ref('')
 const orgLink = ref('')
+const customLogo = ref('')
 const appLink = ref('https://gowfm.dev')
 const appGithub = ref('https://github.com/m00nfly/gowfm')
 
@@ -286,6 +292,7 @@ onMounted(async () => {
     orgName.value = res.data.site_name || ''
     orgLink.value = res.data.site_link || ''
     version.value = res.data.version || ''
+    customLogo.value = res.data.custom_logo || ''
   } catch { /* ignore */ }
 })
 
@@ -340,16 +347,28 @@ onUnmounted(() => {
   gap: 10px;
   cursor: pointer;
   user-select: none;
+  height: 100%;
 }
 
+/* 自定义 Logo：自适应 header 高度，无背景色，无容器约束 */
+.brand-logo-img {
+  height: 36px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* 默认图标容器（无 Logo 时） */
 .brand-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #3b82f6;
+  background: var(--theme-color, #3b82f6);
   padding: 8px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
+  flex-shrink: 0;
 }
 
 .brand-text {
@@ -401,12 +420,12 @@ onUnmounted(() => {
 
 .nav-icon-btn:hover {
   background: #f1f5f9;
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
 }
 
 .nav-icon-btn.active {
   background: #eff6ff;
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
 }
 
 .dark .nav-icon-btn {
@@ -523,7 +542,7 @@ onUnmounted(() => {
 }
 
 .footer-app-link {
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
   text-decoration: none;
   font-weight: 500;
 }
@@ -542,7 +561,7 @@ onUnmounted(() => {
 }
 
 .footer-org-link {
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
   text-decoration: none;
 }
 

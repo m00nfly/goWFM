@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-var Version string
-
 // BuildAttachmentDisposition 构造符合 RFC 5987 的 Content-Disposition 响应头。
 // 同时提供 ASCII 的 filename 回退（供不支持 filename* 的旧客户端使用），
 // 以及 UTF-8 百分号编码的 filename*（支持中文等非 ASCII 文件名）。

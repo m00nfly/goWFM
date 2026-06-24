@@ -21,4 +21,8 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    outDir: resolve(__dirname, '../backend/internal/web-dist'),
+    emptyOutDir: true,
+  },
 })

@@ -33,6 +33,11 @@ var (
 	share      ShareSettings
 )
 
+// Version 程序版本号，默认 "dev"，编译时通过 -ldflags 注入：
+//
+//	-X 'goWFM/config.Version=v1.2.3'
+var Version = "dev"
+
 // --- 对外只读访问（返回副本） ---
 
 func GetBasic() BasicSettings           { mu.RLock(); defer mu.RUnlock(); return basic }

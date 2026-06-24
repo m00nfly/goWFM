@@ -17,7 +17,10 @@
       <div class="glass-card">
         <!-- Logo & 标题 -->
         <div class="card-header">
-          <div class="logo-icon">
+          <div v-if="customLogo" class="logo-custom">
+            <img :src="customLogo" class="logo-img" alt="Logo" />
+          </div>
+          <div v-else class="logo-icon">
             <FolderOutline />
           </div>
           <h1 class="title">{{ orgName || 'goWFM' }}</h1>
@@ -58,6 +61,27 @@
                 <EyeOffOutline v-if="showPassword" class="eye-icon" />
                 <EyeOutline v-else class="eye-icon" />
               </button>
+            </div>
+          </div>
+
+          <div v-if="captchaEnabled" class="input-group">
+            <label class="input-label">验证码</label>
+            <div class="captcha-row">
+              <div class="input-wrapper" style="flex: 1">
+                <LockClosedOutline class="input-icon" />
+                <input
+                  v-model="form.captcha_code"
+                  type="text"
+                  required
+                  placeholder="请输入验证码"
+                  class="input-field"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="captcha-image" @click="refreshCaptcha" title="点击刷新验证码">
+                <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+                <span v-else>加载中...</span>
+              </div>
             </div>
           </div>
 
@@ -119,10 +143,15 @@ const orgName = ref('')
 const orgLink = ref('')
 const version = ref('')
 const loginBgUrl = ref('')
+const customLogo = ref('')
+const captchaEnabled = ref(false)
+const captchaImage = ref('')
 
 const form = reactive({
   username: '',
   password: '',
+  captcha_id: '',
+  captcha_code: '',
 })
 
 const rememberMe = ref(false)
@@ -152,14 +181,40 @@ onMounted(async () => {
     orgLink.value = res.data.site_link || ''
     version.value = res.data.version || ''
     loginBgUrl.value = res.data.login_bg_url || ''
+    customLogo.value = res.data.custom_logo || ''
+    captchaEnabled.value = res.data.enable_captcha || false
+    // 如果启用验证码则自动获取
+    if (captchaEnabled.value) {
+      await refreshCaptcha()
+    }
   } catch {
     // 忽略错误，使用默认值
   }
 })
 
+async function refreshCaptcha() {
+  try {
+    const res = await api.get('/api/auth/captcha')
+    if (res.data.enabled) {
+      captchaEnabled.value = true
+      captchaImage.value = res.data.captcha_image
+      form.captcha_id = res.data.captcha_id
+      form.captcha_code = ''
+    } else {
+      captchaEnabled.value = false
+    }
+  } catch {
+    captchaEnabled.value = false
+  }
+}
+
 async function handleLogin() {
   if (!form.username || !form.password) {
     message.warning('请输入用户名和密码')
+    return
+  }
+  if (captchaEnabled.value && !form.captcha_code) {
+    message.warning('请输入验证码')
     return
   }
 
@@ -170,6 +225,10 @@ async function handleLogin() {
     message.success('登录成功')
     router.replace('/')
   } catch (err: any) {
+    // 登录失败时刷新验证码
+    if (captchaEnabled.value) {
+      refreshCaptcha()
+    }
     message.error(err.response?.data?.error || '登录失败')
   } finally {
     loading.value = false
@@ -281,14 +340,30 @@ async function handleLogin() {
   margin-bottom: 40px;
 }
 
+/* 自定义 Logo（矩形图片自适应） */
+.logo-custom {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.logo-img {
+  max-height: 64px;
+  max-width: 200px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* 默认图标（无 Logo 时） */
 .logo-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #3b82f6;
+  background: var(--theme-color, #3b82f6);
   padding: 12px;
   border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 24px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
   margin-bottom: 16px;
   color: #fff;
   font-size: 32px;
@@ -345,7 +420,7 @@ async function handleLogin() {
 }
 
 .input-group:focus-within .input-label {
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
   transform: translateY(-2px);
 }
 
@@ -382,8 +457,8 @@ async function handleLogin() {
 }
 
 .input-field:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: var(--theme-color, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
 }
 
 .dark .input-field {
@@ -397,8 +472,8 @@ async function handleLogin() {
 }
 
 .dark .input-field:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-color: var(--theme-color, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(var(--theme-color-rgb, 59, 130, 246), 0.2);
 }
 
 .eye-btn {
@@ -446,21 +521,21 @@ async function handleLogin() {
   height: 16px;
   border-radius: 4px;
   border-color: #cbd5e1;
-  accent-color: #3b82f6;
+  accent-color: var(--theme-color, #3b82f6);
   cursor: pointer;
 }
 
 /* ============ 登录按钮 ============ */
 .login-btn {
   width: 100%;
-  background: #3b82f6;
+  background: var(--theme-color, #3b82f6);
   color: #fff;
   font-weight: 700;
   font-size: 16px;
   padding: 16px;
   border: none;
   border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 24px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: inherit;
@@ -471,7 +546,7 @@ async function handleLogin() {
 }
 
 .login-btn:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--theme-color-pressed, #2563eb);
 }
 
 .login-btn:active:not(:disabled) {
@@ -537,6 +612,51 @@ async function handleLogin() {
   font-size: 11px;
 }
 
+/* ============ 验证码 ============ */
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.captcha-image {
+  flex-shrink: 0;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  transition: border-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f4f8;
+}
+
+.captcha-image:hover {
+  border-color: var(--theme-color, #3b82f6);
+}
+
+.dark .captcha-image {
+  border-color: #374151;
+  background: #1e293b;
+}
+
+.dark .captcha-image:hover {
+  border-color: var(--theme-color, #3b82f6);
+}
+
+.captcha-image img {
+  height: 48px;
+  display: block;
+}
+
+.captcha-image span {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 0 8px;
+}
+
 /* ============ 响应式 ============ */
 @media (max-width: 480px) {
   .glass-card {
@@ -546,6 +666,11 @@ async function handleLogin() {
 
   .title {
     font-size: 24px;
+  }
+
+  .logo-img {
+    max-height: 48px;
+    max-width: 160px;
   }
 }
 </style>

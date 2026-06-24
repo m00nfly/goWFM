@@ -11,16 +11,17 @@ type BasicSettings struct {
 // SecuritySettings 安全设置
 type SecuritySettings struct {
 	SessionSecret        string   `json:"session_secret"`
-	SessionTimeout       int      `json:"session_timeout"`         // 分钟
+	SessionTimeout       int      `json:"session_timeout"` // 分钟
 	EnableCaptcha        bool     `json:"enable_captcha"`
+	CaptchaCodeLength    int      `json:"captcha_code_length"`
 	IPBlockEnabled       bool     `json:"ip_block_enabled"`
 	IPBlockMaxFailures   int      `json:"ip_block_max_failures"`
-	IPBlockWindow        int      `json:"ip_block_window"`         // 秒
-	IPBlockDuration      int      `json:"ip_block_duration"`       // 秒
+	IPBlockWindow        int      `json:"ip_block_window"`   // 秒
+	IPBlockDuration      int      `json:"ip_block_duration"` // 秒
 	AccountBlockEnabled  bool     `json:"account_block_enabled"`
 	AccountBlockMaxFails int      `json:"account_block_max_failures"`
-	AccountBlockWindow   int      `json:"account_block_window"`    // 秒
-	AccountBlockDuration int      `json:"account_block_duration"`  // 秒
+	AccountBlockWindow   int      `json:"account_block_window"`   // 秒
+	AccountBlockDuration int      `json:"account_block_duration"` // 秒
 	WhitelistIPs         []string `json:"whitelist_ips"`
 }
 
@@ -49,13 +50,13 @@ type AppearanceSettings struct {
 	CustomLogo   string `json:"custom_logo"`   // base64 格式图片
 	ServerPort   int    `json:"server_port"`
 	EnableHTTPS  bool   `json:"enable_https"`
-	SSLCert      string `json:"ssl_cert"`      // PEM 格式证书内容
-	SSLKey       string `json:"ssl_key"`       // PEM 格式私钥内容
+	SSLCert      string `json:"ssl_cert"` // PEM 格式证书内容
+	SSLKey       string `json:"ssl_key"`  // PEM 格式私钥内容
 }
 
 // ShareSettings 分享设置
 type ShareSettings struct {
 	DefaultExpireDays      int  `json:"default_expire_days"`
-	MaxSharesPerUser       int  `json:"max_shares_per_user"`       // 0 表示无限制
+	MaxSharesPerUser       int  `json:"max_shares_per_user"` // 0 表示无限制
 	AllowAnonymousDownload bool `json:"allow_anonymous_download"`
 }

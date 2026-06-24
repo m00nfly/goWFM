@@ -8,6 +8,12 @@
       <n-form-item label="登录页启用验证码">
         <n-switch v-model:value="form.enable_captcha" />
       </n-form-item>
+      <template v-if="form.enable_captcha">
+        <n-form-item label="验证码长度">
+          <n-input-number v-model:value="form.captcha_code_length" :min="4" :max="10" style="width: 120px" />
+          <span style="margin-left: 8px; color: #999">个</span>
+        </n-form-item>
+      </template>
 
       <n-divider>IP 封锁设置</n-divider>
       <n-form-item label="启用IP自动封锁">
@@ -73,6 +79,7 @@ const saving = ref(false)
 const form = ref({
   session_timeout: 10080,
   enable_captcha: false,
+  captcha_code_length: 6,
   ip_block_enabled: false,
   ip_block_max_failures: 5,
   ip_block_window: 300,

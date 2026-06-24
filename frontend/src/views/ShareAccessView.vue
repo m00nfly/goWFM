@@ -308,10 +308,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #3b82f6;
+  background: var(--theme-color, #3b82f6);
   padding: 8px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
 }
 
 .brand-text {
@@ -347,7 +347,7 @@ onMounted(async () => {
 
 .nav-icon-btn:hover {
   background: #f1f5f9;
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
 }
 
 .dark .nav-icon-btn {
@@ -394,7 +394,7 @@ onMounted(async () => {
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: #3b82f6;
+  background: var(--theme-color, #3b82f6);
   color: #fff;
   display: flex;
   align-items: center;
@@ -402,7 +402,7 @@ onMounted(async () => {
   font-size: 22px;
   font-weight: 700;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
 }
 
 .share-meta {
@@ -557,7 +557,7 @@ onMounted(async () => {
 }
 
 .action-download:hover {
-  background: #3b82f6;
+  background: var(--theme-color, #3b82f6);
   color: #fff;
 }
 
@@ -567,7 +567,7 @@ onMounted(async () => {
 }
 
 .dark .action-download:hover {
-  background: #3b82f6;
+  background: var(--theme-color, #3b82f6);
   color: #fff;
 }
 
@@ -578,8 +578,8 @@ onMounted(async () => {
 }
 
 .action-link:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
+  border-color: var(--theme-color, #3b82f6);
+  color: var(--theme-color, #3b82f6);
 }
 
 .dark .action-link {
@@ -622,7 +622,7 @@ onMounted(async () => {
 }
 
 .footer-app-link {
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
   text-decoration: none;
   font-weight: 500;
 }
@@ -641,7 +641,7 @@ onMounted(async () => {
 }
 
 .footer-org-link {
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
   text-decoration: none;
 }
 

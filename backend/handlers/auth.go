@@ -12,8 +12,10 @@ import (
 )
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	CaptchaID   string `json:"captcha_id"`
+	CaptchaCode string `json:"captcha_code"`
 }
 
 func Login(c *gin.Context) {
@@ -23,16 +25,28 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 1. 验证码校验
 	sec := config.GetSecurity()
+	if sec.EnableCaptcha {
+		if req.CaptchaID == "" || req.CaptchaCode == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请输入验证码"})
+			return
+		}
+		if !services.VerifyCaptcha(req.CaptchaID, req.CaptchaCode) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "验证码错误或已过期"})
+			return
+		}
+	}
+
 	ip := c.ClientIP()
 
-	// 1. 检查 IP 封锁
+	// 2. 检查 IP 封锁
 	if services.GlobalBlocker.IsIPBlocked(ip) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "IP 已被临时封锁，请稍后再试"})
 		return
 	}
 
-	// 2. 检查账号封锁（白名单 IP 可绕过账号封锁）
+	// 3. 检查账号封锁（白名单 IP 可绕过账号封锁）
 	if sec.AccountBlockEnabled && !services.GlobalBlocker.IsWhitelisted(ip, sec.WhitelistIPs) {
 		if services.GlobalBlocker.IsAccountBlocked(req.Username) {
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "账号已被临时封锁，请稍后再试"})
@@ -40,7 +54,7 @@ func Login(c *gin.Context) {
 		}
 	}
 
-	// 3. 验证用户名
+	// 4. 验证用户名
 	user, err := services.GetUserByUsername(req.Username)
 	if err != nil {
 		time.Sleep(1 * time.Second)
@@ -50,7 +64,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 4. 验证密码
+	// 5. 验证密码
 	if !services.CheckPassword(user, req.Password) {
 		time.Sleep(1 * time.Second)
 		services.GlobalBlocker.RecordFailure(ip, req.Username)
@@ -59,7 +73,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 5. 登录成功
+	// 6. 登录成功
 	services.GlobalBlocker.ResetOnSuccess(ip, req.Username)
 
 	sessionDuration := time.Duration(sec.SessionTimeout) * time.Minute
@@ -75,6 +89,22 @@ func Login(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("gowfm_session", session.Token, int(sessionDuration.Seconds()), "/", "", secure, true)
 	c.JSON(http.StatusOK, gin.H{"message": "login successful"})
+}
+
+func GetCaptcha(c *gin.Context) {
+	sec := config.GetSecurity()
+	if !sec.EnableCaptcha {
+		c.JSON(http.StatusOK, gin.H{"enabled": false})
+		return
+	}
+
+	captchaID, _, pngBase64 := services.GenerateCaptcha()
+
+	c.JSON(http.StatusOK, gin.H{
+		"enabled":       true,
+		"captcha_id":    captchaID,
+		"captcha_image": "data:image/png;base64," + pngBase64,
+	})
 }
 
 func Logout(c *gin.Context) {

@@ -19,8 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var Version string = "dev"
-
 func setupRouter() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
@@ -35,6 +33,7 @@ func setupRouter() *gin.Engine {
 
 	r.POST("/api/auth/login", handlers.Login)
 	r.POST("/api/auth/logout", handlers.Logout)
+	r.GET("/api/auth/captcha", handlers.GetCaptcha)
 
 	auth := r.Group("/api")
 	auth.Use(middleware.AuthRequired())
@@ -125,8 +124,6 @@ func main() {
 		}
 	}
 
-	handlers.Version = Version
-
 	// 4. 设置路由
 	r := setupRouter()
 	r.MaxMultipartMemory = basicCfg.MaxUploadSize
@@ -154,6 +151,9 @@ func main() {
 					log.Printf("Cleaned %d old log entries", logCount)
 				}
 			}
+
+			// 清理过期验证码
+			services.CleanExpiredCaptchas()
 		}
 	}()
 

@@ -811,7 +811,7 @@ async function fetchAllUsers() {
 }
 
 .breadcrumb-link {
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -890,7 +890,7 @@ async function fetchAllUsers() {
 
 .batch-info {
   font-size: 13px;
-  color: #3b82f6;
+  color: var(--theme-color, #3b82f6);
   font-weight: 500;
 }
 
@@ -949,12 +949,12 @@ async function fetchAllUsers() {
 
 .grid-card-selected {
   background: #eff6ff;
-  border-color: #3b82f6;
+  border-color: var(--theme-color, #3b82f6);
 }
 
 .dark .grid-card-selected {
   background: #1e3a5f;
-  border-color: #3b82f6;
+  border-color: var(--theme-color, #3b82f6);
 }
 
 .grid-card-selected:hover {

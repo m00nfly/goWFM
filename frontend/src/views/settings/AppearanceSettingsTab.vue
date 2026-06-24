@@ -123,6 +123,8 @@ async function handleSave() {
     message.error(err.response?.data?.error || '保存失败')
   } finally {
     saving.value = false
+    //立即刷新页面
+    window.location.reload()
   }
 }
 </script>
