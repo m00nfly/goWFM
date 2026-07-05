@@ -1,5 +1,5 @@
 <template>
-  <div class="setup-page">
+  <div class="setup-page" :class="{ dark: themeStore.isDark }">
     <n-card title="系统初始化设置" class="setup-card">
       <n-form ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="auto">
         <n-divider>管理员账户</n-divider>
@@ -50,9 +50,13 @@ import { useRouter } from 'vue-router'
 import { NCard, NForm, NFormItem, NInput, NInputNumber, NSelect, NButton, NSpace, NDivider, useMessage } from 'naive-ui'
 import type { FormInst, FormRules } from 'naive-ui'
 import api from '@/api'
+import { useThemeStore } from '@/stores/theme'
+import { useConfig } from '@/composables/useConfig'
 
 const router = useRouter()
 const message = useMessage()
+const themeStore = useThemeStore()
+const { fetchSetupStatus, setupStatus } = useConfig()
 const formRef = ref<FormInst | null>(null)
 const loading = ref(false)
 
@@ -86,13 +90,9 @@ const rules: FormRules = {
 }
 
 onMounted(async () => {
-  try {
-    const res = await api.get('/api/setup/status')
-    if (!res.data.needs_setup) {
-      router.replace('/login')
-    }
-  } catch {
-    // server might not be ready
+  await fetchSetupStatus()
+  if (setupStatus.value && !setupStatus.value.needs_setup) {
+    router.replace('/login')
   }
 })
 
@@ -123,10 +123,38 @@ async function handleSubmit() {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  background: #f5f5f5;
+  min-height: 100%;
+  overflow-y: auto;
 }
+
 .setup-card {
   width: 520px;
+  max-width: 95%;
+}
+
+/* ---- 暗色模式 ---- */
+.dark.setup-page {
+  background: transparent;
+}
+
+.dark .setup-card :deep(.n-card) {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .setup-card :deep(.n-card-header) {
+  color: #f1f5f9;
+}
+
+.dark .setup-card :deep(.n-form-item-label) {
+  color: #cbd5e1;
+}
+
+.dark .setup-card :deep(.n-divider) {
+  border-color: #334155;
+}
+
+.dark .setup-card :deep(.n-divider__title) {
+  color: #94a3b8;
 }
 </style>

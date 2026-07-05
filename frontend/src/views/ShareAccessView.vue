@@ -1,22 +1,5 @@
 <template>
-  <div class="share-access-page" :class="{ dark: themeStore.isDark }">
-    <!-- 顶部导航栏 -->
-    <header class="top-header">
-      <div class="header-inner">
-        <div class="header-brand">
-          <div class="brand-icon">
-            <n-icon size="20" color="#fff"><FolderOpenOutline /></n-icon>
-          </div>
-          <span class="brand-text">{{ orgName || 'goWFM' }}</span>
-        </div>
-        <div class="header-actions">
-          <button class="nav-icon-btn" @click="themeStore.toggleTheme()">
-            <n-icon size="22"><SunnyOutline v-if="themeStore.isDark" /><MoonOutline v-else /></n-icon>
-          </button>
-        </div>
-      </div>
-    </header>
-
+  <div class="share-access-content" :class="{ dark: themeStore.isDark }">
     <!-- 主内容 -->
     <main class="share-main">
       <!-- 错误状态 -->
@@ -78,25 +61,6 @@
         </template>
       </n-spin>
     </main>
-
-    <!-- 页脚 -->
-    <footer class="share-footer">
-      <div class="footer-content">
-        <template v-if="orgLink">
-          <a :href="orgLink" target="_blank" class="footer-org-link">{{ orgName || orgLink }}</a>
-          <span class="footer-separator">|</span>
-        </template>
-        <template v-else-if="orgName">
-          <span class="footer-org-text">{{ orgName }}</span>
-          <span class="footer-separator">|</span>
-        </template>
-        <a :href="appLink" target="_blank" class="footer-app-link">goWFM</a>
-        <a v-if="appGithub" :href="appGithub" target="_blank" class="footer-github-link">
-          <n-icon :size="14"><LogoGithub /></n-icon>
-        </a>
-        <span v-if="version" class="footer-version">ver: {{ version }}</span>
-      </div>
-    </footer>
   </div>
 </template>
 
@@ -109,15 +73,11 @@ import { useThemeStore } from '@/stores/theme'
 import { formatSize } from '@/utils/format'
 import { copyToClipboard } from '@/utils/clipboard'
 import {
-  FolderOpenOutline,
-  SunnyOutline,
-  MoonOutline,
   PersonOutline,
   CalendarOutline,
   DocumentsOutline,
   DownloadOutline,
   LinkOutline,
-  LogoGithub,
   Image,
   DocumentText,
   Document,
@@ -130,13 +90,6 @@ import {
 const route = useRoute()
 const message = useMessage()
 const themeStore = useThemeStore()
-
-// 配置信息
-const orgName = ref('')
-const orgLink = ref('')
-const version = ref('')
-const appLink = ref('https://gowfm.dev')
-const appGithub = ref('https://github.com/m00nfly/gowfm')
 
 // 分享数据
 const loading = ref(true)
@@ -232,137 +185,32 @@ async function copyDownloadLink(file: { file_name: string }) {
 
 // 初始化
 onMounted(async () => {
-  // 并行请求配置和分享信息
   const token = route.params.token as string
-  const [configRes, shareRes] = await Promise.allSettled([
-    api.get('/api/config/info'),
-    api.get(`/share/${token}/info`),
-  ])
 
-  if (configRes.status === 'fulfilled') {
-    orgName.value = configRes.value.data.site_name || ''
-    orgLink.value = configRes.value.data.site_link || ''
-    version.value = configRes.value.data.version || ''
-  }
-
-  if (shareRes.status === 'fulfilled') {
-    shareInfo.value = shareRes.value.data
-  } else {
-    const err = shareRes.reason
+  try {
+    const shareRes = await api.get(`/share/${token}/info`)
+    shareInfo.value = shareRes.data
+  } catch (err: any) {
     error.value = err.response?.data?.error || '获取分享信息失败'
+  } finally {
+    loading.value = false
   }
-
-  loading.value = false
 })
 </script>
 
 <style scoped>
-.share-access-page {
-  min-height: 100vh;
-  background: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  transition: background 0.3s ease;
+.share-access-content {
+  height: 100%;
+  overflow-y: auto;
 }
 
-.dark.share-access-page {
-  background: #0f172a;
-}
-
-/* ---- 顶部导航栏 ---- */
-.top-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  backdrop-filter: blur(12px);
-  background-color: rgba(255, 255, 255, 0.85);
-  border-bottom: 1px solid #e2e8f0;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-.dark .top-header {
-  background-color: rgba(15, 23, 42, 0.85);
-  border-bottom: 1px solid #1e293b;
-}
-
-.header-inner {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 24px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.header-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  user-select: none;
-}
-
-.brand-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--theme-color, #3b82f6);
-  padding: 8px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
-}
-
-.brand-text {
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.025em;
-  transition: color 0.3s ease;
-}
-
-.dark .brand-text {
-  color: #f1f5f9;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-}
-
-.nav-icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  color: #0f172a;
-  transition: all 0.2s ease;
-}
-
-.nav-icon-btn:hover {
-  background: #f1f5f9;
-  color: var(--theme-color, #3b82f6);
-}
-
-.dark .nav-icon-btn {
-  color: #f1f5f9;
-}
-
-.dark .nav-icon-btn:hover {
-  background: #1e293b;
-  color: #60a5fa;
+.dark.share-access-content {
+  /* dark mode handled by parent MainLayout, local class for scoped selector matching */
 }
 
 /* ---- 主内容区 ---- */
 .share-main {
-  flex: 1;
-  padding: 112px 24px 80px;
+  padding: 32px 0 40px;
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
@@ -592,92 +440,8 @@ onMounted(async () => {
   color: #60a5fa;
 }
 
-/* ---- 页脚 ---- */
-.share-footer {
-  text-align: center;
-  padding: 16px;
-  font-size: 12px;
-  color: #94a3b8;
-  border-top: 1px solid #e2e8f0;
-  transition: color 0.3s ease, border-color 0.3s ease;
-}
-
-.dark .share-footer {
-  color: #475569;
-  border-top-color: #1e293b;
-}
-
-.footer-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.footer-separator {
-  color: #cbd5e1;
-}
-
-.dark .footer-separator {
-  color: #334155;
-}
-
-.footer-app-link {
-  color: var(--theme-color, #3b82f6);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.footer-app-link:hover {
-  text-decoration: underline;
-}
-
-.footer-version {
-  color: #cbd5e1;
-  font-size: 11px;
-}
-
-.dark .footer-version {
-  color: #334155;
-}
-
-.footer-org-link {
-  color: var(--theme-color, #3b82f6);
-  text-decoration: none;
-}
-
-.footer-org-link:hover {
-  text-decoration: underline;
-}
-
-.footer-org-text {
-  color: #64748b;
-}
-
-.dark .footer-org-text {
-  color: #64748b;
-}
-
-.footer-github-link {
-  color: #64748b;
-  display: inline-flex;
-  align-items: center;
-  transition: color 0.2s;
-}
-
-.footer-github-link:hover {
-  color: #334155;
-}
-
-.dark .footer-github-link:hover {
-  color: #cbd5e1;
-}
-
 /* ---- 响应式 ---- */
 @media (max-width: 640px) {
-  .brand-text {
-    display: none;
-  }
-
   .share-title {
     font-size: 20px;
   }

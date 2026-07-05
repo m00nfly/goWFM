@@ -1,16 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import api from '@/api'
+import { useConfig } from '@/composables/useConfig'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    {
-      path: '/setup',
-      name: 'setup',
-      component: () => import('@/views/SetupView.vue'),
-      meta: { public: true },
-    },
     {
       path: '/login',
       name: 'login',
@@ -18,20 +12,26 @@ const router = createRouter({
       meta: { public: true },
     },
     {
-      path: '/share/:token',
-      name: 'share-access',
-      component: () => import('@/views/ShareAccessView.vue'),
-      meta: { public: true },
-    },
-    {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
-      meta: { requiresAuth: true },
       children: [
         {
           path: '',
           name: 'files',
           component: () => import('@/views/FileExplorer.vue'),
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'setup',
+          name: 'setup',
+          component: () => import('@/views/SetupView.vue'),
+          meta: { public: true },
+        },
+        {
+          path: 'share/:token',
+          name: 'share-access',
+          component: () => import('@/views/ShareAccessView.vue'),
+          meta: { public: true },
         },
         {
           path: 'shares',
@@ -75,6 +75,7 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
+  const { fetchSetupStatus, setupStatus } = useConfig()
 
   // Resolve meta from all matched route records (supports nested routes)
   const requiresAuth = to.matched.some(r => r.meta.requiresAuth)
@@ -86,10 +87,11 @@ router.beforeEach(async (to, _from, next) => {
   if (!userStore.initialized) {
     await userStore.fetchMe()
 
-    if (!userStore.user) {
+    // 未登录时，检查是否需要跳转到初始化页面
+    if (!userStore.user && to.name !== 'setup') {
       try {
-        const res = await api.get('/api/setup/status')
-        if (res.data.needs_setup) {
+        await fetchSetupStatus()
+        if (setupStatus.value?.needs_setup) {
           return next('/setup')
         }
       } catch {
@@ -98,11 +100,17 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
+  // public 路由直接放行（含 Guest 模式下的 MainLayout 子页面）
   if (isPublic) {
     if (to.name === 'login' && userStore.user) {
       return next('/')
     }
     return next()
+  }
+
+  // 需要登录但未登录
+  if (!userStore.user) {
+    return next('/login')
   }
 
   if (requiresAuth && !userStore.user) {

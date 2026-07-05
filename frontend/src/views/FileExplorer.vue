@@ -112,7 +112,18 @@
             @update:checked="toggleGridSelection(file.path || file.name, $event)"
             @click.stop
           />
-          <!-- 操作按钮组 - hover 时显示 -->
+          <!-- 图标 - 带彩色背景 -->
+          <div class="grid-card-icon" :class="{ 'icon-folder': file.is_directory, 'icon-file': !file.is_directory }">
+            <n-icon :size="32" :color="getFileIcon(file.name, file.is_directory).color">
+              <component :is="getFileIcon(file.name, file.is_directory).icon" />
+            </n-icon>
+          </div>
+          <div class="grid-card-name" :title="file.name">{{ file.name }}</div>
+          <div class="grid-card-info">
+            <span v-if="!file.is_directory">{{ formatSize(file.size) }}</span>
+            <span v-else>文件夹</span>
+          </div>
+          <!-- 操作按钮 - 底部居中 -->
           <div class="grid-card-actions">
             <n-tooltip v-if="file.is_directory" trigger="hover" placement="top">
               <template #trigger>
@@ -156,17 +167,6 @@
               </template>
               移动/重命名
             </n-tooltip>
-          </div>
-          <!-- 图标 - 带彩色背景 -->
-          <div class="grid-card-icon" :class="{ 'icon-folder': file.is_directory, 'icon-file': !file.is_directory }">
-            <n-icon :size="32" :color="getFileIcon(file.name, file.is_directory).color">
-              <component :is="getFileIcon(file.name, file.is_directory).icon" />
-            </n-icon>
-          </div>
-          <div class="grid-card-name" :title="file.name">{{ file.name }}</div>
-          <div class="grid-card-info">
-            <span v-if="!file.is_directory">{{ formatSize(file.size) }}</span>
-            <span v-else>文件夹</span>
           </div>
         </div>
       </div>
@@ -413,7 +413,7 @@ const columns = computed<DataTableColumns>(() => [
       const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '8px', verticalAlign: 'middle', flexShrink: '0' } }, () => h(icon))
       if (row.is_directory) {
         return h('div', { class: 'name-cell' },
-          h(NButton, { text: true, type: 'info', onClick: () => navigateTo(row.path) }, () => [iconEl, h('span', { class: 'name-text' }, row.name)]),
+          h(NButton, { text: true, onClick: () => navigateTo(row.path) }, () => [iconEl, h('span', { class: 'name-text' }, row.name)]),
         )
       }
       return h('div', { class: 'name-cell' }, [
@@ -793,99 +793,94 @@ async function fetchAllUsers() {
 </script>
 
 <style scoped>
+/* ===== 容器 & 设计令牌 ===== */
 .file-explorer {
   flex: 1;
-  height: calc(100vh - 135px);
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+
+  /* ── 浅色模式 ── */
+  --fe-bg-card: #fff;
+  --fe-bg-action: #f1f5f9;
+  --fe-fg-primary: #1e293b;
+  --fe-fg-muted: #94a3b8;
+  --fe-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.1);
+
+  /* 主题色透明度档位 */
+  --fe-a-row-hover: 0.04;
+  --fe-a-row-sel: 0.08;
+  --fe-a-card-hover-border: 0.35;
+  --fe-a-card-shadow: 0.1;
+  --fe-a-batch-bg: 0.06;
+  --fe-a-batch-border: 0.2;
+  --fe-a-action-hover: 0.1;
+  --fe-a-file-icon: 0.1;
 }
 
-/* 面包屑 */
+/* ===== 暗色模式 ===== */
+.dark {
+  --fe-bg-card: #1e293b;
+  --fe-bg-action: #334155;
+  --fe-fg-primary: #f1f5f9;
+  --fe-fg-muted: #64748b;
+  --fe-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
+
+  --fe-a-row-hover: 0.1;
+  --fe-a-row-sel: 0.18;
+  --fe-a-card-hover-border: 0.5;
+  --fe-a-card-shadow: 0.2;
+  --fe-a-batch-bg: 0.12;
+  --fe-a-batch-border: 0.3;
+  --fe-a-action-hover: 0.18;
+  --fe-a-file-icon: 0.12;
+}
+
+/* ===== 面包屑 ===== */
 .breadcrumb {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  gap: 4px;
   font-size: 14px;
-  line-height: 1.6;
+  padding-bottom: 2px;
 }
 
 .breadcrumb-link {
   color: var(--theme-color, #3b82f6);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: opacity 0.2s;
 }
+.breadcrumb-link:hover { opacity: 0.8; }
 
-.breadcrumb-link:hover {
-  text-decoration: underline;
-}
+.breadcrumb-sep  { color: var(--fe-fg-muted); }
+.breadcrumb-current { font-weight: 700; color: var(--fe-fg-primary); }
 
-.breadcrumb-sep {
-  margin: 0 6px;
-  color: #94a3b8;
-}
-
-.breadcrumb-current {
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.dark .breadcrumb-current {
-  color: #f1f5f9;
-}
-
-/* 工具栏 */
+/* ===== 工具栏 ===== */
 .toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   padding: 8px 0;
-  min-height: 50px;
+  min-height: 46px;
 }
 
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.toolbar-left,
+.toolbar-right { display: flex; align-items: center; gap: 8px; }
+.toolbar-right { margin-left: auto; }
 
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.search-input :deep(.n-input) {
-  border-radius: 8px;
-}
-
-/* 批量操作栏 */
+/* ===== 批量操作栏 ===== */
 .batch-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 3px 10px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  padding: 6px 12px;
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-batch-bg));
+  border: 1px solid rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-batch-border));
   border-radius: 8px;
-  animation: slideIn 0.2s ease;
-}
-
-.dark .batch-bar {
-  background: #1e3a5f;
-  border-color: #1e3a5f;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: fe-slide-in 0.2s ease;
 }
 
 .batch-info {
@@ -894,19 +889,35 @@ async function fetchAllUsers() {
   font-weight: 500;
 }
 
-/* 文件列表容器 */
+@keyframes fe-slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 无权限 ===== */
+.permission-denied-result {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ===== 列表容器 ===== */
 .file-list {
   flex: 1;
-  height: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--fe-bg-card);
+  border-radius: 8px;
 }
 
-/* 网格视图 */
+/* ===== 网格视图 ===== */
 .file-grid-container {
+  flex: 1;
   overflow-y: auto;
-  padding: 0 2px;
 }
 
 .file-grid {
@@ -916,6 +927,14 @@ async function fetchAllUsers() {
   padding: 16px 10px;
 }
 
+.grid-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+/* ── 卡片 ── */
 .grid-card {
   position: relative;
   display: flex;
@@ -923,45 +942,29 @@ async function fetchAllUsers() {
   align-items: center;
   text-align: center;
   padding: 20px 16px 16px;
-  background: #ffffff;
+  background: var(--fe-bg-card);
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--fe-border-card);
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
 }
 
-.dark .grid-card {
-  background: #1e293b;
-  border-color: #334155;
-}
-
 .grid-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
-  border-color: #cbd5e1;
-}
-
-.dark .grid-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  border-color: #475569;
+  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-card-hover-border));
+  box-shadow: 0 4px 18px rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-card-shadow));
 }
 
 .grid-card-selected {
-  background: #eff6ff;
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-row-sel));
   border-color: var(--theme-color, #3b82f6);
 }
-
-.dark .grid-card-selected {
-  background: #1e3a5f;
-  border-color: var(--theme-color, #3b82f6);
-}
-
 .grid-card-selected:hover {
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 4px 18px rgba(var(--theme-color-rgb, 59, 130, 246), calc(var(--fe-a-card-shadow) * 1.6));
 }
 
-/* 复选框 - hover 和选中时显示 */
+/* 复选框 */
 .grid-card-checkbox {
   position: absolute;
   top: 8px;
@@ -969,27 +972,22 @@ async function fetchAllUsers() {
   opacity: 0;
   transition: opacity 0.2s;
 }
-
 .grid-card:hover .grid-card-checkbox,
-.grid-card-selected .grid-card-checkbox {
-  opacity: 1;
-}
+.grid-card-selected .grid-card-checkbox { opacity: 1; }
 
-/* 操作按钮组 - 右上角 hover 显示 */
+/* 操作按钮组 */
 .grid-card-actions {
-  position: absolute;
-  top: 6px;
-  right: 6px;
   display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 8px;
   opacity: 0;
   transition: opacity 0.2s;
 }
-
-.grid-card:hover .grid-card-actions {
-  opacity: 1;
-}
+.grid-card:hover .grid-card-actions { opacity: 1; }
 
 .card-action-btn {
   display: flex;
@@ -998,25 +996,18 @@ async function fetchAllUsers() {
   width: 28px;
   height: 28px;
   border: none;
-  background: #f1f5f9;
+  background: var(--fe-bg-action);
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
+  color: var(--fe-fg-muted);
 }
-
 .card-action-btn:hover {
-  background: #e2e8f0;
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-action-hover));
+  color: var(--theme-color, #3b82f6);
 }
 
-.dark .card-action-btn {
-  background: #334155;
-}
-
-.dark .card-action-btn:hover {
-  background: #475569;
-}
-
-/* 图标 - 带彩色背景 */
+/* 图标背景 */
 .grid-card-icon {
   display: flex;
   align-items: center;
@@ -1026,116 +1017,56 @@ async function fetchAllUsers() {
   border-radius: 12px;
   margin-bottom: 12px;
 }
-
-.grid-card-icon.icon-folder {
-  background: #fef3c7;
-}
-
-.dark .grid-card-icon.icon-folder {
-  background: #422006;
-}
-
-.grid-card-icon.icon-file {
-  background: #eff6ff;
-}
-
-.dark .grid-card-icon.icon-file {
-  background: #172554;
-}
+.icon-folder,
+.icon-file   { background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-file-icon)); }
 
 .grid-card-name {
   font-size: 13px;
-  font-weight: 500;
-  color: #1e293b;
-  text-align: center;
+  font-weight: 700;
+  color: var(--fe-fg-primary);
   width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
   margin-bottom: 4px;
-}
-
-.dark .grid-card-name {
-  color: #f1f5f9;
 }
 
 .grid-card-info {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--fe-fg-muted);
 }
 
-.grid-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-}
+/* ===== 数据表格 ===== */
+.file-data-table { flex: 1; }
 
-/* 权限拒绝 */
-.permission-denied-result {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 24px 16px;
-}
-
-/* 表格样式 */
-.file-data-table {
-  flex: 1;
-}
-
+/* 行高 */
 .file-data-table :deep(.n-data-table-td),
 .file-data-table :deep(.n-data-table-th) {
   padding-top: 8px !important;
   padding-bottom: 8px !important;
   font-size: 13px;
 }
-
-.file-data-table :deep(.n-data-table-th) {
-  font-weight: 600;
-}
+.file-data-table :deep(.n-data-table-th) { font-weight: 600; }
 
 /* 行悬停 */
 .file-data-table :deep(.n-data-table-tr:hover > .n-data-table-td) {
-  background-color: #f5f7fa !important;
+  background-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-row-hover)) !important;
 }
 
-/* 操作按钮悬停显隐 */
-.file-data-table :deep(.col-actions .action-btn) {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.file-data-table :deep(.n-data-table-tr:hover .col-actions .action-btn) {
-  opacity: 1;
-}
-
-/* 选中行操作按钮始终可见 */
-.file-data-table :deep(.checked-row .col-actions .action-btn) {
-  opacity: 1;
-}
-
-/* 选中行背景 */
+/* 选中行 */
 .file-data-table :deep(.checked-row > .n-data-table-td) {
-  background-color: #eff6ff !important;
+  background-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-row-sel)) !important;
 }
 
-.dark .file-data-table :deep(.checked-row > .n-data-table-td) {
-  background-color: #1e3a5f !important;
-}
-
-/* 高亮行样式 */
+/* 高亮行（绿色闪动 - 语义色，不跟随主题） */
 .file-data-table :deep(.highlighted-row > .n-data-table-td) {
   background-color: rgba(24, 160, 88, 0.08) !important;
   transition: background-color 0.3s ease;
 }
 
-/* 名称列 */
-.file-data-table :deep(.col-name .n-data-table-td__ellipsis),
-.file-data-table :deep(.col-name) {
+/* 名称列换行 */
+.file-data-table :deep(.col-name),
+.file-data-table :deep(.col-name .n-data-table-td__ellipsis) {
   white-space: normal !important;
 }
 
@@ -1146,6 +1077,7 @@ async function fetchAllUsers() {
 }
 
 .file-data-table :deep(.name-text) {
+  font-weight: 700;
   white-space: normal;
   word-break: break-all;
   overflow-wrap: anywhere;
@@ -1153,6 +1085,7 @@ async function fetchAllUsers() {
 }
 
 .file-data-table :deep(.col-name .n-button__content) {
+  font-weight: 700;
   white-space: normal;
   word-break: break-all;
   overflow-wrap: anywhere;
@@ -1160,46 +1093,35 @@ async function fetchAllUsers() {
   line-height: 1.5;
 }
 
-/* 操作列不换行 */
-.file-data-table :deep(.col-actions) {
-  white-space: nowrap;
+/* 操作列 */
+.file-data-table :deep(.col-actions) { white-space: nowrap; }
+
+.file-data-table :deep(.col-actions .action-btn) {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.file-data-table :deep(.n-data-table-tr:hover .col-actions .action-btn),
+.file-data-table :deep(.checked-row .col-actions .action-btn) { opacity: 1; }
+
+/* 暗色表格背景 */
+.dark .file-data-table :deep(.n-data-table),
+.dark .file-data-table :deep(.n-data-table-wrapper) {
+  background-color: var(--fe-bg-card);
+}
+.dark .file-data-table :deep(.n-data-table-th) {
+  background-color: var(--fe-bg-card) !important;
+}
+.dark .file-data-table :deep(.n-data-table-td) {
+  background-color: transparent;
+}
+.dark .file-data-table :deep(.n-data-table-base-table) {
+  border-color: var(--fe-border-card);
 }
 
-/* 分享文件列表 */
+/* ===== 分享弹窗 ===== */
 .share-file-list {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-}
-
-/* ============ 暗色模式 - 表格 ============ */
-.dark .file-data-table :deep(.n-data-table-tr:hover > .n-data-table-td) {
-  background-color: #1e293b !important;
-}
-
-/* 暗色模式 - 表格容器配色（比背景稍浅） */
-.dark .file-data-table :deep(.n-data-table) {
-  background-color: #1e293b;
-}
-
-.dark .file-data-table :deep(.n-data-table-wrapper) {
-  background-color: #1e293b;
-}
-
-.dark .file-data-table :deep(.n-data-table-th) {
-  background-color: #1e293b !important;
-}
-
-.dark .file-data-table :deep(.n-data-table-td) {
-  background-color: transparent;
-}
-
-.dark .file-data-table :deep(.n-data-table-base-table) {
-  border-color: #334155;
-}
-
-.dark .file-list {
-  background: #1e293b;
-  border-radius: 8px;
 }
 </style>

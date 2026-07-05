@@ -13,9 +13,10 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme } from 'naive-ui'
 import type { GlobalThemeOverrides } from 'naive-ui'
 import { useThemeStore } from '@/stores/theme'
-import api from '@/api'
+import { useConfig } from '@/composables/useConfig'
 
 const themeStore = useThemeStore()
+const { config, fetchConfig } = useConfig()
 
 // 主题色（从外观设置中读取）
 const themeColor = ref('#3b82f6')
@@ -93,12 +94,10 @@ watch(themeColor, applyCSSVar)
 
 onMounted(async () => {
   themeStore.init()
-  try {
-    const res = await api.get('/api/config/info')
-    if (res.data.theme_color) {
-      themeColor.value = res.data.theme_color
-    }
-  } catch { /* ignore */ }
+  await fetchConfig()
+  if (config.value?.theme_color) {
+    themeColor.value = config.value.theme_color
+  }
 })
 
 onUnmounted(() => {

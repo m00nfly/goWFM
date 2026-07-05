@@ -18,8 +18,8 @@
 
         <!-- 右侧操作区 -->
         <div class="header-actions">
-          <!-- 导航图标 - 宽屏 -->
-          <div v-show="!isNarrow" class="nav-icons">
+          <!-- 导航图标 - 宽屏（仅登录后显示） -->
+          <div v-show="!isNarrow && userStore.user" class="nav-icons">
             <n-tooltip trigger="hover" placement="bottom">
               <template #trigger>
                 <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/' }" @click="router.push('/')">
@@ -68,9 +68,9 @@
             </n-tooltip>
           </div>
 
-          <!-- 导航图标 - 窄屏折叠菜单 -->
+          <!-- 导航图标 - 窄屏折叠菜单（仅登录后显示） -->
           <n-popselect
-            v-if="isNarrow"
+            v-if="isNarrow && userStore.user"
             v-model:value="popNavValue"
             :options="popNavOptions"
             trigger="click"
@@ -93,22 +93,24 @@
             {{ themeStore.isDark ? '切换亮色' : '切换暗色' }}
           </n-tooltip>
 
-          <!-- 分隔线 -->
-          <div class="header-divider"></div>
+          <template v-if="userStore.user">
+            <!-- 分隔线 -->
+            <div class="header-divider"></div>
 
-          <!-- 用户下拉 -->
-          <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
-            <div class="user-trigger">
-              <n-avatar
-                round
-                :size="32"
-                :style="{ backgroundColor: 'var(--theme-color, #3b82f6)', cursor: 'pointer', fontSize: '14px' }"
-              >
-                {{ avatarLetter }}
-              </n-avatar>
-              <span class="user-display-name">{{ displayName }}</span>
-            </div>
-          </n-dropdown>
+            <!-- 用户下拉 -->
+            <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
+              <div class="user-trigger">
+                <n-avatar
+                  round
+                  :size="32"
+                  :style="{ backgroundColor: 'var(--theme-color, #3b82f6)', cursor: 'pointer', fontSize: '14px' }"
+                >
+                  {{ avatarLetter }}
+                </n-avatar>
+                <span class="user-display-name">{{ displayName }}</span>
+              </div>
+            </n-dropdown>
+          </template>
         </div>
       </div>
     </header>
@@ -159,12 +161,14 @@ import {
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import { useConfig } from '@/composables/useConfig'
 import api from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const themeStore = useThemeStore()
+const { config, fetchConfig } = useConfig()
 
 const version = ref('')
 const orgName = ref('')
@@ -287,13 +291,13 @@ async function onUserAction(key: string) {
 onMounted(async () => {
   window.addEventListener('resize', onResize)
 
-  try {
-    const res = await api.get('/api/config/info')
-    orgName.value = res.data.site_name || ''
-    orgLink.value = res.data.site_link || ''
-    version.value = res.data.version || ''
-    customLogo.value = res.data.custom_logo || ''
-  } catch { /* ignore */ }
+  await fetchConfig()
+  if (config.value) {
+    orgName.value = config.value.site_name || ''
+    orgLink.value = config.value.site_link || ''
+    version.value = config.value.version || ''
+    customLogo.value = config.value.custom_logo || ''
+  }
 })
 
 onUnmounted(() => {
