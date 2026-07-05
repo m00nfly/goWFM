@@ -2,7 +2,7 @@
   <div class="file-explorer" :class="{ dark: themeStore.isDark }">
     <!-- 面包屑导航 -->
     <div class="breadcrumb">
-      <n-icon size="18" color="#666" style="margin-right: 6px; vertical-align: middle;">
+      <n-icon size="18" class="breadcrumb-icon">
         <FolderOpenOutline />
       </n-icon>
       <span class="breadcrumb-link" @click="navigateTo('/')">根目录</span>
@@ -49,7 +49,6 @@
           v-model:value="searchKeyword"
           placeholder="搜索文件..."
           clearable
-          style="width: 220px;"
           class="search-input"
         >
           <template #prefix>
@@ -82,6 +81,7 @@
         class="file-data-table"
         size="small"
         flex-height
+        virtual-scroll
         :columns="columns"
         :data="filteredFiles"
         :bordered="false"
@@ -256,6 +256,7 @@ import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import { useViewport } from '@/composables/useViewport'
 import { formatSize } from '@/utils/format'
 import {
   FolderOpen,
@@ -320,6 +321,9 @@ const allUsers = ref<{ label: string; value: number }[]>([])
 const searchKeyword = ref('')
 const checkedKeys = ref<DataTableRowKey[]>([])
 const viewMode = ref<'list' | 'grid'>('list')
+
+// === 视口状态（共享自 MainLayout 的 resize 监听） ===
+const { isMobile } = useViewport()
 
 // === 计算属性 ===
 const hasPermUpload = computed(() => userStore.hasPermission(4))
@@ -401,59 +405,69 @@ function rowKey(row: any) {
 }
 
 // === 表格列定义 ===
-const columns = computed<DataTableColumns>(() => [
-  { type: 'selection' },
-  {
-    title: '名称',
-    key: 'name',
-    className: 'col-name',
-    sorter: (a: any, b: any) => a.name.localeCompare(b.name),
-    render(row: any) {
-      const { icon, color } = getFileIcon(row.name, row.is_directory)
-      const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '8px', verticalAlign: 'middle', flexShrink: '0' } }, () => h(icon))
-      if (row.is_directory) {
-        return h('div', { class: 'name-cell' },
-          h(NButton, { text: true, onClick: () => navigateTo(row.path) }, () => [iconEl, h('span', { class: 'name-text' }, row.name)]),
-        )
-      }
-      return h('div', { class: 'name-cell' }, [
-        iconEl,
-        h('span', { class: 'name-text' }, row.name),
-      ])
+const columns = computed<DataTableColumns>(() => {
+  const cols: DataTableColumns = [
+    { type: 'selection' },
+    {
+      title: '名称',
+      key: 'name',
+      className: 'col-name',
+      sorter: (a: any, b: any) => a.name.localeCompare(b.name),
+      render(row: any) {
+        const { icon, color } = getFileIcon(row.name, row.is_directory)
+        const iconEl = h(NIcon, { size: 18, color, style: { marginRight: '8px', verticalAlign: 'middle', flexShrink: '0' } }, () => h(icon))
+        if (row.is_directory) {
+          return h('div', { class: 'name-cell' },
+            h(NButton, { text: true, onClick: () => navigateTo(row.path) }, () => [iconEl, h('span', { class: 'name-text' }, row.name)]),
+          )
+        }
+        return h('div', { class: 'name-cell' }, [
+          iconEl,
+          h('span', { class: 'name-text' }, row.name),
+        ])
+      },
     },
-  },
-  {
-    title: '大小',
-    key: 'size',
-    width: 80,
-    sorter: (a: any, b: any) => a.size - b.size,
-    render(row: any) {
-      return row.is_directory ? '—' : formatSize(row.size)
+    {
+      title: '大小',
+      key: 'size',
+      width: 80,
+      sorter: (a: any, b: any) => a.size - b.size,
+      render(row: any) {
+        return row.is_directory ? '—' : formatSize(row.size)
+      },
     },
-  },
-  {
-    title: '修改时间',
-    key: 'mod_time',
-    width: 140,
-    sorter: (a: any, b: any) => new Date(a.mod_time).getTime() - new Date(b.mod_time).getTime(),
-    render(row: any) {
-      return formatTime(row.mod_time)
-    },
-  },
-  {
-    title: '所有者',
-    key: 'owner_name',
-    width: 120,
-    render(row: any) {
-      return isAdmin.value
-        ? h(NButton, { text: true, type: 'primary', onClick: () => openOwnerModal(row) }, () => row.owner_name)
-        : (row.owner_name as string)
-    },
-  },
-  {
+  ]
+
+  // 宽视口 (≥768px) 显示次要列
+  if (!isMobile.value) {
+    cols.push(
+      {
+        title: '修改时间',
+        key: 'mod_time',
+        width: 140,
+        sorter: (a: any, b: any) => new Date(a.mod_time).getTime() - new Date(b.mod_time).getTime(),
+        render(row: any) {
+          return formatTime(row.mod_time)
+        },
+      },
+      {
+        title: '所有者',
+        key: 'owner_name',
+        width: 120,
+        render(row: any) {
+          return isAdmin.value
+            ? h(NButton, { text: true, type: 'primary', onClick: () => openOwnerModal(row) }, () => row.owner_name)
+            : (row.owner_name as string)
+        },
+      },
+    )
+  }
+
+  // 操作列宽度随视口自适应
+  cols.push({
     title: '操作',
     key: 'actions',
-    width: 180,
+    width: isMobile.value ? 120 : 180,
     className: 'col-actions',
     render(row: any) {
       const btns: any[] = []
@@ -469,8 +483,10 @@ const columns = computed<DataTableColumns>(() => [
 
       return h(NSpace, { size: 2, wrap: false }, () => btns)
     },
-  },
-])
+  })
+
+  return cols
+})
 
 // === 行样式 ===
 function rowClassName(row: any) {
@@ -844,7 +860,13 @@ async function fetchAllUsers() {
   flex-wrap: wrap;
   gap: 4px;
   font-size: 14px;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
+}
+
+.breadcrumb-icon {
+  margin-right: 6px;
+  vertical-align: middle;
+  color: var(--fe-fg-muted);
 }
 
 .breadcrumb-link {
@@ -864,7 +886,10 @@ async function fetchAllUsers() {
   gap: 8px;
   flex-wrap: wrap;
   padding: 8px 0;
-  min-height: 46px;
+}
+
+.search-input {
+  width: 220px;
 }
 
 .toolbar-left,
@@ -948,6 +973,10 @@ async function fetchAllUsers() {
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
+
+  /* 虚拟化渲染：浏览器自动跳过视口外卡片的布局/绘制 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
 }
 
 .grid-card:hover {
@@ -1123,5 +1152,19 @@ async function fetchAllUsers() {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
+}
+
+/* ===== 移动端响应式 ===== */
+@media (max-width: 767px) {
+  .file-data-table :deep(.n-data-table-td),
+  .file-data-table :deep(.n-data-table-th) {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  /* 触屏无 hover，操作按钮始终可见 */
+  .file-data-table :deep(.col-actions .action-btn) {
+    opacity: 1;
+  }
 }
 </style>

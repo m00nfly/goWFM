@@ -162,6 +162,7 @@ import {
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { useConfig } from '@/composables/useConfig'
+import { useViewport } from '@/composables/useViewport'
 import api from '@/api'
 
 const router = useRouter()
@@ -179,13 +180,7 @@ const appGithub = ref('https://github.com/m00nfly/gowfm')
 
 // ---------- 响应式导航 ----------
 
-const NAV_BREAKPOINT = 768
-const windowWidth = ref(window.innerWidth)
-const isNarrow = computed(() => windowWidth.value < NAV_BREAKPOINT)
-
-function onResize() {
-  windowWidth.value = window.innerWidth
-}
+const { isMobile: isNarrow, sync: syncViewport } = useViewport()
 
 // ---------- 分享 Badge ----------
 
@@ -289,7 +284,7 @@ async function onUserAction(key: string) {
 // ---------- 生命周期 ----------
 
 onMounted(async () => {
-  window.addEventListener('resize', onResize)
+  window.addEventListener('resize', syncViewport)
 
   await fetchConfig()
   if (config.value) {
@@ -301,7 +296,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
+  window.removeEventListener('resize', syncViewport)
 })
 </script>
 
