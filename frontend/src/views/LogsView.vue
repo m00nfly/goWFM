@@ -20,7 +20,7 @@
           style="width: 140px"
         />
         <n-select v-model:value="filterAction" :options="actionOptions" clearable placeholder="操作类型" style="width: 160px" />
-        <n-input v-model:value="filterPath" placeholder="目标路径" clearable style="width: 200px" />
+        <n-input v-model:value="filterPath" placeholder="目标对象" clearable style="width: 200px" />
         <n-button @click="fetchLogs">搜索</n-button>
       </n-space>
 
@@ -83,9 +83,21 @@ const actionOptions = [
   { label: '更新用户', value: 'USER_UPDATE' },
   { label: '删除用户', value: 'USER_DELETE' },
   { label: '移动/重命名', value: 'MOVE' },
+  { label: '变更设定', value: 'CONFIG_CHANGE' },
+]
+
+// ---------- 配置类型标签映射 ----------
+const configTypeLabel = [
+  { label: '基础设置', value: 'basic' },
+  { label: '外观设置', value: 'appearance' },
+  { label: '安全设置', value: 'security' },
+  { label: '日志设置', value: 'log' },
+  { label: '邮件设置', value: 'email' },
+  { label: '分享设置', value: 'share' },
 ]
 
 const actionLabelMap = new Map(actionOptions.map(o => [o.value, o.label]))
+const configTypeLabelMap = new Map(configTypeLabel.map(o => [o.value, o.label]))
 
 // ---------- 时间格式化 ----------
 function formatTime(iso: string): string {
@@ -111,7 +123,12 @@ const columns: DataTableColumns = [
     width: 110,
     render: (row: any) => actionLabelMap.get(row.action) ?? row.action,
   },
-  { title: '目标路径', key: 'target_path', ellipsis: { tooltip: true } },
+  {
+    title: '目标对象',
+    key: 'target_path',
+    ellipsis: { tooltip: true },
+    render: (row: any) => configTypeLabelMap.get(row.target_path) ?? row.target_path,
+  },
   { title: 'IP地址', key: 'ip_address', width: 130 },
   { title: '详情', key: 'details', ellipsis: { tooltip: true } },
 ]

@@ -103,12 +103,12 @@
           v-for="file in filteredFiles"
           :key="file.path || file.name"
           class="grid-card"
-          :class="{ 'grid-card-selected': checkedKeys.includes(file.path || file.name) }"
+          :class="{ 'grid-card-selected': checkedKeySet.has(file.path || file.name) }"
           @click="onGridCardClick(file)"
         >
           <n-checkbox
             class="grid-card-checkbox"
-            :checked="checkedKeys.includes(file.path || file.name)"
+            :checked="checkedKeySet.has(file.path || file.name)"
             @update:checked="toggleGridSelection(file.path || file.name, $event)"
             @click.stop
           />
@@ -320,6 +320,8 @@ const allUsers = ref<{ label: string; value: number }[]>([])
 // === 新增状态 ===
 const searchKeyword = ref('')
 const checkedKeys = ref<DataTableRowKey[]>([])
+// 将数组转为 Set，网格模式中 checkedKeySet.has() 为 O(1)，替代 O(n) 的 includes()
+const checkedKeySet = computed(() => new Set(checkedKeys.value))
 const viewMode = ref<'list' | 'grid'>('list')
 
 // === 视口状态（共享自 MainLayout 的 resize 监听） ===
