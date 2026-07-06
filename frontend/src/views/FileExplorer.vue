@@ -33,16 +33,18 @@
         </n-button>
         <n-button v-if="currentPath !== '/'" @click="goToParent">
           <template #icon><n-icon><ArrowBackOutline /></n-icon></template>
-          返回上层
+          返回
         </n-button>
       </div>
       <!-- 批量操作栏 -->
-      <div v-if="checkedKeys.length > 0" class="batch-bar">
-        <span class="batch-info">已选择 {{ checkedKeys.length }} 项</span>
+      <div v-if="selectedItems.length > 0" class="batch-bar">
+        <n-dropdown trigger="hover" :options="selectedDropdownOptions" :render-label="renderDropdownLabel" placement="bottom-start" :max-height="300" scrollable>
+          <span class="batch-info batch-info-clickable">已选择 {{ selectedItems.length }} 项</span>
+        </n-dropdown>
         <n-button size="small" @click="batchDownload" v-if="userStore.hasPermission(2)">批量下载</n-button>
         <n-button size="small" @click="batchShare" v-if="hasPermShare">批量分享</n-button>
         <n-button size="small" type="error" @click="batchDelete" v-if="userStore.user?.is_admin || userStore.hasPermission(4)">批量删除</n-button>
-        <n-button size="small" quaternary @click="checkedKeys = []">取消选择</n-button>
+        <n-button size="small" quaternary @click="selectedItems = []">取消选择</n-button>
       </div>
       <div class="toolbar-right">
         <n-input
@@ -250,7 +252,7 @@ import { ref, computed, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber,
-  NSelect, NIcon, NTooltip, NResult, NEmpty, NSpace, NCheckbox, NTag, useMessage, useDialog
+  NSelect, NIcon, NTooltip, NResult, NEmpty, NSpace, NCheckbox, NTag, NDropdown, useMessage, useDialog
 } from 'naive-ui'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import api from '@/api'
@@ -289,6 +291,13 @@ const dialog = useDialog()
 const userStore = useUserStore()
 const themeStore = useThemeStore()
 
+// === 跨目录选择数据模型 ===
+interface SelectedItem {
+  key: string
+  name: string
+  is_directory: boolean
+}
+
 // === 状态 ===
 const entries = ref<any[]>([])
 const loading = ref(false)
@@ -319,8 +328,9 @@ const allUsers = ref<{ label: string; value: number }[]>([])
 
 // === 新增状态 ===
 const searchKeyword = ref('')
-const checkedKeys = ref<DataTableRowKey[]>([])
-// 将数组转为 Set，网格模式中 checkedKeySet.has() 为 O(1)，替代 O(n) 的 includes()
+// 跨目录选择：selectedItems 为单一数据源，checkedKeys/checkedKeySet 由此衍生
+const selectedItems = ref<SelectedItem[]>([])
+const checkedKeys = computed<DataTableRowKey[]>(() => selectedItems.value.map(i => i.key))
 const checkedKeySet = computed(() => new Set(checkedKeys.value))
 const viewMode = ref<'list' | 'grid'>('list')
 
@@ -497,7 +507,7 @@ function rowClassName(row: any) {
     classes.push('highlighted-row')
   }
   const key = row.path || row.name
-  if (checkedKeys.value.includes(key)) {
+  if (checkedKeySet.value.has(key)) {
     classes.push('checked-row')
   }
   return classes.join(' ')
@@ -505,7 +515,24 @@ function rowClassName(row: any) {
 
 // === 多选 ===
 function onCheckedKeysChange(keys: DataTableRowKey[]) {
-  checkedKeys.value = keys
+  const newKeySet = new Set(keys.map(String))
+  const current = [...selectedItems.value]
+
+  // 保留仍在选中集合中的项
+  const kept = current.filter(i => newKeySet.has(i.key))
+
+  // 新选中的项：从当前 entries 获取元数据
+  for (const k of newKeySet) {
+    const key = String(k)
+    if (!kept.some(i => i.key === key)) {
+      const entry = entries.value.find((e: any) => (e.path || e.name) === key)
+      if (entry) {
+        kept.push({ key, name: entry.name, is_directory: entry.is_directory })
+      }
+    }
+  }
+
+  selectedItems.value = kept
 }
 
 // === 批量操作 ===
@@ -531,7 +558,7 @@ function batchDelete() {
       if (successCount > 0) {
         message.success(`成功删除 ${successCount} 项`)
       }
-      checkedKeys.value = []
+      selectedItems.value = []
       d.loading = false
       await fetchFiles()
     },
@@ -539,23 +566,20 @@ function batchDelete() {
 }
 
 function batchDownload() {
-  const files = entries.value.filter(
-    (f: any) => !f.is_directory && checkedKeys.value.includes(f.path || f.name)
-  )
+  const files = selectedItems.value.filter(i => !i.is_directory)
   if (files.length === 0) {
     message.warning('选中项中没有可下载的文件')
     return
   }
   for (const f of files) {
-    window.open(`/api/download?path=${encodeURIComponent(f.path)}`, '_blank')
+    window.open(`/api/download?path=${encodeURIComponent(f.key)}`, '_blank')
   }
 }
 
 function batchShare() {
-  const filePaths = checkedKeys.value.filter((key: any) => {
-    const item = entries.value.find((f: any) => (f.path || f.name) === key)
-    return item && !item.is_directory
-  }) as string[]
+  const filePaths = selectedItems.value
+    .filter(i => !i.is_directory)
+    .map(i => i.key)
 
   if (filePaths.length === 0) {
     message.warning('请至少选择一个文件（目录不可分享）')
@@ -577,10 +601,40 @@ function toggleViewMode() {
 // === 网格视图选中（仅 checkbox 触发）===
 function toggleGridSelection(key: string, checked: boolean) {
   if (checked) {
-    checkedKeys.value = [...checkedKeys.value, key]
+    const item = entries.value.find((e: any) => (e.path || e.name) === key)
+    if (item) {
+      selectedItems.value = [...selectedItems.value, {
+        key,
+        name: item.name,
+        is_directory: item.is_directory,
+      }]
+    }
   } else {
-    checkedKeys.value = checkedKeys.value.filter(k => k !== key)
+    selectedItems.value = selectedItems.value.filter(i => i.key !== key)
   }
+}
+
+// === 从已选列表中移除单项 ===
+function removeSelectedItem(key: string) {
+  selectedItems.value = selectedItems.value.filter(i => i.key !== key)
+}
+
+// === 已选文件下拉列表 ===
+const selectedDropdownOptions = computed(() =>
+  selectedItems.value.map(item => ({
+    key: item.key,
+    label: item.name,
+  }))
+)
+
+// === 下拉标签自定义渲染（renderLabel prop，保留选项容器的padding与垂直排列） ===
+function renderDropdownLabel(option: any) {
+  return h(NTag, {
+    type: 'success',
+    closable: true,
+    size: 'small',
+    onClose: () => removeSelectedItem(option.key),
+  }, { default: () => option.label })
 }
 
 // === 网格卡片点击（非 checkbox 区域）===
@@ -658,7 +712,7 @@ function navigateTo(path: string) {
   if (path === currentPath.value) return
   currentPath.value = path
   searchKeyword.value = ''
-  checkedKeys.value = []
+  // 跨目录保留选择，不在此处清除 selectedItems
   fetchFiles()
 }
 
@@ -914,6 +968,16 @@ async function fetchAllUsers() {
   font-size: 13px;
   color: var(--theme-color, #3b82f6);
   font-weight: 500;
+}
+
+.batch-info-clickable {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.batch-info-clickable:hover {
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
 }
 
 @keyframes fe-slide-in {
