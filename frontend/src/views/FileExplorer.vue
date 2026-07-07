@@ -629,8 +629,9 @@ const selectedDropdownOptions = computed(() =>
 
 // === 下拉标签自定义渲染（renderLabel prop，保留选项容器的padding与垂直排列） ===
 function renderDropdownLabel(option: any) {
+  const item = selectedItems.value.find(i => i.key === option.key)
   return h(NTag, {
-    type: 'success',
+    type: item?.is_directory ? 'error' : 'info',
     closable: true,
     size: 'small',
     onClose: () => removeSelectedItem(option.key),

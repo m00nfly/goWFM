@@ -105,7 +105,7 @@
                   :size="32"
                   :style="{ backgroundColor: 'var(--theme-color, #3b82f6)', cursor: 'pointer', fontSize: '14px' }"
                 >
-                  {{ avatarLetter }}
+                  <n-icon size="20" color="#fff"><PersonCircle /></n-icon>
                 </n-avatar>
                 <span class="user-display-name">{{ displayName }}</span>
               </div>
@@ -158,6 +158,7 @@ import {
   SunnyOutline,
   MoonOutline,
   MenuOutline,
+  PersonCircle,
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
@@ -200,11 +201,6 @@ const shareBadgeType = computed<'error' | 'info'>(() => {
 const displayName = computed(() =>
   userStore.user?.display_name || userStore.user?.username || '用户'
 )
-
-const avatarLetter = computed(() => {
-  const name = displayName.value
-  return name ? name.charAt(0).toUpperCase() : 'U'
-})
 
 // ---------- 导航配置 ----------
 

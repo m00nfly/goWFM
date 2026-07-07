@@ -13,9 +13,7 @@
           <!-- 分享信息头部 -->
           <div class="share-header">
             <div class="share-header-left">
-              <div class="share-avatar">
-                {{ avatarLetter }}
-              </div>
+              <n-icon size="52" color="var(--theme-color, #3b82f6)" class="share-avatar-icon"><PersonCircle /></n-icon>
               <div class="share-meta">
                 <h1 class="share-title">{{ shareInfo.name || '文件分享' }}</h1>
                 <div class="share-meta-items">
@@ -73,6 +71,7 @@ import { useThemeStore } from '@/stores/theme'
 import { formatSize } from '@/utils/format'
 import { copyToClipboard } from '@/utils/clipboard'
 import {
+  PersonCircle,
   PersonOutline,
   CalendarOutline,
   DocumentsOutline,
@@ -110,12 +109,6 @@ interface ShareInfo {
   }>
 }
 const shareInfo = ref<ShareInfo | null>(null)
-
-// 计算属性
-const avatarLetter = computed(() => {
-  const name = shareInfo.value?.owner_name || ''
-  return name ? name.charAt(0).toUpperCase() : 'U'
-})
 
 const expireDisplay = computed(() => {
   if (!shareInfo.value?.expire_at) return '永久有效'
@@ -238,19 +231,9 @@ onMounted(async () => {
   gap: 16px;
 }
 
-.share-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: var(--theme-color, #3b82f6);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: 700;
+.share-avatar-icon {
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
+  filter: drop-shadow(0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3));
 }
 
 .share-meta {
@@ -306,7 +289,7 @@ onMounted(async () => {
 
 .file-card {
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(var(--theme-color-rgb, 59, 130, 246), 0.08);
   border-radius: 20px;
   padding: 24px;
   display: flex;
@@ -316,37 +299,34 @@ onMounted(async () => {
 
 .file-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 24px -6px rgba(0, 0, 0, 0.06), 0 6px 8px -4px rgba(0, 0, 0, 0.03);
+  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
+  box-shadow: 0 12px 28px rgba(var(--theme-color-rgb, 59, 130, 246), 0.1);
 }
 
 .dark .file-card {
   background: #1e293b;
-  border-color: #334155;
+  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), 0.12);
 }
 
 .dark .file-card:hover {
-  box-shadow: 0 16px 24px -6px rgba(0, 0, 0, 0.3);
+  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), 0.4);
+  box-shadow: 0 12px 28px rgba(var(--theme-color-rgb, 59, 130, 246), 0.18);
 }
 
 .file-icon-area {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
-  position: relative;
-  overflow: hidden;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.1);
 }
 
-.file-icon-area::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: currentColor;
-  opacity: 0.12;
-  border-radius: inherit;
+.dark .file-icon-area {
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.12);
 }
 
 .file-info {
@@ -355,13 +335,13 @@ onMounted(async () => {
 }
 
 .file-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
   margin: 0 0 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
   transition: color 0.3s ease;
 }
 
@@ -400,8 +380,8 @@ onMounted(async () => {
 }
 
 .action-download {
-  background: #f1f5f9;
-  color: #334155;
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.08);
+  color: var(--theme-color, #3b82f6);
 }
 
 .action-download:hover {
@@ -410,8 +390,8 @@ onMounted(async () => {
 }
 
 .dark .action-download {
-  background: #334155;
-  color: #e2e8f0;
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
+  color: #60a5fa;
 }
 
 .dark .action-download:hover {
