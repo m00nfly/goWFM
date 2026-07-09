@@ -1,8 +1,9 @@
 <template>
   <n-card
+    title="用户管理"
     class="users-card"
     :bordered="false"
-    content-style="padding: 12px 16px; display: flex; flex-direction: column; height: 100%;"
+    content-style="padding: 12px 16px; display: flex; flex-direction: column; min-height: 0;"
   >
       <n-space justify="end" :size="12" style="margin-bottom: 12px">
         <n-button type="primary" @click="showCreateModal = true">创建用户</n-button>
@@ -89,11 +90,17 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, h } from 'vue'
-import { NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput, NCheckboxGroup, NCheckbox, NSwitch, useMessage } from 'naive-ui'
+import {
+  NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
+  NCheckboxGroup, NCheckbox, NSwitch, NTag, NIcon, NTooltip, useMessage,
+} from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import { CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import api from '@/api'
+import { useViewport } from '@/composables/useViewport'
 
 const message = useMessage()
+const { isMobile } = useViewport()
 const users = ref<any[]>([])
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -112,29 +119,61 @@ const editForm = reactive({ id: 0, display_name: '', email: '', is_admin: false,
 const editPermChecks = ref<number[]>([])
 const originalTotpEnabled = ref(false)
 
-const columns: DataTableColumns = [
-  { title: 'ID', key: 'id', width: 60 },
-  { title: '用户名', key: 'username' },
-  { title: '显示名称', key: 'display_name' },
-  { title: '邮箱', key: 'email' },
-  { title: '管理员', key: 'is_admin', render: (row: any) => row.is_admin ? '是' : '否' },
-  { title: 'TOTP', key: 'totp_enabled', width: 80, render: (row: any) => row.totp_enabled ? '✓ 已启用' : '-' },
-  { title: '权限', key: 'permissions', render: (row: any) => permLabel(row.permissions) },
-  {
+const columns = computed<DataTableColumns>(() => {
+  const cols: DataTableColumns = [
+    { title: 'ID', key: 'id', width: 60 },
+    { title: '用户名', key: 'username' },
+  ]
+
+  if (!isMobile.value) {
+    cols.push(
+      { title: '显示名称', key: 'display_name' },
+      { title: '邮箱', key: 'email' },
+    )
+  }
+
+  cols.push(
+    { title: '管理员', key: 'is_admin', width: 80, render: (row: any) => row.is_admin ? '是' : '否' },
+    {
+      title: 'TOTP',
+      key: 'totp_enabled',
+      width: 90,
+      render: (row: any) =>
+        h(NTag, { type: row.totp_enabled ? 'success' : 'default', size: 'small' }, () =>
+          row.totp_enabled ? '已启用' : '未启用',
+        ),
+    },
+  )
+
+  if (!isMobile.value) {
+    cols.push({ title: '权限', key: 'permissions', render: (row: any) => permLabel(row.permissions) })
+  }
+
+  cols.push({
     title: '操作',
     key: 'actions',
+    width: 96,
     render: (row: any) =>
       row.id === 0
         ? null
-        : h(NSpace, { size: 'small' }, () => [
-            h(NButton, { size: 'small', onClick: () => openEdit(row) }, () => '编辑'),
-            row.totp_enabled
-              ? h(NButton, { size: 'small', type: 'warning', onClick: () => handleAdminDisableTOTP(row) }, () => '关闭TOTP')
-              : null,
-            h(NButton, { size: 'small', type: 'error', onClick: () => handleDelete(row) }, () => '删除'),
+        : h(NSpace, { size: 2, wrap: false }, () => [
+            iconAction(CreateOutline, '编辑', () => openEdit(row), '#1890ff'),
+            iconAction(TrashOutline, '删除', () => handleDelete(row), '#d03050'),
           ]),
-  },
-]
+  })
+
+  return cols
+})
+
+function iconAction(iconComp: any, tooltip: string, onClick: () => void, color: string) {
+  return h(NTooltip, { trigger: 'hover', placement: 'top' }, {
+    default: () => tooltip,
+    trigger: () =>
+      h(NButton, { size: 'small', quaternary: true, class: 'action-btn', onClick }, {
+        icon: () => h(NIcon, { size: 18, color }, () => h(iconComp)),
+      }),
+  })
+}
 
 function permLabel(p: number): string {
   const labels: string[] = []
@@ -234,16 +273,6 @@ async function handleDelete(row: any) {
   }
 }
 
-async function handleAdminDisableTOTP(row: any) {
-  if (!confirm(`确认关闭用户 "${row.username}" 的 TOTP 二次认证？`)) return
-  try {
-    await api.delete(`/api/users/${row.id}/totp`)
-    message.success('TOTP 已关闭')
-    fetchUsers()
-  } catch (err: any) {
-    message.error(err.response?.data?.error || '操作失败')
-  }
-}
 </script>
 
 <style scoped>

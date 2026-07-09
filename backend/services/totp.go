@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -30,8 +31,12 @@ func SetupTOTP(userID int64, username string) (secret string, otpauthURI string,
 	}
 	secret = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(key)
 
-	issuer := "goWFM"
-	otpauthURI = fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", issuer, username, secret, issuer)
+	issuer := strings.TrimSpace(config.GetBasic().SiteName)
+	if issuer == "" {
+		issuer = "goWFM"
+	}
+	label := fmt.Sprintf("%s:%s", url.PathEscape(issuer), url.PathEscape(username))
+	otpauthURI = fmt.Sprintf("otpauth://totp/%s?secret=%s&issuer=%s", label, secret, url.QueryEscape(issuer))
 
 	// 生成二维码 PNG
 	png, err := qrcode.Encode(otpauthURI, qrcode.Medium, 256)
@@ -166,15 +171,16 @@ func VerifyTOTP(userID int64, code string) error {
 
 // ---------- 恢复码 ----------
 
-// GenerateRecoveryCodes 为用户生成 8 个一次性恢复码，返回明文列表。
+// GenerateRecoveryCodes 为用户生成 1 个一次性恢复码，返回明文列表。
 func GenerateRecoveryCodes(userID int64) ([]string, error) {
 	// 清除旧恢复码
 	if _, err := db.DB.Exec(`DELETE FROM totp_recovery_codes WHERE user_id = ?`, userID); err != nil {
 		return nil, err
 	}
 
-	codes := make([]string, 8)
-	for i := 0; i < 8; i++ {
+	const recoveryCodeCount = 1
+	codes := make([]string, recoveryCodeCount)
+	for i := 0; i < recoveryCodeCount; i++ {
 		// 生成 8 字节随机 → hex → 取前 10 位作为恢复码
 		b := make([]byte, 8)
 		if _, err := rand.Read(b); err != nil {

@@ -1,56 +1,79 @@
 <template>
-  <n-card :bordered="false">
-    <n-form :model="form" label-placement="left" label-width="80">
-      <n-form-item label="显示名称">
-        <n-input v-model:value="form.display_name" />
-      </n-form-item>
-      <n-form-item label="邮箱">
-        <n-input v-model:value="form.email" />
-      </n-form-item>
-      <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-    </n-form>
+  <div class="user-settings-page" :class="{ dark: themeStore.isDark }">
+    <n-card title="个人设置" :bordered="false" class="user-settings-card">
+      <div class="settings-grid">
+        <n-card title="个人资料" :bordered="false" class="settings-card">
+          <n-form :model="form" label-placement="top">
+            <n-form-item label="显示名称">
+              <n-input v-model:value="form.display_name" />
+            </n-form-item>
+            <n-form-item label="邮箱">
+              <n-input v-model:value="form.email" />
+            </n-form-item>
+            <div class="card-actions">
+              <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
+            </div>
+          </n-form>
+        </n-card>
 
-    <n-divider>修改密码</n-divider>
-    <n-form :model="pwForm" label-placement="left" label-width="100">
-      <n-form-item label="当前密码">
-        <n-input v-model:value="pwForm.current_password" type="password" />
-      </n-form-item>
-      <n-form-item label="新密码">
-        <n-input v-model:value="pwForm.new_password" type="password" />
-      </n-form-item>
-      <n-form-item v-if="totpEnabled" label="TOTP 验证码">
-        <n-input v-model:value="pwForm.totp_code" placeholder="如已启用 TOTP，修改密码需要验证" maxlength="6" style="width: 160px" />
-      </n-form-item>
-      <n-button type="primary" :loading="pwSaving" @click="handlePasswordChange">修改密码</n-button>
-    </n-form>
+        <n-card title="修改密码" :bordered="false" class="settings-card">
+          <n-form :model="pwForm" label-placement="top">
+            <n-form-item label="当前密码">
+              <n-input v-model:value="pwForm.current_password" type="password" />
+            </n-form-item>
+            <n-form-item label="新密码">
+              <n-input v-model:value="pwForm.new_password" type="password" />
+            </n-form-item>
+            <n-form-item v-if="totpEnabled" label="TOTP 验证码">
+              <n-input
+                v-model:value="pwForm.totp_code"
+                placeholder="如已启用 TOTP，修改密码需要验证"
+                maxlength="6"
+                class="totp-code-input"
+              />
+            </n-form-item>
+            <div class="card-actions">
+              <n-button type="primary" :loading="pwSaving" @click="handlePasswordChange">修改密码</n-button>
+            </div>
+          </n-form>
+        </n-card>
 
-    <n-divider>二次认证 (TOTP)</n-divider>
-    <n-spin :show="totpLoading">
-      <div class="totp-section">
-        <n-space align="center" :size="12">
-          <n-tag :type="totpEnabled ? 'success' : 'default'">
-            {{ totpEnabled ? '已启用' : '未启用' }}
-          </n-tag>
-          <span v-if="totpEnabled" style="color: #999; font-size: 13px">
-            剩余恢复码：{{ recoveryRemaining }} 个
-          </span>
-        </n-space>
-        <n-space style="margin-top: 12px">
-          <n-button v-if="!totpEnabled" type="primary" size="small" @click="openTotpModal">
-            启用 TOTP
-          </n-button>
-          <n-popconfirm v-if="totpEnabled" @positive-click="handleDisable" positive-text="确认" negative-text="取消">
-            <template #trigger>
-              <n-button type="error" size="small" :loading="disableLoading">禁用 TOTP</n-button>
-            </template>
-            禁用后将清除所有恢复码和信任设备，确认?
-          </n-popconfirm>
-        </n-space>
+        <n-card title="二次认证 (TOTP)" :bordered="false" class="settings-card">
+          <n-spin :show="totpLoading">
+            <div class="totp-section">
+              <div class="totp-status-row">
+                <n-tag :type="totpEnabled ? 'success' : 'default'">
+                  {{ totpEnabled ? '已启用' : '未启用' }}
+                </n-tag>
+                <span v-if="totpEnabled" class="muted-text">
+                  剩余恢复码：{{ recoveryRemaining }} 个
+                </span>
+              </div>
+              <div class="totp-actions">
+                <n-button v-if="!totpEnabled" type="primary" size="small" @click="openTotpModal">
+                  启用 TOTP
+                </n-button>
+                <n-popconfirm v-if="totpEnabled" @positive-click="handleDisable" positive-text="确认" negative-text="取消">
+                  <template #trigger>
+                    <n-button type="error" size="small" :loading="disableLoading">禁用 TOTP</n-button>
+                  </template>
+                  禁用后将清除所有恢复码和信任设备，确认?
+                </n-popconfirm>
+              </div>
+            </div>
+          </n-spin>
+        </n-card>
       </div>
-    </n-spin>
+    </n-card>
 
     <!-- TOTP 设置向导弹窗 -->
-    <n-modal v-model:show="showTotpModal" title="启用 TOTP 二次认证" preset="dialog" style="width: 500px" @close="handleModalClose">
+    <n-modal
+      v-model:show="showTotpModal"
+      title="启用 TOTP 二次认证"
+      preset="dialog"
+      style="width: min(500px, calc(100vw - 32px))"
+      @close="handleModalClose"
+    >
       <!-- 步骤 1：扫码绑定 -->
       <div v-if="setupStep === 1" class="totp-setup-modal">
         <p class="setup-desc">请使用 Microsoft Authenticator 或 Google Authenticator 扫描以下二维码：</p>
@@ -99,20 +122,22 @@
         </template>
       </template>
     </n-modal>
-  </n-card>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import {
-  NCard, NForm, NFormItem, NInput, NButton, NDivider, NSpin, NSpace, NTag,
-  NPopconfirm, NAlert, NModal, useMessage,
+  NCard, NForm, NFormItem, NInput, NButton, NSpin, NTag, NPopconfirm,
+  NAlert, NModal, useMessage,
 } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
+import { useThemeStore } from '@/stores/theme'
 
 const message = useMessage()
 const userStore = useUserStore()
+const themeStore = useThemeStore()
 const saving = ref(false)
 const pwSaving = ref(false)
 
@@ -265,8 +290,112 @@ function finishSetup() {
 </script>
 
 <style scoped>
+.user-settings-page {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  --us-bg-card: #fff;
+  --us-fg-primary: #1e293b;
+  --us-fg-muted: #64748b;
+  --us-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.12);
+  --us-a-card-hover-border: 0.35;
+  --us-a-card-shadow: 0.1;
+  --us-a-card-shadow-base: 0.06;
+  --us-a-card-accent: 0.08;
+}
+
+.user-settings-page.dark {
+  --us-bg-card: #1e293b;
+  --us-fg-primary: #f1f5f9;
+  --us-fg-muted: #94a3b8;
+  --us-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.18);
+  --us-a-card-hover-border: 0.5;
+  --us-a-card-shadow: 0.22;
+  --us-a-card-shadow-base: 0.16;
+  --us-a-card-accent: 0.12;
+}
+
+.user-settings-card {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.user-settings-card :deep(.n-card__content) {
+  overflow-y: auto;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.settings-card {
+  height: 100%;
+  border-radius: 8px;
+  background: var(--us-bg-card);
+  border: 1px solid var(--us-border-card);
+  box-shadow: 0 2px 10px rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-shadow-base));
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.settings-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-hover-border));
+  box-shadow: 0 4px 18px rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-shadow));
+}
+
+.settings-card :deep(.n-card-header) {
+  color: var(--us-fg-primary);
+}
+
+.settings-card :deep(.n-card-header__main) {
+  font-weight: 700;
+}
+
+.settings-card :deep(.n-card__content) {
+  color: var(--us-fg-primary);
+}
+
+.settings-card :deep(.n-card__content) {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.totp-code-input {
+  max-width: 240px;
+}
+
 .totp-section {
-  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 132px;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.totp-status-row,
+.totp-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.muted-text {
+  color: var(--us-fg-muted);
+  font-size: 13px;
 }
 
 .totp-setup-modal {
@@ -297,7 +426,7 @@ function finishSetup() {
 
 .recovery-codes {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px;
 }
 
@@ -305,9 +434,28 @@ function finishSetup() {
   font-family: monospace;
   font-size: 14px;
   padding: 8px 12px;
-  background: #f1f5f9;
+  color: var(--us-fg-primary);
+  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-accent));
   border-radius: 6px;
   text-align: center;
   letter-spacing: 2px;
+}
+
+@media (max-width: 640px) {
+  .settings-grid {
+    gap: 12px;
+  }
+
+  .card-actions {
+    justify-content: stretch;
+  }
+
+  .card-actions .n-button {
+    width: 100%;
+  }
+
+  .totp-actions .n-button {
+    width: 100%;
+  }
 }
 </style>

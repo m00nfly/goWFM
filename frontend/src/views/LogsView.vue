@@ -1,8 +1,9 @@
 <template>
   <n-card
+    title="操作日志"
     class="logs-card"
     :bordered="false"
-    content-style="padding: 12px 16px; display: flex; flex-direction: column; height: 100%;"
+    content-style="padding: 12px 16px; display: flex; flex-direction: column; min-height: 0;"
   >
       <n-space :size="12" style="margin-bottom: 12px">
         <n-date-picker

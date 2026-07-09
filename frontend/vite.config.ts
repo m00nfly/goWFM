@@ -15,7 +15,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
-      '/share': {
+      '^/share/[^/]+/info(?:\\?.*)?$': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '^/share/[^/]+/[^/]+(?:\\?.*)?$': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },

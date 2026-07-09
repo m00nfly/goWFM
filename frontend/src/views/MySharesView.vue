@@ -1,8 +1,9 @@
 <template>
   <n-card
+    title="我的分享"
     class="shares-card"
     :bordered="false"
-    content-style="padding: 12px 16px; display: flex; flex-direction: column; height: 100%;"
+    content-style="padding: 12px 16px; display: flex; flex-direction: column; min-height: 0;"
   >
       <div class="shares-summary">
         您当前有 {{ totalCount }} 个文件分享，{{ validCount }} 个有效，{{ expiredCount }} 个已过期
