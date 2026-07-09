@@ -13,6 +13,22 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func scanUser(row interface{ Scan(...interface{}) error }) (*models.User, error) {
+	u := &models.User{}
+	var totpCreatedAt sql.NullString
+	err := row.Scan(&u.ID, &u.Username, &u.Password, &u.DisplayName, &u.Email,
+		&u.IsAdmin, &u.Permissions, &u.TotpEnabled, &u.TotpSecret, &totpCreatedAt,
+		&u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if totpCreatedAt.Valid {
+		t, _ := time.Parse(time.RFC3339, totpCreatedAt.String)
+		u.TotpCreatedAt = &t
+	}
+	return u, nil
+}
+
 func CreateUser(username, password, displayName, email string, isAdmin bool, permissions int) (*models.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -29,28 +45,14 @@ func CreateUser(username, password, displayName, email string, isAdmin bool, per
 	return GetUserByID(id)
 }
 
+const userSelectCols = `id, username, password_hash, display_name, email, is_admin, permissions, COALESCE(totp_enabled,0), COALESCE(totp_secret,''), totp_created_at, created_at, updated_at`
+
 func GetUserByID(id int64) (*models.User, error) {
-	u := &models.User{}
-	err := db.DB.QueryRow(
-		`SELECT id, username, password_hash, display_name, email, is_admin, permissions, created_at, updated_at FROM users WHERE id = ?`,
-		id,
-	).Scan(&u.ID, &u.Username, &u.Password, &u.DisplayName, &u.Email, &u.IsAdmin, &u.Permissions, &u.CreatedAt, &u.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return u, nil
+	return scanUser(db.DB.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE id = ?`, id))
 }
 
 func GetUserByUsername(username string) (*models.User, error) {
-	u := &models.User{}
-	err := db.DB.QueryRow(
-		`SELECT id, username, password_hash, display_name, email, is_admin, permissions, created_at, updated_at FROM users WHERE username = ?`,
-		username,
-	).Scan(&u.ID, &u.Username, &u.Password, &u.DisplayName, &u.Email, &u.IsAdmin, &u.Permissions, &u.CreatedAt, &u.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return u, nil
+	return scanUser(db.DB.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE username = ?`, username))
 }
 
 func CheckPassword(user *models.User, password string) bool {
@@ -135,7 +137,7 @@ func CleanExpiredSessions() (int64, error) {
 }
 
 func ListAllUsers() ([]gin.H, error) {
-	rows, err := db.DB.Query(`SELECT id, username, display_name, email, is_admin, permissions, created_at FROM users ORDER BY id`)
+	rows, err := db.DB.Query(`SELECT id, username, display_name, email, is_admin, permissions, COALESCE(totp_enabled,0), created_at FROM users ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -144,13 +146,14 @@ func ListAllUsers() ([]gin.H, error) {
 	for rows.Next() {
 		var id int64
 		var username, displayName, email string
-		var isAdmin bool
+		var isAdmin, totpEnabled bool
 		var permissions int
 		var createdAt string
-		rows.Scan(&id, &username, &displayName, &email, &isAdmin, &permissions, &createdAt)
+		rows.Scan(&id, &username, &displayName, &email, &isAdmin, &permissions, &totpEnabled, &createdAt)
 		result = append(result, gin.H{
 			"id": id, "username": username, "display_name": displayName,
-			"email": email, "is_admin": isAdmin, "permissions": permissions, "created_at": createdAt,
+			"email": email, "is_admin": isAdmin, "permissions": permissions,
+			"totp_enabled": totpEnabled, "created_at": createdAt,
 		})
 	}
 	return result, nil

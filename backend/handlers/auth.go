@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"time"
 
@@ -73,22 +75,144 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// 6. 登录成功
+	// 6. 检查是否需要 TOTP 验证
 	services.GlobalBlocker.ResetOnSuccess(ip, req.Username)
 
-	sessionDuration := time.Duration(sec.SessionTimeout) * time.Minute
-	session, err := services.CreateSession(user.ID, sessionDuration)
+	if user.TotpEnabled {
+		// 检查信任设备
+		trustedToken, _ := c.Cookie("gowfm_trusted")
+		if services.CheckTrustedDevice(user.ID, trustedToken) {
+			// 信任设备 → 直接登录
+			doLoginSession(c, user.ID, sec.SessionTimeout, ip)
+			return
+		}
+
+		// 需要 TOTP 验证 → 生成临时登录 token
+		loginToken := generateToken()
+		secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+		c.SetCookie("gowfm_login_token", loginToken, 300, "/", "", secure, true)
+
+		// 存储 login_token → userID 映射（用内存 map）
+		storeLoginToken(loginToken, user.ID)
+
+		c.JSON(http.StatusOK, gin.H{
+			"totp_required": true,
+			"login_token":   loginToken,
+		})
+		return
+	}
+
+	// 无 TOTP → 直接登录
+	doLoginSession(c, user.ID, sec.SessionTimeout, ip)
+}
+
+func doLoginSession(c *gin.Context, userID int64, sessionTimeout int, ip string) {
+	sessionDuration := time.Duration(sessionTimeout) * time.Minute
+	session, err := services.CreateSession(userID, sessionDuration)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create session failed"})
 		return
 	}
 
-	services.CreateLog(user.ID, models.ActionLogin, "", ip, nil)
+	services.CreateLog(userID, models.ActionLogin, "", ip, nil)
 
 	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("gowfm_session", session.Token, int(sessionDuration.Seconds()), "/", "", secure, true)
 	c.JSON(http.StatusOK, gin.H{"message": "login successful"})
+}
+
+// ---------- TOTP 登录验证 ----------
+
+type LoginTOTPRequest struct {
+	LoginToken string `json:"login_token" binding:"required"`
+	Code       string `json:"code" binding:"required"`
+	TrustDevice bool  `json:"trust_device"`
+}
+
+func LoginTOTP(c *gin.Context) {
+	var req LoginTOTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	userID, ok := consumeLoginToken(req.LoginToken)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "登录凭证已过期，请重新登录"})
+		return
+	}
+
+	ip := c.ClientIP()
+
+	// 先尝试 TOTP 验证码
+	err := services.VerifyTOTP(userID, req.Code)
+	if err != nil {
+		// 再尝试恢复码
+		if recErr := services.VerifyRecoveryCode(userID, req.Code); recErr != nil {
+			services.CreateLog(userID, models.ActionLoginTOTPFail, "", ip, nil)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误"})
+			return
+		}
+		// 恢复码登录成功
+		services.CreateLog(userID, models.ActionTOTPRecovery, "", ip, nil)
+	} else {
+		services.CreateLog(userID, models.ActionLoginTOTP, "", ip, nil)
+	}
+
+	// 信任设备
+	if req.TrustDevice {
+		deviceToken, err := services.CreateTrustedDevice(userID, c.GetHeader("User-Agent"))
+		if err == nil {
+			trustDays := config.GetSecurity().TotpTrustDays
+			if trustDays <= 0 {
+				trustDays = 30
+			}
+			secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+			c.SetCookie("gowfm_trusted", deviceToken, trustDays*86400, "/", "", secure, true)
+		}
+	}
+
+	sec := config.GetSecurity()
+	doLoginSession(c, userID, sec.SessionTimeout, ip)
+}
+
+// ---------- 临时登录 token（内存存储） ----------
+
+var loginTokens = map[string]loginTokenEntry{}
+
+type loginTokenEntry struct {
+	UserID    int64
+	CreatedAt time.Time
+}
+
+func storeLoginToken(token string, userID int64) {
+	loginTokens[token] = loginTokenEntry{UserID: userID, CreatedAt: time.Now()}
+	// 清理过期 token（5 分钟）
+	for k, v := range loginTokens {
+		if time.Since(v.CreatedAt) > 5*time.Minute {
+			delete(loginTokens, k)
+		}
+	}
+}
+
+func consumeLoginToken(token string) (int64, bool) {
+	entry, ok := loginTokens[token]
+	if !ok {
+		return 0, false
+	}
+	if time.Since(entry.CreatedAt) > 5*time.Minute {
+		delete(loginTokens, token)
+		return 0, false
+	}
+	delete(loginTokens, token)
+	return entry.UserID, true
+}
+
+func generateToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func GetCaptcha(c *gin.Context) {
@@ -133,6 +257,7 @@ func GetMe(c *gin.Context) {
 		"email":        user.Email,
 		"is_admin":     user.IsAdmin,
 		"permissions":  user.Permissions,
+		"totp_enabled": user.TotpEnabled,
 	}
 
 	// Include share stats if user has share permission

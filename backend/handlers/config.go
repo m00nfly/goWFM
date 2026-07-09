@@ -81,6 +81,7 @@ func GetConfig(c *gin.Context) {
 			"account_block_window":       cfg.AccountBlockWindow,
 			"account_block_duration":     cfg.AccountBlockDuration,
 			"whitelist_ips":              cfg.WhitelistIPs,
+			"totp_trust_days":            cfg.TotpTrustDays,
 		}
 	case "log":
 		data = config.GetLog()
@@ -229,13 +230,14 @@ func GetConfigInfo(c *gin.Context) {
 	securityCfg := config.GetSecurity()
 
 	c.JSON(http.StatusOK, gin.H{
-		"site_name":      basicCfg.SiteName,
-		"site_link":      basicCfg.SiteLink,
-		"version":        config.Version,
-		"login_bg_url":   appearanceCfg.LoginBgURL,
-		"default_theme":  appearanceCfg.DefaultTheme,
-		"theme_color":    appearanceCfg.ThemeColor,
-		"custom_logo":    appearanceCfg.CustomLogo,
-		"enable_captcha": securityCfg.EnableCaptcha,
+		"site_name":       basicCfg.SiteName,
+		"site_link":       basicCfg.SiteLink,
+		"version":         config.Version,
+		"login_bg_url":    appearanceCfg.LoginBgURL,
+		"default_theme":   appearanceCfg.DefaultTheme,
+		"theme_color":     appearanceCfg.ThemeColor,
+		"custom_logo":     appearanceCfg.CustomLogo,
+		"enable_captcha":  securityCfg.EnableCaptcha,
+		"totp_trust_days": securityCfg.TotpTrustDays,
 	})
 }

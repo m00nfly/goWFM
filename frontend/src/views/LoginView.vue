@@ -24,76 +24,113 @@
             <FolderOutline />
           </div>
           <h1 class="title">{{ orgName || 'goWFM' }}</h1>
-          <p class="subtitle">登录您的账号</p>
+          <p class="subtitle">{{ totpRequired ? '请输入二次验证码' : '登录您的账号' }}</p>
         </div>
 
         <!-- 登录表单 -->
         <form @submit.prevent="handleLogin" class="login-form">
-          <div class="input-group">
-            <label class="input-label">账号</label>
-            <div class="input-wrapper">
-              <MailOutline class="input-icon" />
-              <input
-                v-model="form.username"
-                type="text"
-                required
-                placeholder="账号/Email"
-                class="input-field"
-                autocomplete="username"
-              />
-            </div>
-          </div>
-
-          <div class="input-group">
-            <label class="input-label">密码</label>
-            <div class="input-wrapper">
-              <LockClosedOutline class="input-icon" />
-              <input
-                ref="passwordRef"
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'"
-                required
-                placeholder="••••••••"
-                class="input-field"
-                autocomplete="current-password"
-              />
-              <button type="button" class="eye-btn" @click="showPassword = !showPassword">
-                <EyeOffOutline v-if="showPassword" class="eye-icon" />
-                <EyeOutline v-else class="eye-icon" />
-              </button>
-            </div>
-          </div>
-
-          <div v-if="captchaEnabled" class="input-group">
-            <label class="input-label">验证码</label>
-            <div class="captcha-row">
-              <div class="input-wrapper" style="flex: 1">
-                <LockClosedOutline class="input-icon" />
+          <!-- 正常登录表单（TOTP 未触发时显示） -->
+          <template v-if="!totpRequired">
+            <div class="input-group">
+              <label class="input-label">账号</label>
+              <div class="input-wrapper">
+                <MailOutline class="input-icon" />
                 <input
-                  v-model="form.captcha_code"
+                  v-model="form.username"
                   type="text"
                   required
-                  placeholder="请输入验证码"
+                  placeholder="账号/Email"
                   class="input-field"
-                  autocomplete="off"
+                  autocomplete="username"
                 />
               </div>
-              <div class="captcha-image" @click="refreshCaptcha" title="点击刷新验证码">
-                <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
-                <span v-else>加载中...</span>
+            </div>
+
+            <div class="input-group">
+              <label class="input-label">密码</label>
+              <div class="input-wrapper">
+                <LockClosedOutline class="input-icon" />
+                <input
+                  ref="passwordRef"
+                  v-model="form.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  required
+                  placeholder="••••••••"
+                  class="input-field"
+                  autocomplete="current-password"
+                />
+                <button type="button" class="eye-btn" @click="showPassword = !showPassword">
+                  <EyeOffOutline v-if="showPassword" class="eye-icon" />
+                  <EyeOutline v-else class="eye-icon" />
+                </button>
               </div>
             </div>
-          </div>
 
-          <label class="remember-row">
-            <input type="checkbox" v-model="rememberMe" class="checkbox" />
-            <span>保持登录状态</span>
-          </label>
+            <div v-if="captchaEnabled" class="input-group">
+              <label class="input-label">验证码</label>
+              <div class="captcha-row">
+                <div class="input-wrapper" style="flex: 1">
+                  <LockClosedOutline class="input-icon" />
+                  <input
+                    v-model="form.captcha_code"
+                    type="text"
+                    required
+                    placeholder="请输入验证码"
+                    class="input-field"
+                    autocomplete="off"
+                  />
+                </div>
+                <div class="captcha-image" @click="refreshCaptcha" title="点击刷新验证码">
+                  <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+                  <span v-else>加载中...</span>
+                </div>
+              </div>
+            </div>
 
-          <button type="submit" class="login-btn" :disabled="loading">
-            <span v-if="loading" class="spinner"></span>
-            <span v-else>立即登录</span>
-          </button>
+            <label class="remember-row">
+              <input type="checkbox" v-model="rememberMe" class="checkbox" />
+              <span>保持登录状态</span>
+            </label>
+
+            <button type="submit" class="login-btn" :disabled="loading">
+              <span v-if="loading" class="spinner"></span>
+              <span v-else>立即登录</span>
+            </button>
+          </template>
+
+          <!-- TOTP 二次验证（凭据验证通过后显示） -->
+          <template v-else>
+            <div class="totp-notice">
+              请输入 Authenticator APP 中的 6 位验证码，或使用恢复码
+            </div>
+            <div class="input-group">
+              <label class="input-label">验证码</label>
+              <div class="input-wrapper">
+                <LockClosedOutline class="input-icon" />
+                <input
+                  ref="totpCodeRef"
+                  v-model="totpCode"
+                  type="text"
+                  required
+                  placeholder="例如 123456"
+                  class="input-field"
+                  autocomplete="one-time-code"
+                  inputmode="numeric"
+                  maxlength="10"
+                  @keydown.enter.prevent="handleTOTPLogin"
+                />
+              </div>
+            </div>
+            <label class="remember-row">
+              <input type="checkbox" v-model="trustDevice" class="checkbox" />
+              <span>信任此设备（{{ trustDays }} 天内无需再次验证）</span>
+            </label>
+            <button type="button" class="login-btn" :disabled="totpLoading" @click="handleTOTPLogin">
+              <span v-if="totpLoading" class="spinner"></span>
+              <span v-else>验证并登录</span>
+            </button>
+            <button type="button" class="back-btn" @click="totpRequired = false; totpCode = ''">← 返回修改账号密码</button>
+          </template>
         </form>
 
         <!-- 底部链接 -->
@@ -155,6 +192,15 @@ const form = reactive({
 })
 
 const rememberMe = ref(false)
+
+// TOTP 相关
+const totpRequired = ref(false)
+const totpCode = ref('')
+const totpLoading = ref(false)
+const trustDevice = ref(false)
+const trustDays = ref(30)
+const loginToken = ref('')
+const totpCodeRef = ref<HTMLInputElement | null>(null)
 
 const loginBgStyle = computed(() => {
   if (loginBgUrl.value) {
@@ -220,18 +266,56 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    await api.post('/api/auth/login', form)
+    const res = await api.post('/api/auth/login', form)
+    if (res.data.totp_required) {
+      // 需要 TOTP 二次验证
+      totpRequired.value = true
+      loginToken.value = res.data.login_token
+      // 获取信任天数配置
+      try {
+        const configRes = await api.get('/api/config/info')
+        trustDays.value = configRes.data.totp_trust_days || 30
+      } catch { /* use default */ }
+      // 自动聚焦 TOTP 输入框
+      setTimeout(() => totpCodeRef.value?.focus(), 100)
+      return
+    }
+    // 登录成功
     await userStore.fetchMe()
     message.success('登录成功')
     router.replace('/')
   } catch (err: any) {
-    // 登录失败时刷新验证码
     if (captchaEnabled.value) {
       refreshCaptcha()
     }
     message.error(err.response?.data?.error || '登录失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function handleTOTPLogin() {
+  if (!totpCode.value) {
+    message.warning('请输入验证码')
+    return
+  }
+
+  totpLoading.value = true
+  try {
+    await api.post('/api/auth/login/totp', {
+      login_token: loginToken.value,
+      code: totpCode.value,
+      trust_device: trustDevice.value,
+    })
+    await userStore.fetchMe()
+    message.success('登录成功')
+    router.replace('/')
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '验证失败')
+    totpCode.value = ''
+    totpCodeRef.value?.focus()
+  } finally {
+    totpLoading.value = false
   }
 }
 </script>
@@ -655,6 +739,43 @@ async function handleLogin() {
   font-size: 12px;
   color: #94a3b8;
   padding: 0 8px;
+}
+
+/* ============ TOTP 样式 ============ */
+.totp-notice {
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 4px;
+  line-height: 1.6;
+}
+
+.dark .totp-notice {
+  color: #94a3b8;
+}
+
+.back-btn {
+  width: 100%;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  padding: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.2s;
+}
+
+.back-btn:hover {
+  color: #475569;
+}
+
+.dark .back-btn {
+  color: #94a3b8;
+}
+
+.dark .back-btn:hover {
+  color: #cbd5e1;
 }
 
 /* ============ 响应式 ============ */

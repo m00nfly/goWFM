@@ -172,6 +172,7 @@ func UpdateMe(c *gin.Context) {
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
 	NewPassword     string `json:"new_password" binding:"required,min=6"`
+	TotpCode        string `json:"totp_code"`
 }
 
 func ChangePassword(c *gin.Context) {
@@ -193,10 +194,183 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
+	// 如果用户启用了 TOTP，修改密码需要验证 TOTP
+	if user.TotpEnabled {
+		if req.TotpCode == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请输入 TOTP 验证码"})
+			return
+		}
+		if err := services.VerifyTOTP(userID, req.TotpCode); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "TOTP 验证码错误"})
+			return
+		}
+	}
+
 	if err := services.UpdateUserPassword(userID, req.NewPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update password failed"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "password changed"})
+}
+
+// ---------- TOTP 用户设置端点 ----------
+
+func SetupTOTP(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	user, err := services.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "user not found"})
+		return
+	}
+	if user.TotpEnabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "TOTP 已启用，请先禁用后再重新设置"})
+		return
+	}
+
+	secret, uri, qrBase64, err := services.SetupTOTP(userID, user.Username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 TOTP 密钥失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"secret":       secret,
+		"otpauth_uri":  uri,
+		"qr_code":      "data:image/png;base64," + qrBase64,
+	})
+}
+
+func VerifyTOTPSetup(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	var req struct {
+		Code string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入验证码"})
+		return
+	}
+
+	codes, err := services.VerifyTOTPSetup(userID, req.Code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	services.CreateLog(userID, models.ActionTOTPEnable, "", c.ClientIP(), nil)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "TOTP 已启用",
+		"recovery_codes": codes,
+	})
+}
+
+func DisableMyTOTP(c *gin.Context) {
+	userID := c.GetInt64("userID")
+
+	if err := services.DisableTOTP(userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "disable totp failed"})
+		return
+	}
+
+	services.CreateLog(userID, models.ActionTOTPDisable, "", c.ClientIP(), nil)
+
+	c.JSON(http.StatusOK, gin.H{"message": "TOTP 已禁用"})
+}
+
+func GetMyTOTPStatus(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	user, err := services.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "user not found"})
+		return
+	}
+
+	remaining := 0
+	if user.TotpEnabled {
+		remaining = services.GetRecoveryCodesRemaining(userID)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"totp_enabled":           user.TotpEnabled,
+		"recovery_codes_remaining": remaining,
+	})
+}
+
+// ---------- 管理员 TOTP 管理端点 ----------
+
+func AdminDisableTOTP(c *gin.Context) {
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if targetID == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify system Guest account"})
+		return
+	}
+
+	user, err := services.GetUserByID(targetID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	if !user.TotpEnabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "该用户未启用 TOTP"})
+		return
+	}
+
+	if err := services.DisableTOTP(targetID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "disable totp failed"})
+		return
+	}
+
+	userID := c.GetInt64("userID")
+	services.CreateLog(userID, models.ActionTOTPDisable, "", c.ClientIP(),
+		map[string]interface{}{"target_user_id": targetID})
+
+	c.JSON(http.StatusOK, gin.H{"message": "TOTP 已禁用"})
+}
+
+// AdminUpdateTOTP 管理员启用/禁用用户的 TOTP
+func AdminUpdateTOTP(c *gin.Context) {
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if targetID == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot modify system Guest account"})
+		return
+	}
+
+	var req struct {
+		TotpEnabled bool `json:"totp_enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := c.GetInt64("userID")
+	if req.TotpEnabled {
+		if err := services.AdminEnableTOTP(targetID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "enable totp failed"})
+			return
+		}
+		services.CreateLog(userID, models.ActionTOTPEnable, "", c.ClientIP(),
+			map[string]interface{}{"target_user_id": targetID})
+		c.JSON(http.StatusOK, gin.H{"message": "TOTP 已启用"})
+	} else {
+		if err := services.DisableTOTP(targetID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "disable totp failed"})
+			return
+		}
+		services.CreateLog(userID, models.ActionTOTPDisable, "", c.ClientIP(),
+			map[string]interface{}{"target_user_id": targetID})
+		c.JSON(http.StatusOK, gin.H{"message": "TOTP 已禁用"})
+	}
 }

@@ -32,6 +32,7 @@ func setupRouter() *gin.Engine {
 	r.GET("/api/config/info", handlers.GetConfigInfo)
 
 	r.POST("/api/auth/login", handlers.Login)
+	r.POST("/api/auth/login/totp", handlers.LoginTOTP)
 	r.POST("/api/auth/logout", handlers.Logout)
 	r.GET("/api/auth/captcha", handlers.GetCaptcha)
 
@@ -47,6 +48,16 @@ func setupRouter() *gin.Engine {
 
 		auth.PUT("/users/me", handlers.UpdateMe)
 		auth.PUT("/users/me/password", handlers.ChangePassword)
+
+		// TOTP 管理（用户自己）
+		auth.GET("/users/me/totp/status", handlers.GetMyTOTPStatus)
+		auth.POST("/users/me/totp/setup", handlers.SetupTOTP)
+		auth.POST("/users/me/totp/verify", handlers.VerifyTOTPSetup)
+		auth.POST("/users/me/totp/disable", handlers.DisableMyTOTP)
+
+		// TOTP 管理（管理员）
+		auth.DELETE("/users/:id/totp", middleware.AdminRequired(), handlers.AdminDisableTOTP)
+		auth.PUT("/users/:id/totp", middleware.AdminRequired(), handlers.AdminUpdateTOTP)
 
 		auth.GET("/files", handlers.ListFiles)
 		auth.POST("/files/upload", handlers.UploadFile)
@@ -154,6 +165,9 @@ func main() {
 
 			// 清理过期验证码
 			services.CleanExpiredCaptchas()
+
+			// 清理过期信任设备
+			services.CleanExpiredTrustedDevices()
 		}
 	}()
 

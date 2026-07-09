@@ -23,6 +23,7 @@ type SecuritySettings struct {
 	AccountBlockWindow   int      `json:"account_block_window"`   // 秒
 	AccountBlockDuration int      `json:"account_block_duration"` // 秒
 	WhitelistIPs         []string `json:"whitelist_ips"`
+	TotpTrustDays        int      `json:"totp_trust_days"` // TOTP 信任设备天数，0 表示不信任设备
 }
 
 // LogSettings 日志设置

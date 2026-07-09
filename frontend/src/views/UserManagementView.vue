@@ -63,6 +63,10 @@
           <n-form-item label="管理员">
             <n-switch v-model:value="editForm.is_admin" />
           </n-form-item>
+          <n-form-item label="TOTP">
+            <n-switch v-model:value="editForm.totp_enabled" />
+            <span style="margin-left: 8px; font-size: 12px; color: #999">管理员强制启用后，用户需在个人设置中扫码绑定</span>
+          </n-form-item>
           <n-form-item label="权限">
             <n-checkbox-group v-model:value="editPermChecks">
               <n-space>
@@ -104,8 +108,9 @@ const createRules = {
   password: [{ required: true, message: '必填' }, { min: 6, message: '至少6位' }],
 }
 
-const editForm = reactive({ id: 0, display_name: '', email: '', is_admin: false })
+const editForm = reactive({ id: 0, display_name: '', email: '', is_admin: false, totp_enabled: false })
 const editPermChecks = ref<number[]>([])
+const originalTotpEnabled = ref(false)
 
 const columns: DataTableColumns = [
   { title: 'ID', key: 'id', width: 60 },
@@ -113,6 +118,7 @@ const columns: DataTableColumns = [
   { title: '显示名称', key: 'display_name' },
   { title: '邮箱', key: 'email' },
   { title: '管理员', key: 'is_admin', render: (row: any) => row.is_admin ? '是' : '否' },
+  { title: 'TOTP', key: 'totp_enabled', width: 80, render: (row: any) => row.totp_enabled ? '✓ 已启用' : '-' },
   { title: '权限', key: 'permissions', render: (row: any) => permLabel(row.permissions) },
   {
     title: '操作',
@@ -122,6 +128,9 @@ const columns: DataTableColumns = [
         ? null
         : h(NSpace, { size: 'small' }, () => [
             h(NButton, { size: 'small', onClick: () => openEdit(row) }, () => '编辑'),
+            row.totp_enabled
+              ? h(NButton, { size: 'small', type: 'warning', onClick: () => handleAdminDisableTOTP(row) }, () => '关闭TOTP')
+              : null,
             h(NButton, { size: 'small', type: 'error', onClick: () => handleDelete(row) }, () => '删除'),
           ]),
   },
@@ -176,6 +185,8 @@ function openEdit(row: any) {
   editForm.display_name = row.display_name
   editForm.email = row.email
   editForm.is_admin = row.is_admin
+  editForm.totp_enabled = row.totp_enabled
+  originalTotpEnabled.value = row.totp_enabled
   editPermChecks.value = []
   if (row.permissions & 1) editPermChecks.value.push(1)
   if (row.permissions & 2) editPermChecks.value.push(2)
@@ -194,6 +205,14 @@ async function handleEdit() {
       is_admin: editForm.is_admin,
       permissions: calcPerms(editPermChecks.value),
     })
+
+    // 如果 TOTP 状态变更，调用专门接口
+    if (editForm.totp_enabled !== originalTotpEnabled.value) {
+      await api.put(`/api/users/${editForm.id}/totp`, {
+        totp_enabled: editForm.totp_enabled,
+      })
+    }
+
     message.success('用户更新成功')
     showEditModal.value = false
     fetchUsers()
@@ -212,6 +231,17 @@ async function handleDelete(row: any) {
     fetchUsers()
   } catch (err: any) {
     message.error(err.response?.data?.error || '删除失败')
+  }
+}
+
+async function handleAdminDisableTOTP(row: any) {
+  if (!confirm(`确认关闭用户 "${row.username}" 的 TOTP 二次认证？`)) return
+  try {
+    await api.delete(`/api/users/${row.id}/totp`)
+    message.success('TOTP 已关闭')
+    fetchUsers()
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '操作失败')
   }
 }
 </script>

@@ -26,6 +26,7 @@ func DefaultSecurity() SecuritySettings {
 		AccountBlockWindow:   300,
 		AccountBlockDuration: 1800,
 		WhitelistIPs:         []string{},
+		TotpTrustDays:        30, // 信任设备默认 30 天
 	}
 }
 

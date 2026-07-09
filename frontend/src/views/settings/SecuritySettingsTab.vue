@@ -61,6 +61,12 @@
         支持 IP 地址（如 192.168.1.100）或 CIDR 网段（如 10.0.0.0/8）。白名单内的 IP 永远不会被封锁，且可登录已被封锁的账号。
       </n-alert>
 
+      <n-divider>TOTP 二次认证</n-divider>
+      <n-form-item label="信任设备有效期">
+        <n-input-number v-model:value="form.totp_trust_days" :min="1" :max="365" style="width: 120px" />
+        <span style="margin-left: 8px; color: #999">天（设为 0 则不允许信任设备）</span>
+      </n-form-item>
+
       <n-form-item>
         <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
       </n-form-item>
@@ -89,6 +95,7 @@ const form = ref({
   account_block_window: 300,
   account_block_duration: 1800,
   whitelist_ips: [] as string[],
+  totp_trust_days: 30,
 })
 
 const timeoutDisplay = computed(() => {

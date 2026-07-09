@@ -134,5 +134,32 @@ func migrate(d *sql.DB) error {
 	// 迁移：确保 Guest 系统账户存在（id=0，用于匿名用户操作日志）
 	d.Exec(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name, is_admin, permissions) VALUES (0, 'Guest', '', 'Guest', 0, 0)`)
 
+	// 迁移：TOTP 字段
+	d.Exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT ''`)
+	d.Exec(`ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0`)
+	d.Exec(`ALTER TABLE users ADD COLUMN totp_created_at DATETIME`)
+
+	// 迁移：TOTP 恢复码表
+	d.Exec(`CREATE TABLE IF NOT EXISTS totp_recovery_codes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		code_hash TEXT NOT NULL,
+		used BOOLEAN DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		used_at DATETIME,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	)`)
+
+	// 迁移：TOTP 信任设备表
+	d.Exec(`CREATE TABLE IF NOT EXISTS totp_trusted_devices (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		token TEXT UNIQUE NOT NULL,
+		device_info TEXT DEFAULT '',
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	)`)
+
 	return nil
 }

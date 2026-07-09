@@ -3,15 +3,18 @@ package models
 import "time"
 
 type User struct {
-	ID          int64     `json:"id"`
-	Username    string    `json:"username"`
-	Password    string    `json:"-"`
-	DisplayName string    `json:"display_name"`
-	Email       string    `json:"email"`
-	IsAdmin     bool      `json:"is_admin"`
-	Permissions int       `json:"permissions"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
+	Username     string    `json:"username"`
+	Password     string    `json:"-"`
+	DisplayName  string    `json:"display_name"`
+	Email        string    `json:"email"`
+	IsAdmin      bool      `json:"is_admin"`
+	Permissions  int       `json:"permissions"`
+	TotpEnabled  bool      `json:"totp_enabled"`
+	TotpSecret   string    `json:"-"`
+	TotpCreatedAt *time.Time `json:"totp_created_at"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 const (
