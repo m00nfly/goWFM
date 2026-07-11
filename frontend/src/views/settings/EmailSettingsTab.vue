@@ -1,39 +1,49 @@
 <template>
-  <n-spin :show="loading">
-    <n-form label-placement="left" label-width="140px" :model="form">
-      <n-form-item label="SMTP 服务器">
-        <n-input v-model:value="form.smtp_host" placeholder="如 smtp.example.com" />
-      </n-form-item>
-      <n-form-item label="SMTP 端口">
-        <n-input-number v-model:value="form.smtp_port" :min="1" :max="65535" style="width: 150px" />
-      </n-form-item>
-      <n-form-item label="用户名">
-        <n-input v-model:value="form.smtp_username" placeholder="SMTP 认证用户名" />
-      </n-form-item>
-      <n-form-item label="密码">
-        <n-input
-          v-model:value="form.smtp_password"
-          type="password"
-          show-password-on="click"
-          :placeholder="hasPassword ? '已设置（留空不修改）' : '请输入 SMTP 密码'"
-        />
-      </n-form-item>
-      <n-form-item label="发件人地址">
-        <n-input v-model:value="form.sender_address" placeholder="如 noreply@example.com" />
-      </n-form-item>
-      <n-form-item label="启用 TLS">
-        <n-switch v-model:value="form.enable_tls" />
-      </n-form-item>
-      <n-form-item label="跳过 TLS 验证">
-        <n-switch v-model:value="form.skip_tls_verify" />
-        <span style="margin-left: 8px; color: #999; font-size: 12px">仅用于自签名证书的SMTP服务器</span>
-      </n-form-item>
+  <div class="workspace-form-scroll settings-tab-scroll">
+    <n-spin :show="loading">
+      <n-form class="settings-tab-form" label-placement="left" label-width="160px" :model="form">
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>SMTP 服务</h2>
+            <p>配置系统通知邮件的发送服务器与安全连接策略</p>
+          </header>
+          <div class="settings-section-body">
+            <n-form-item label="SMTP 服务器">
+              <n-input v-model:value="form.smtp_host" placeholder="如 smtp.example.com" />
+            </n-form-item>
+            <n-form-item label="SMTP 端口">
+              <n-input-number v-model:value="form.smtp_port" :min="1" :max="65535" style="width: 150px" />
+            </n-form-item>
+            <n-form-item label="用户名">
+              <n-input v-model:value="form.smtp_username" placeholder="SMTP 认证用户名" />
+            </n-form-item>
+            <n-form-item label="密码">
+              <n-input
+                v-model:value="form.smtp_password"
+                type="password"
+                show-password-on="click"
+                :placeholder="hasPassword ? '已设置（留空不修改）' : '请输入 SMTP 密码'"
+              />
+            </n-form-item>
+            <n-form-item label="发件人地址">
+              <n-input v-model:value="form.sender_address" placeholder="如 noreply@example.com" />
+            </n-form-item>
+            <n-form-item label="启用 TLS">
+              <n-switch v-model:value="form.enable_tls" />
+            </n-form-item>
+            <n-form-item label="跳过 TLS 验证">
+              <n-switch v-model:value="form.skip_tls_verify" />
+              <span class="workspace-inline-note">仅用于自签名证书的SMTP服务器</span>
+            </n-form-item>
 
-      <n-form-item>
-        <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-      </n-form-item>
-    </n-form>
-  </n-spin>
+          </div>
+        </section>
+        <footer class="settings-tab-actions">
+          <n-button type="primary" :loading="saving" @click="handleSave">保存设置</n-button>
+        </footer>
+      </n-form>
+    </n-spin>
+  </div>
 </template>
 
 <script setup lang="ts">

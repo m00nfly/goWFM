@@ -1,82 +1,120 @@
 <template>
-  <n-spin :show="loading">
-    <n-form label-placement="left" label-width="180px" :model="form">
-      <n-form-item label="会话超时">
-        <n-input-number v-model:value="form.session_timeout" :min="10" :max="525600" style="width: 150px" />
-        <span style="margin-left: 8px; color: #999">分钟（当前: {{ timeoutDisplay }}）</span>
-      </n-form-item>
-      <n-form-item label="登录页启用验证码">
-        <n-switch v-model:value="form.enable_captcha" />
-      </n-form-item>
-      <template v-if="form.enable_captcha">
-        <n-form-item label="验证码长度">
-          <n-input-number v-model:value="form.captcha_code_length" :min="4" :max="10" style="width: 120px" />
-          <span style="margin-left: 8px; color: #999">个</span>
-        </n-form-item>
-      </template>
+  <div class="workspace-form-scroll settings-tab-scroll">
+    <n-spin :show="loading">
+      <n-form class="settings-tab-form" label-placement="left" label-width="190px" :model="form">
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>会话与登录</h2>
+            <p>设置登录会话有效期与验证码策略</p>
+          </header>
+          <div class="settings-section-body">
+          <n-form-item label="会话超时">
+            <n-input-number v-model:value="form.session_timeout" :min="10" :max="525600" style="width: 150px" />
+            <span class="workspace-inline-note">分钟（当前: {{ timeoutDisplay }}）</span>
+          </n-form-item>
+          <n-form-item label="登录页启用验证码">
+            <n-switch v-model:value="form.enable_captcha" />
+          </n-form-item>
+          <template v-if="form.enable_captcha">
+            <n-form-item label="验证码长度">
+              <n-input-number v-model:value="form.captcha_code_length" :min="4" :max="10" style="width: 120px" />
+              <span class="workspace-inline-note">个</span>
+            </n-form-item>
+          </template>
+          </div>
+        </section>
 
-      <n-divider>IP 封锁设置</n-divider>
-      <n-form-item label="启用IP自动封锁">
-        <n-switch v-model:value="form.ip_block_enabled" />
-      </n-form-item>
-      <template v-if="form.ip_block_enabled">
-        <n-form-item label="失败次数阈值">
-          <n-input-number v-model:value="form.ip_block_max_failures" :min="1" :max="100" style="width: 120px" />
-          <span style="margin-left: 8px; color: #999">次</span>
-        </n-form-item>
-        <n-form-item label="检测时间窗口">
-          <n-input-number v-model:value="form.ip_block_window" :min="60" :max="86400" style="width: 120px" />
-          <span style="margin-left: 8px; color: #999">秒</span>
-        </n-form-item>
-        <n-form-item label="封锁时长">
-          <n-input-number v-model:value="form.ip_block_duration" :min="60" :max="86400" style="width: 120px" />
-          <span style="margin-left: 8px; color: #999">秒</span>
-        </n-form-item>
-      </template>
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>IP 封锁设置</h2>
+            <p>自动限制短时间内多次登录失败的来源地址</p>
+          </header>
+          <div class="settings-section-body">
+          <n-form-item label="启用IP自动封锁">
+            <n-switch v-model:value="form.ip_block_enabled" />
+          </n-form-item>
+          <template v-if="form.ip_block_enabled">
+            <n-form-item label="失败次数阈值">
+              <n-input-number v-model:value="form.ip_block_max_failures" :min="1" :max="100" style="width: 120px" />
+              <span class="workspace-inline-note">次</span>
+            </n-form-item>
+            <n-form-item label="检测时间窗口">
+              <n-input-number v-model:value="form.ip_block_window" :min="60" :max="86400" style="width: 120px" />
+              <span class="workspace-inline-note">秒</span>
+            </n-form-item>
+            <n-form-item label="封锁时长">
+              <n-input-number v-model:value="form.ip_block_duration" :min="60" :max="86400" style="width: 120px" />
+              <span class="workspace-inline-note">秒</span>
+            </n-form-item>
+          </template>
+          </div>
+        </section>
 
-      <n-divider>账号封锁设置</n-divider>
-      <n-form-item label="启用账号自动封锁">
-        <n-switch v-model:value="form.account_block_enabled" />
-      </n-form-item>
-      <template v-if="form.account_block_enabled">
-        <n-form-item label="失败次数阈值">
-          <n-input-number v-model:value="form.account_block_max_failures" :min="1" :max="100" style="width: 120px" />
-          <span style="margin-left: 8px; color: #999">次</span>
-        </n-form-item>
-        <n-form-item label="检测时间窗口">
-          <n-input-number v-model:value="form.account_block_window" :min="60" :max="86400" style="width: 120px" />
-          <span style="margin-left: 8px; color: #999">秒</span>
-        </n-form-item>
-        <n-form-item label="封锁时长">
-          <n-input-number v-model:value="form.account_block_duration" :min="60" :max="86400" style="width: 120px" />
-          <span style="margin-left: 8px; color: #999">秒</span>
-        </n-form-item>
-      </template>
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>账号封锁设置</h2>
+            <p>为连续登录失败的账号设置自动保护规则</p>
+          </header>
+          <div class="settings-section-body">
+          <n-form-item label="启用账号自动封锁">
+            <n-switch v-model:value="form.account_block_enabled" />
+          </n-form-item>
+          <template v-if="form.account_block_enabled">
+            <n-form-item label="失败次数阈值">
+              <n-input-number v-model:value="form.account_block_max_failures" :min="1" :max="100" style="width: 120px" />
+              <span class="workspace-inline-note">次</span>
+            </n-form-item>
+            <n-form-item label="检测时间窗口">
+              <n-input-number v-model:value="form.account_block_window" :min="60" :max="86400" style="width: 120px" />
+              <span class="workspace-inline-note">秒</span>
+            </n-form-item>
+            <n-form-item label="封锁时长">
+              <n-input-number v-model:value="form.account_block_duration" :min="60" :max="86400" style="width: 120px" />
+              <span class="workspace-inline-note">秒</span>
+            </n-form-item>
+          </template>
+          </div>
+        </section>
 
-      <n-divider>封锁例外白名单</n-divider>
-      <n-form-item label="白名单IP/网段">
-        <n-dynamic-tags v-model:value="form.whitelist_ips" />
-      </n-form-item>
-      <n-alert type="info" style="margin-bottom: 16px">
-        支持 IP 地址（如 192.168.1.100）或 CIDR 网段（如 10.0.0.0/8）。白名单内的 IP 永远不会被封锁，且可登录已被封锁的账号。
-      </n-alert>
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>封锁例外白名单</h2>
+            <p>维护始终允许访问的可信 IP 地址与网段</p>
+          </header>
+          <div class="settings-section-body">
+          <n-form-item label="白名单IP/网段">
+            <n-dynamic-tags v-model:value="form.whitelist_ips" />
+          </n-form-item>
+          <n-alert type="info" class="settings-alert">
+            支持 IP 地址（如 192.168.1.100）或 CIDR 网段（如 10.0.0.0/8）。白名单内的 IP 永远不会被封锁，且可登录已被封锁的账号。
+          </n-alert>
+          </div>
+        </section>
 
-      <n-divider>TOTP 二次认证</n-divider>
-      <n-form-item label="信任设备有效期">
-        <n-input-number v-model:value="form.totp_trust_days" :min="1" :max="365" style="width: 120px" />
-        <span style="margin-left: 8px; color: #999">天（设为 0 则不允许信任设备）</span>
-      </n-form-item>
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>TOTP 二次认证</h2>
+            <p>设置受信任设备保持免验证状态的时间</p>
+          </header>
+          <div class="settings-section-body">
+          <n-form-item label="信任设备有效期">
+            <n-input-number v-model:value="form.totp_trust_days" :min="1" :max="365" style="width: 120px" />
+            <span class="workspace-inline-note">天（设为 0 则不允许信任设备）</span>
+          </n-form-item>
 
-      <n-form-item>
-        <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-      </n-form-item>
-    </n-form>
-  </n-spin>
+          </div>
+        </section>
+        <footer class="settings-tab-actions">
+          <n-button type="primary" :loading="saving" @click="handleSave">保存设置</n-button>
+        </footer>
+      </n-form>
+    </n-spin>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NForm, NFormItem, NInputNumber, NButton, NSwitch, NDivider, NDynamicTags, NAlert, NSpin, useMessage } from 'naive-ui'
+import { NForm, NFormItem, NInputNumber, NButton, NSwitch, NDynamicTags, NAlert, NSpin, useMessage } from 'naive-ui'
 import api from '@/api'
 
 const message = useMessage()
@@ -128,3 +166,9 @@ async function handleSave() {
   }
 }
 </script>
+
+<style scoped>
+.settings-alert {
+  margin-bottom: 12px;
+}
+</style>

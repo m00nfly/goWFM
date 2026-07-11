@@ -1,16 +1,30 @@
 <template>
-  <n-card
-    title="我的分享"
-    class="shares-card"
-    :bordered="false"
-    content-style="padding: 12px 16px; display: flex; flex-direction: column; min-height: 0;"
-  >
-      <div class="shares-summary">
-        您当前有 {{ totalCount }} 个文件分享，{{ validCount }} 个有效，{{ expiredCount }} 个已过期
-      </div>
-      <div class="shares-table-wrapper">
+  <div class="workspace-page shares-page">
+    <section class="workspace-surface">
+      <header class="workspace-header">
+        <div class="workspace-title-block">
+          <h1 class="workspace-title">我的分享</h1>
+          <p class="workspace-subtitle">查看、复制和维护由您创建的文件分享</p>
+        </div>
+        <div class="workspace-stat-grid shares-stats">
+          <div class="workspace-stat">
+            <div class="workspace-stat-label">全部分享</div>
+            <div class="workspace-stat-value">{{ totalCount }}</div>
+          </div>
+          <div class="workspace-stat">
+            <div class="workspace-stat-label">有效</div>
+            <div class="workspace-stat-value">{{ validCount }}</div>
+          </div>
+          <div class="workspace-stat">
+            <div class="workspace-stat-label">已过期</div>
+            <div class="workspace-stat-value">{{ expiredCount }}</div>
+          </div>
+        </div>
+      </header>
+
+      <div class="workspace-table-shell shares-table-wrapper">
         <n-data-table
-          class="shares-data-table"
+          class="workspace-data-table shares-data-table"
           size="small"
           flex-height
           :columns="columns"
@@ -23,38 +37,38 @@
           style="height: 100%;"
         />
       </div>
+    </section>
+  </div>
 
-    </n-card>
-
-    <n-modal v-model:show="showFilesModal" preset="card" title="文件列表" style="width: 600px; max-width: 90vw;">
-      <n-spin :show="filesModalLoading">
-        <div v-if="modalFiles.length > 0" class="files-modal-list">
-          <div v-for="file in modalFiles" :key="file.file_name" class="file-item">
-            <span class="file-name-link" @click="navigateToFile(file.file_path)">{{ file.file_name }}</span>
-            <span class="file-download-count">下载 {{ file.download_count }} 次</span>
-          </div>
+  <n-modal v-model:show="showFilesModal" preset="card" title="文件列表" style="width: 600px; max-width: 90vw;">
+    <n-spin :show="filesModalLoading">
+      <div v-if="modalFiles.length > 0" class="files-modal-list">
+        <div v-for="file in modalFiles" :key="file.file_name" class="file-item">
+          <span class="file-name-link" @click="navigateToFile(file.file_path)">{{ file.file_name }}</span>
+          <span class="file-download-count">下载 {{ file.download_count }} 次</span>
         </div>
-        <n-empty v-else description="暂无文件" />
-      </n-spin>
-    </n-modal>
+      </div>
+      <n-empty v-else description="暂无文件" />
+    </n-spin>
+  </n-modal>
 
-    <!-- 编辑分享弹窗 -->
-    <n-modal v-model:show="showEditModal" preset="dialog" title="编辑分享" positive-text="保存" negative-text="取消" :positive-button-props="{ loading: editLoading }" @positive-click="handleEditSave" @negative-click="showEditModal = false" :mask-closable="false">
-      <n-form label-placement="left" label-width="80">
-        <n-form-item label="分享名称">
-          <n-input v-model:value="editName" placeholder="分享名称" clearable :maxlength="100" />
-        </n-form-item>
-        <n-form-item label="有效期(天)">
-          <n-input-number v-model:value="editExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
-        </n-form-item>
-      </n-form>
-    </n-modal>
+  <!-- 编辑分享弹窗 -->
+  <n-modal v-model:show="showEditModal" preset="dialog" title="编辑分享" positive-text="保存" negative-text="取消" :positive-button-props="{ loading: editLoading }" @positive-click="handleEditSave" @negative-click="showEditModal = false" :mask-closable="false">
+    <n-form label-placement="left" label-width="80">
+      <n-form-item label="分享名称">
+        <n-input v-model:value="editName" placeholder="分享名称" clearable :maxlength="100" />
+      </n-form-item>
+      <n-form-item label="有效期(天)">
+        <n-input-number v-model:value="editExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
+      </n-form-item>
+    </n-form>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NCard, NSpace, NButton, NDataTable, NTooltip, NTag, NPopconfirm, NModal, NSpin, NEmpty, NIcon, NForm, NFormItem, NInput, NInputNumber, useMessage } from 'naive-ui'
+import { NSpace, NButton, NDataTable, NTooltip, NTag, NPopconfirm, NModal, NSpin, NEmpty, NIcon, NForm, NFormItem, NInput, NInputNumber, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { CopyOutline, TrashOutline, CreateOutline } from '@vicons/ionicons5'
 import api from '@/api'
@@ -304,31 +318,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.shares-card {
-  height: calc(100vh - 135px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.shares-card :deep(.n-card__content) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.shares-table-wrapper {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.shares-stats {
+  width: min(420px, 100%);
 }
 
 /* 分享ID列 */
 .shares-data-table :deep(.col-token) {
-  font-family: monospace;
+  color: var(--workspace-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 分享文件列自适应换行 */
@@ -339,7 +338,7 @@ onUnmounted(() => {
 }
 
 .shares-data-table :deep(.col-files .file-link) {
-  color: var(--primary-color);
+  color: var(--workspace-accent);
   cursor: pointer;
   word-break: break-all;
   overflow-wrap: anywhere;
@@ -357,51 +356,31 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* 行高紧凑化 */
-.shares-data-table :deep(.n-data-table-td),
-.shares-data-table :deep(.n-data-table-th) {
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  font-size: 13px;
-}
-.shares-data-table :deep(.n-data-table-th) {
-  font-weight: 600;
-}
-
 .shares-data-table :deep(.highlighted-row td) {
-  background-color: rgba(24, 160, 88, 0.08) !important;
+  background-color: var(--workspace-row-selected) !important;
   transition: background-color 0.3s ease;
-}
-
-.shares-summary {
-  text-align: left;
-  font-size: 14px;
-  color: #666;
-  padding: 8px 0;
 }
 
 /* 文件列表 modal */
 .files-modal-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .files-modal-list .file-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: #f9f9f9;
-}
-
-.dark .files-modal-list .file-item {
-  background: rgb(70, 70, 80);
+  gap: 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--workspace-border-soft);
+  border-radius: var(--workspace-radius-md);
+  background: var(--workspace-surface-soft);
 }
 
 .files-modal-list .file-name-link {
-  color: var(--primary-color);
+  color: var(--workspace-accent);
   cursor: pointer;
   word-break: break-all;
 }
@@ -412,8 +391,15 @@ onUnmounted(() => {
 
 .files-modal-list .file-download-count {
   white-space: nowrap;
-  color: #999;
+  color: var(--workspace-text-muted);
   font-size: 12px;
   margin-left: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+  .shares-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 </style>

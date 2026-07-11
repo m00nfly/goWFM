@@ -1,8 +1,16 @@
 <template>
-  <div class="user-settings-page" :class="{ dark: themeStore.isDark }">
-    <n-card title="个人设置" :bordered="false" class="user-settings-card">
-      <div class="settings-grid">
-        <n-card title="个人资料" :bordered="false" class="settings-card">
+  <div class="workspace-page user-settings-page" :class="{ dark: themeStore.isDark }">
+    <section class="workspace-surface user-settings-surface">
+      <header class="workspace-header">
+        <div class="workspace-title-block">
+          <h1 class="workspace-title">个人设置</h1>
+          <p class="workspace-subtitle">维护个人资料、登录密码与二次认证状态</p>
+        </div>
+      </header>
+
+      <div class="workspace-form-scroll user-settings-scroll">
+        <div class="workspace-card-grid settings-grid">
+          <n-card title="个人资料" :bordered="false" class="workspace-mini-card settings-card">
           <n-form :model="form" label-placement="top">
             <n-form-item label="显示名称">
               <n-input v-model:value="form.display_name" />
@@ -14,9 +22,9 @@
               <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
             </div>
           </n-form>
-        </n-card>
+          </n-card>
 
-        <n-card title="修改密码" :bordered="false" class="settings-card">
+          <n-card title="修改密码" :bordered="false" class="workspace-mini-card settings-card">
           <n-form :model="pwForm" label-placement="top">
             <n-form-item label="当前密码">
               <n-input v-model:value="pwForm.current_password" type="password" />
@@ -36,9 +44,9 @@
               <n-button type="primary" :loading="pwSaving" @click="handlePasswordChange">修改密码</n-button>
             </div>
           </n-form>
-        </n-card>
+          </n-card>
 
-        <n-card title="二次认证 (TOTP)" :bordered="false" class="settings-card">
+          <n-card title="二次认证 (TOTP)" :bordered="false" class="workspace-mini-card settings-card">
           <n-spin :show="totpLoading">
             <div class="totp-section">
               <div class="totp-status-row">
@@ -62,9 +70,10 @@
               </div>
             </div>
           </n-spin>
-        </n-card>
+          </n-card>
+        </div>
       </div>
-    </n-card>
+    </section>
 
     <!-- TOTP 设置向导弹窗 -->
     <n-modal
@@ -129,7 +138,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import {
   NCard, NForm, NFormItem, NInput, NButton, NSpin, NTag, NPopconfirm,
-  NAlert, NModal, useMessage,
+  NAlert, NModal, NSpace, useMessage,
 } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
@@ -292,74 +301,18 @@ function finishSetup() {
 <style scoped>
 .user-settings-page {
   width: 100%;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-
-  --us-bg-card: #fff;
-  --us-fg-primary: #1e293b;
-  --us-fg-muted: #64748b;
-  --us-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.12);
-  --us-a-card-hover-border: 0.35;
-  --us-a-card-shadow: 0.1;
-  --us-a-card-shadow-base: 0.06;
-  --us-a-card-accent: 0.08;
 }
 
-.user-settings-page.dark {
-  --us-bg-card: #1e293b;
-  --us-fg-primary: #f1f5f9;
-  --us-fg-muted: #94a3b8;
-  --us-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.18);
-  --us-a-card-hover-border: 0.5;
-  --us-a-card-shadow: 0.22;
-  --us-a-card-shadow-base: 0.16;
-  --us-a-card-accent: 0.12;
-}
-
-.user-settings-card {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.user-settings-card :deep(.n-card__content) {
-  overflow-y: auto;
+.user-settings-scroll {
+  padding: 10px;
 }
 
 .settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 16px;
   align-items: start;
 }
 
 .settings-card {
   height: 100%;
-  border-radius: 8px;
-  background: var(--us-bg-card);
-  border: 1px solid var(--us-border-card);
-  box-shadow: 0 2px 10px rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-shadow-base));
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.settings-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-hover-border));
-  box-shadow: 0 4px 18px rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-shadow));
-}
-
-.settings-card :deep(.n-card-header) {
-  color: var(--us-fg-primary);
-}
-
-.settings-card :deep(.n-card-header__main) {
-  font-weight: 700;
-}
-
-.settings-card :deep(.n-card__content) {
-  color: var(--us-fg-primary);
 }
 
 .settings-card :deep(.n-card__content) {
@@ -394,7 +347,7 @@ function finishSetup() {
 }
 
 .muted-text {
-  color: var(--us-fg-muted);
+  color: var(--workspace-text-muted);
   font-size: 13px;
 }
 
@@ -403,7 +356,7 @@ function finishSetup() {
 }
 
 .setup-desc {
-  color: #666;
+  color: var(--workspace-text-muted);
   font-size: 14px;
   margin-bottom: 16px;
 }
@@ -414,9 +367,9 @@ function finishSetup() {
   justify-content: center;
   width: 200px;
   height: 200px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
+  border: 1px solid var(--workspace-border);
+  border-radius: var(--workspace-radius-md);
+  background: var(--workspace-surface);
 }
 
 .qr-img {
@@ -434,9 +387,10 @@ function finishSetup() {
   font-family: monospace;
   font-size: 14px;
   padding: 8px 12px;
-  color: var(--us-fg-primary);
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--us-a-card-accent));
-  border-radius: 6px;
+  color: var(--workspace-text);
+  background: rgba(var(--workspace-accent-rgb), 0.09);
+  border: 1px solid var(--workspace-border-soft);
+  border-radius: var(--workspace-radius-sm);
   text-align: center;
   letter-spacing: 2px;
 }

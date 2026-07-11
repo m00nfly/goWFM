@@ -1,35 +1,45 @@
 <template>
-  <n-spin :show="loading">
-    <n-form label-placement="left" label-width="140px" :model="form">
-      <n-form-item label="日志保留天数">
-        <n-input-number v-model:value="form.retention_days" :min="1" :max="3650" style="width: 150px" />
-        <span style="margin-left: 8px; color: #999">天（超过此天数的日志将自动清理）</span>
-      </n-form-item>
+  <div class="workspace-form-scroll settings-tab-scroll">
+    <n-spin :show="loading">
+      <n-form class="settings-tab-form" label-placement="left" label-width="170px" :model="form">
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>日志策略</h2>
+            <p>控制操作日志的保留周期与记录范围</p>
+          </header>
+          <div class="settings-section-body">
+            <n-form-item label="日志保留天数">
+              <n-input-number v-model:value="form.retention_days" :min="1" :max="3650" style="width: 150px" />
+              <span class="workspace-inline-note">天（超过此天数的日志将自动清理）</span>
+            </n-form-item>
 
-      <n-form-item label="启用的日志类型">
-        <n-checkbox-group v-model:value="form.enabled_log_types">
-          <n-grid :cols="3" :x-gap="12" :y-gap="8">
-            <n-gi v-for="item in allLogTypes" :key="item.value">
-              <n-checkbox :value="item.value" :label="item.label" />
-            </n-gi>
-          </n-grid>
-        </n-checkbox-group>
-      </n-form-item>
+            <n-form-item label="启用的日志类型">
+              <n-checkbox-group v-model:value="form.enabled_log_types">
+                <n-grid :cols="3" :x-gap="12" :y-gap="8" responsive="screen">
+                  <n-gi v-for="item in allLogTypes" :key="item.value">
+                    <n-checkbox :value="item.value" :label="item.label" />
+                  </n-gi>
+                </n-grid>
+              </n-checkbox-group>
+            </n-form-item>
 
-      <n-form-item>
-        <n-space>
-          <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-          <n-button @click="selectAll">全选</n-button>
-          <n-button @click="deselectAll">全不选</n-button>
-        </n-space>
-      </n-form-item>
-    </n-form>
-  </n-spin>
+            <div class="settings-inline-actions">
+              <n-button @click="selectAll">全选</n-button>
+              <n-button @click="deselectAll">全不选</n-button>
+            </div>
+          </div>
+        </section>
+        <footer class="settings-tab-actions">
+          <n-button type="primary" :loading="saving" @click="handleSave">保存设置</n-button>
+        </footer>
+      </n-form>
+    </n-spin>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NForm, NFormItem, NInputNumber, NCheckboxGroup, NCheckbox, NGrid, NGi, NButton, NSpace, NSpin, useMessage } from 'naive-ui'
+import { NForm, NFormItem, NInputNumber, NCheckboxGroup, NCheckbox, NGrid, NGi, NButton, NSpin, useMessage } from 'naive-ui'
 import api from '@/api'
 
 const message = useMessage()

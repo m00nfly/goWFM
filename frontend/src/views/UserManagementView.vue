@@ -1,16 +1,28 @@
 <template>
-  <n-card
-    title="用户管理"
-    class="users-card"
-    :bordered="false"
-    content-style="padding: 12px 16px; display: flex; flex-direction: column; min-height: 0;"
-  >
-      <n-space justify="end" :size="12" style="margin-bottom: 12px">
-        <n-button type="primary" @click="showCreateModal = true">创建用户</n-button>
-      </n-space>
-      <div class="users-table-wrapper">
+  <div class="workspace-page users-page">
+    <section class="workspace-surface">
+      <header class="workspace-header">
+        <div class="workspace-title-block">
+          <h1 class="workspace-title">用户管理</h1>
+          <p class="workspace-subtitle">维护账号、权限、管理员身份与 TOTP 状态</p>
+        </div>
+        <div class="workspace-actions">
+          <div class="workspace-count-pill">
+            <strong>{{ users.length }}</strong>
+            个用户
+          </div>
+          <n-button type="primary" @click="showCreateModal = true">
+            <template #icon>
+              <n-icon><AddOutline /></n-icon>
+            </template>
+            创建用户
+          </n-button>
+        </div>
+      </header>
+
+      <div class="workspace-table-shell users-table-wrapper">
         <n-data-table
-          class="users-data-table"
+          class="workspace-data-table users-data-table"
           size="small"
           flex-height
           :columns="columns"
@@ -20,82 +32,83 @@
           style="height: 100%;"
         />
       </div>
+    </section>
+  </div>
 
-      <n-modal v-model:show="showCreateModal" title="创建用户" preset="dialog">
-        <n-form ref="createFormRef" :model="createForm" :rules="createRules" label-placement="left" label-width="80">
-          <n-form-item label="用户名" path="username">
-            <n-input v-model:value="createForm.username" />
-          </n-form-item>
-          <n-form-item label="密码" path="password">
-            <n-input v-model:value="createForm.password" type="password" />
-          </n-form-item>
-          <n-form-item label="显示名称" path="display_name">
-            <n-input v-model:value="createForm.display_name" />
-          </n-form-item>
-          <n-form-item label="邮箱" path="email">
-            <n-input v-model:value="createForm.email" />
-          </n-form-item>
-          <n-form-item label="权限" path="permissions">
-            <n-checkbox-group v-model:value="permChecks">
-              <n-space>
-                <n-checkbox :value="1">浏览</n-checkbox>
-                <n-checkbox :value="2">下载</n-checkbox>
-                <n-checkbox :value="4">上传</n-checkbox>
-                <n-checkbox :value="8">分享</n-checkbox>
-                <n-checkbox :value="16">日志</n-checkbox>
-              </n-space>
-            </n-checkbox-group>
-          </n-form-item>
-        </n-form>
-        <template #action>
-          <n-button @click="showCreateModal = false">取消</n-button>
-          <n-button type="primary" :loading="createLoading" @click="handleCreate">创建</n-button>
-        </template>
-      </n-modal>
+  <n-modal v-model:show="showCreateModal" title="创建用户" preset="dialog">
+    <n-form ref="createFormRef" :model="createForm" :rules="createRules" label-placement="left" label-width="80">
+      <n-form-item label="用户名" path="username">
+        <n-input v-model:value="createForm.username" />
+      </n-form-item>
+      <n-form-item label="密码" path="password">
+        <n-input v-model:value="createForm.password" type="password" />
+      </n-form-item>
+      <n-form-item label="显示名称" path="display_name">
+        <n-input v-model:value="createForm.display_name" />
+      </n-form-item>
+      <n-form-item label="邮箱" path="email">
+        <n-input v-model:value="createForm.email" />
+      </n-form-item>
+      <n-form-item label="权限" path="permissions">
+        <n-checkbox-group v-model:value="permChecks">
+          <n-space>
+            <n-checkbox :value="1">浏览</n-checkbox>
+            <n-checkbox :value="2">下载</n-checkbox>
+            <n-checkbox :value="4">上传</n-checkbox>
+            <n-checkbox :value="8">分享</n-checkbox>
+            <n-checkbox :value="16">日志</n-checkbox>
+          </n-space>
+        </n-checkbox-group>
+      </n-form-item>
+    </n-form>
+    <template #action>
+      <n-button @click="showCreateModal = false">取消</n-button>
+      <n-button type="primary" :loading="createLoading" @click="handleCreate">创建</n-button>
+    </template>
+  </n-modal>
 
-      <n-modal v-model:show="showEditModal" title="编辑用户" preset="dialog">
-        <n-form :model="editForm" label-placement="left" label-width="80">
-          <n-form-item label="显示名称">
-            <n-input v-model:value="editForm.display_name" />
-          </n-form-item>
-          <n-form-item label="邮箱">
-            <n-input v-model:value="editForm.email" />
-          </n-form-item>
-          <n-form-item label="管理员">
-            <n-switch v-model:value="editForm.is_admin" />
-          </n-form-item>
-          <n-form-item label="TOTP">
-            <n-switch v-model:value="editForm.totp_enabled" />
-            <span style="margin-left: 8px; font-size: 12px; color: #999">管理员强制启用后，用户需在个人设置中扫码绑定</span>
-          </n-form-item>
-          <n-form-item label="权限">
-            <n-checkbox-group v-model:value="editPermChecks">
-              <n-space>
-                <n-checkbox :value="1">浏览</n-checkbox>
-                <n-checkbox :value="2">下载</n-checkbox>
-                <n-checkbox :value="4">上传</n-checkbox>
-                <n-checkbox :value="8">分享</n-checkbox>
-                <n-checkbox :value="16">日志</n-checkbox>
-              </n-space>
-            </n-checkbox-group>
-          </n-form-item>
-        </n-form>
-        <template #action>
-          <n-button @click="showEditModal = false">取消</n-button>
-          <n-button type="primary" :loading="editLoading" @click="handleEdit">保存</n-button>
-        </template>
-      </n-modal>
-    </n-card>
+  <n-modal v-model:show="showEditModal" title="编辑用户" preset="dialog">
+    <n-form :model="editForm" label-placement="left" label-width="80">
+      <n-form-item label="显示名称">
+        <n-input v-model:value="editForm.display_name" />
+      </n-form-item>
+      <n-form-item label="邮箱">
+        <n-input v-model:value="editForm.email" />
+      </n-form-item>
+      <n-form-item label="管理员">
+        <n-switch v-model:value="editForm.is_admin" />
+      </n-form-item>
+      <n-form-item label="TOTP">
+        <n-switch v-model:value="editForm.totp_enabled" />
+        <span class="workspace-inline-note">管理员强制启用后，用户需在个人设置中扫码绑定</span>
+      </n-form-item>
+      <n-form-item label="权限">
+        <n-checkbox-group v-model:value="editPermChecks">
+          <n-space>
+            <n-checkbox :value="1">浏览</n-checkbox>
+            <n-checkbox :value="2">下载</n-checkbox>
+            <n-checkbox :value="4">上传</n-checkbox>
+            <n-checkbox :value="8">分享</n-checkbox>
+            <n-checkbox :value="16">日志</n-checkbox>
+          </n-space>
+        </n-checkbox-group>
+      </n-form-item>
+    </n-form>
+    <template #action>
+      <n-button @click="showEditModal = false">取消</n-button>
+      <n-button type="primary" :loading="editLoading" @click="handleEdit">保存</n-button>
+    </template>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, h } from 'vue'
 import {
-  NCard, NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
+  NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
   NCheckboxGroup, NCheckbox, NSwitch, NTag, NIcon, NTooltip, useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { CreateOutline, TrashOutline } from '@vicons/ionicons5'
+import { AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import api from '@/api'
 import { useViewport } from '@/composables/useViewport'
 
@@ -276,35 +289,7 @@ async function handleDelete(row: any) {
 </script>
 
 <style scoped>
-.users-card {
-  height: calc(100vh - 135px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.users-card :deep(.n-card__content) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.users-table-wrapper {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.users-data-table :deep(.n-data-table-td),
-.users-data-table :deep(.n-data-table-th) {
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  font-size: 13px;
-}
-
-.users-data-table :deep(.n-data-table-th) {
-  font-weight: 600;
+.users-data-table :deep(.n-data-table-td) {
+  font-variant-numeric: tabular-nums;
 }
 </style>

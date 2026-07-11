@@ -10,7 +10,7 @@
           </template>
           <template v-else>
             <div class="brand-icon">
-              <n-icon size="20" color="#fff"><FolderOpenOutline /></n-icon>
+              <n-icon size="20"><FolderOpenOutline /></n-icon>
             </div>
           </template>
           <span class="brand-text">{{ orgName || 'goWFM' }}</span>
@@ -103,9 +103,9 @@
                 <n-avatar
                   round
                   :size="32"
-                  :style="{ backgroundColor: 'var(--theme-color, #3b82f6)', cursor: 'pointer', fontSize: '14px' }"
+                  class="user-avatar"
                 >
-                  <n-icon size="20" color="#fff"><PersonCircle /></n-icon>
+                  <n-icon size="20"><PersonCircle /></n-icon>
                 </n-avatar>
                 <span class="user-display-name">{{ displayName }}</span>
               </div>
@@ -298,13 +298,12 @@ onUnmounted(() => {
 
 <style scoped>
 .main-layout {
-  min-height: 100vh;
-  background: #f8fafc;
-  transition: background 0.3s ease;
-}
-
-.dark.main-layout {
-  background: #0f172a;
+  min-height: 100dvh;
+  background: var(--workspace-bg);
+  color: var(--workspace-text);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 /* ---- 顶部导航栏 - 毛玻璃效果 ---- */
@@ -315,14 +314,13 @@ onUnmounted(() => {
   right: 0;
   z-index: 100;
   backdrop-filter: blur(12px);
-  background-color: rgba(255, 255, 255, 0.85);
-  border-bottom: 1px solid #e2e8f0;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-.dark .top-header {
-  background-color: rgba(15, 23, 42, 0.85);
-  border-bottom: 1px solid #1e293b;
+  background-color: color-mix(in srgb, var(--workspace-surface) 88%, transparent);
+  border-bottom: 1px solid var(--workspace-border-soft);
+  box-shadow: 0 8px 28px rgba(39, 55, 82, 0.08);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .header-inner {
@@ -352,6 +350,13 @@ onUnmounted(() => {
   max-width: 140px;
   object-fit: contain;
   flex-shrink: 0;
+  border-radius: var(--workspace-radius-sm);
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
+
+.dark .brand-logo-img {
+  outline-color: rgba(255, 255, 255, 0.1);
 }
 
 /* 默认图标容器（无 Logo 时） */
@@ -359,23 +364,27 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--theme-color, #3b82f6);
+  color: var(--workspace-on-accent);
+  background: var(--workspace-accent);
   padding: 8px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
+  border-radius: var(--workspace-radius-md);
+  box-shadow: 0 8px 18px rgba(var(--workspace-accent-rgb), 0.2);
   flex-shrink: 0;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.header-brand:active .brand-icon {
+  transform: scale(0.96);
 }
 
 .brand-text {
   font-size: 18px;
   font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.025em;
-  transition: color 0.3s ease;
-}
-
-.dark .brand-text {
-  color: #f1f5f9;
+  color: var(--workspace-text);
+  letter-spacing: 0;
+  transition: color 0.2s ease;
 }
 
 @media (max-width: 640px) {
@@ -402,52 +411,46 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid transparent;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--workspace-radius-md);
   cursor: pointer;
-  color: #0f172a;
-  transition: all 0.2s ease;
+  color: var(--workspace-text);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
   font-size: 22px;
 }
 
 .nav-icon-btn:hover {
-  background: #f1f5f9;
-  color: var(--theme-color, #3b82f6);
+  background: rgba(var(--workspace-accent-rgb), 0.07);
+  border-color: rgba(var(--workspace-accent-rgb), 0.14);
+  color: var(--workspace-accent);
 }
 
 .nav-icon-btn.active {
-  background: #eff6ff;
-  color: var(--theme-color, #3b82f6);
+  background: rgba(var(--workspace-accent-rgb), 0.11);
+  border-color: rgba(var(--workspace-accent-rgb), 0.22);
+  color: var(--workspace-accent);
+  box-shadow: inset 0 0 0 1px rgba(var(--workspace-accent-rgb), 0.06);
 }
 
-.dark .nav-icon-btn {
-  color: #f1f5f9
-}
-
-.dark .nav-icon-btn:hover {
-  background: #1e293b;
-  color: #60a5fa;
-}
-
-.dark .nav-icon-btn.active {
-  background: #1e3a5f;
-  color: #60a5fa;
+.nav-icon-btn:active {
+  transform: scale(0.96);
 }
 
 /* ---- 分隔线 ---- */
 .header-divider {
   width: 1px;
   height: 24px;
-  background: #e2e8f0;
+  background: var(--workspace-border);
   margin: 0 8px;
-  transition: background 0.3s ease;
-}
-
-.dark .header-divider {
-  background: #334155;
+  transition: background-color 0.2s ease;
 }
 
 /* ---- 用户触发 ---- */
@@ -455,33 +458,42 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 40px;
   cursor: pointer;
   padding: 4px 8px 4px 4px;
-  border-radius: 8px;
-  transition: background-color 0.2s;
+  border: 1px solid transparent;
+  border-radius: var(--workspace-radius-md);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
 }
 
 .user-trigger:hover {
-  background-color: #f1f5f9;
+  background-color: rgba(var(--workspace-accent-rgb), 0.06);
+  border-color: rgba(var(--workspace-accent-rgb), 0.12);
 }
 
-.dark .user-trigger:hover {
-  background-color: #1e293b;
+.user-trigger:active {
+  transform: scale(0.96);
+}
+
+.user-avatar {
+  color: var(--workspace-on-accent);
+  background-color: var(--workspace-accent) !important;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 .user-display-name {
   font-size: 13px;
   font-weight: 500;
-  color: #334155;
+  color: var(--workspace-text);
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color 0.3s ease;
-}
-
-.dark .user-display-name {
-  color: #cbd5e1;
+  transition: color 0.2s ease;
 }
 
 @media (max-width: 768px) {
@@ -493,17 +505,17 @@ onUnmounted(() => {
 /* ---- 主内容区 ---- */
 .main-content {
   padding-top: 56px;
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 .content-wrapper {
   flex: 1;
-  width: 95%;
+  width: min(100%, 1280px);
   max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 24px 0;
+  padding: 18px 20px 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -512,34 +524,31 @@ onUnmounted(() => {
 /* ---- 底部版权 ---- */
 .content-footer {
   text-align: center;
-  padding: 18px;
+  padding: 12px 18px;
   font-size: 12px;
-  color: #94a3b8;
-  transition: color 0.3s ease;
-}
-
-.dark .content-footer {
-  color: #475569;
+  color: var(--workspace-text-soft);
+  transition: color 0.2s ease;
 }
 
 .footer-content {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
 .footer-separator {
-  color: #cbd5e1;
-}
-
-.dark .footer-separator {
-  color: #334155;
+  color: var(--workspace-border);
 }
 
 .footer-app-link {
-  color: var(--theme-color, #3b82f6);
+  color: var(--workspace-accent);
   text-decoration: none;
   font-weight: 500;
+  transition:
+    color 0.16s ease,
+    text-decoration-color 0.16s ease;
 }
 
 .footer-app-link:hover {
@@ -547,17 +556,17 @@ onUnmounted(() => {
 }
 
 .footer-version {
-  color: #cbd5e1;
+  color: var(--workspace-text-soft);
   font-size: 11px;
-}
-
-.dark .footer-version {
-  color: #334155;
+  font-variant-numeric: tabular-nums;
 }
 
 .footer-org-link {
-  color: var(--theme-color, #3b82f6);
+  color: var(--workspace-accent);
   text-decoration: none;
+  transition:
+    color 0.16s ease,
+    text-decoration-color 0.16s ease;
 }
 
 .footer-org-link:hover {
@@ -565,25 +574,32 @@ onUnmounted(() => {
 }
 
 .footer-org-text {
-  color: #64748b;
-}
-
-.dark .footer-org-text {
-  color: #64748b;
+  color: var(--workspace-text-muted);
 }
 
 .footer-github-link {
-  color: #64748b;
+  color: var(--workspace-text-muted);
   display: inline-flex;
   align-items: center;
-  transition: color 0.2s;
+  transition: color 0.16s ease;
 }
 
 .footer-github-link:hover {
-  color: #334155;
+  color: var(--workspace-accent);
 }
 
-.dark .footer-github-link:hover {
-  color: #cbd5e1;
+@media (max-width: 768px) {
+  .header-inner {
+    padding: 0 12px;
+  }
+
+  .content-wrapper {
+    width: 100%;
+    padding: 12px 12px 0;
+  }
+
+  .content-footer {
+    padding: 10px 12px;
+  }
 }
 </style>

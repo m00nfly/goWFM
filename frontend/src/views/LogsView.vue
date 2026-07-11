@@ -1,33 +1,51 @@
 <template>
-  <n-card
-    title="操作日志"
-    class="logs-card"
-    :bordered="false"
-    content-style="padding: 12px 16px; display: flex; flex-direction: column; min-height: 0;"
-  >
-      <n-space :size="12" style="margin-bottom: 12px">
-        <n-date-picker
-          v-model:value="dateRange"
-          type="datetimerange"
-          clearable
-          :default-time="['00:00:01', '23:59:59']"
-        />
-        <n-select
-          v-model:value="filterUsername"
-          :options="userOptions"
-          clearable
-          filterable
-          placeholder="用户名"
-          style="width: 140px"
-        />
-        <n-select v-model:value="filterAction" :options="actionOptions" clearable placeholder="操作类型" style="width: 160px" />
-        <n-input v-model:value="filterPath" placeholder="目标对象" clearable style="width: 200px" />
-        <n-button @click="fetchLogs">搜索</n-button>
-      </n-space>
+  <div class="workspace-page logs-page">
+    <section class="workspace-surface">
+      <header class="workspace-header">
+        <div class="workspace-title-block">
+          <h1 class="workspace-title">操作日志</h1>
+          <p class="workspace-subtitle">检索系统访问、文件操作与配置变更记录</p>
+        </div>
+        <div class="workspace-count-pill">
+          <strong>{{ total }}</strong>
+          条记录
+        </div>
+      </header>
 
-      <div class="logs-table-wrapper">
+      <div class="workspace-toolbar logs-toolbar">
+        <div class="workspace-toolbar-group">
+          <n-date-picker
+            v-model:value="dateRange"
+            class="logs-date-picker"
+            type="datetimerange"
+            clearable
+            :default-time="['00:00:01', '23:59:59']"
+          />
+          <n-select
+            v-model:value="filterUsername"
+            class="logs-user-select"
+            :options="userOptions"
+            clearable
+            filterable
+            placeholder="用户名"
+          />
+          <n-select
+            v-model:value="filterAction"
+            class="logs-action-select"
+            :options="actionOptions"
+            clearable
+            placeholder="操作类型"
+          />
+          <n-input v-model:value="filterPath" class="logs-path-input" placeholder="目标对象" clearable />
+        </div>
+        <div class="workspace-actions">
+          <n-button type="primary" secondary @click="fetchLogs">搜索</n-button>
+        </div>
+      </div>
+
+      <div class="workspace-table-shell logs-table-wrapper">
         <n-data-table
-          class="logs-data-table"
+          class="workspace-data-table logs-data-table"
           :columns="columns"
           :data="logs"
           :bordered="false"
@@ -39,16 +57,17 @@
           style="height: 100%;"
         />
       </div>
-      <n-space justify="center" style="margin-top: 12px">
+      <div class="workspace-pagination">
         <n-pagination v-model:page="page" :page-count="totalPages" @update:page="fetchLogs" />
-      </n-space>
-    </n-card>
+      </div>
+    </section>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import {
-  NCard, NSpace, NButton, NDataTable, NInput, NSelect, NDatePicker, NPagination, useMessage
+  NButton, NDataTable, NInput, NSelect, NDatePicker, NPagination, useMessage
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import api from '@/api'
@@ -169,35 +188,32 @@ async function fetchLogs() {
 </script>
 
 <style scoped>
-.logs-card {
-  height: calc(100vh - 135px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.logs-date-picker {
+  width: 310px;
 }
 
-.logs-card :deep(.n-card__content) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+.logs-user-select {
+  width: 140px;
 }
 
-.logs-table-wrapper {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.logs-action-select {
+  width: 160px;
 }
 
-.logs-data-table :deep(.n-data-table-td),
-.logs-data-table :deep(.n-data-table-th) {
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  font-size: 13px;
+.logs-path-input {
+  width: 200px;
 }
 
-.logs-data-table :deep(.n-data-table-th) {
-  font-weight: 600;
+.logs-data-table :deep(.n-data-table-td) {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+  .logs-date-picker,
+  .logs-user-select,
+  .logs-action-select,
+  .logs-path-input {
+    width: 100%;
+  }
 }
 </style>

@@ -1,44 +1,50 @@
 <template>
   <div class="setup-page" :class="{ dark: themeStore.isDark }">
-    <n-card title="系统初始化设置" class="setup-card">
+    <n-card :bordered="false" class="setup-card">
+      <div class="setup-header">
+        <h1 class="workspace-title">系统初始化设置</h1>
+        <p class="workspace-subtitle">创建管理员账户并完成基础运行参数</p>
+      </div>
       <n-form ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="auto">
-        <n-divider>管理员账户</n-divider>
-        <n-form-item label="admin密码" path="admin_password">
-          <n-input v-model:value="form.admin_password" type="password" placeholder="至少6位密码" />
-        </n-form-item>
+        <div class="workspace-form-panel setup-section">
+          <h2 class="workspace-form-title">管理员账户</h2>
+          <n-form-item label="admin密码" path="admin_password">
+            <n-input v-model:value="form.admin_password" type="password" placeholder="至少6位密码" />
+          </n-form-item>
+        </div>
 
-        <n-divider>系统配置</n-divider>
-        <n-form-item label="站点名称" path="site_name">
-          <n-input v-model:value="form.site_name" placeholder="可选，显示在页脚" />
-        </n-form-item>
-        <n-form-item label="站点链接" path="site_link">
-          <n-input v-model:value="form.site_link" placeholder="可选，站点名称的超链接" />
-        </n-form-item>
-        <n-form-item label="数据存储路径" path="data_root_path">
-          <n-input v-model:value="form.data_root_path" placeholder="/absolute/path/to/data" />
-        </n-form-item>
-        <n-form-item label="web端口" path="server_port">
-          <n-input-number v-model:value="form.server_port" :min="1" :max="65535" />
-        </n-form-item>
-        <n-form-item label="Session密钥" path="session_secret">
-          <n-input v-model:value="form.session_secret" placeholder="留空则自动生成" />
-        </n-form-item>
-        <n-form-item label="日志级别" path="log_level">
-          <n-select v-model:value="form.log_level" :options="logLevelOptions" />
-        </n-form-item>
-        <n-form-item label="最大上传大小" path="max_upload_size_mb">
-          <n-input-number
-            v-model:value="form.max_upload_size_mb"
-            :min="1"
-            :max="102400"
-            style="width: 180px"
-          />
-          <span style="margin-left: 8px; color: #999; font-size: 13px">MB（默认 1024 MB）</span>
-        </n-form-item>
+        <div class="workspace-form-panel setup-section">
+          <h2 class="workspace-form-title">系统配置</h2>
+          <n-form-item label="站点名称" path="site_name">
+            <n-input v-model:value="form.site_name" placeholder="可选，显示在页脚" />
+          </n-form-item>
+          <n-form-item label="站点链接" path="site_link">
+            <n-input v-model:value="form.site_link" placeholder="可选，站点名称的超链接" />
+          </n-form-item>
+          <n-form-item label="数据存储路径" path="data_root_path">
+            <n-input v-model:value="form.data_root_path" placeholder="/absolute/path/to/data" />
+          </n-form-item>
+          <n-form-item label="web端口" path="server_port">
+            <n-input-number v-model:value="form.server_port" :min="1" :max="65535" />
+          </n-form-item>
+          <n-form-item label="Session密钥" path="session_secret">
+            <n-input v-model:value="form.session_secret" placeholder="留空则自动生成" />
+          </n-form-item>
+          <n-form-item label="日志级别" path="log_level">
+            <n-select v-model:value="form.log_level" :options="logLevelOptions" />
+          </n-form-item>
+          <n-form-item label="最大上传大小" path="max_upload_size_mb">
+            <n-input-number
+              v-model:value="form.max_upload_size_mb"
+              :min="1"
+              :max="102400"
+              style="width: 180px"
+            />
+            <span class="workspace-inline-note">MB（默认 1024 MB）</span>
+          </n-form-item>
 
-        <n-space vertical :size="12">
           <n-button type="primary" block :loading="loading" @click="handleSubmit">保存配置</n-button>
-        </n-space>
+        </div>
       </n-form>
     </n-card>
   </div>
@@ -47,7 +53,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NCard, NForm, NFormItem, NInput, NInputNumber, NSelect, NButton, NSpace, NDivider, useMessage } from 'naive-ui'
+import { NCard, NForm, NFormItem, NInput, NInputNumber, NSelect, NButton, useMessage } from 'naive-ui'
 import type { FormInst, FormRules } from 'naive-ui'
 import api from '@/api'
 import { useThemeStore } from '@/stores/theme'
@@ -124,37 +130,38 @@ async function handleSubmit() {
   justify-content: center;
   align-items: center;
   min-height: 100%;
+  padding: 18px;
   overflow-y: auto;
 }
 
 .setup-card {
-  width: 520px;
-  max-width: 95%;
+  width: min(560px, 100%);
+  border: 1px solid var(--workspace-border);
+  border-radius: var(--workspace-radius-xl);
+  background: var(--workspace-surface);
+  box-shadow: var(--workspace-shadow-soft);
 }
 
-/* ---- 暗色模式 ---- */
-.dark.setup-page {
-  background: transparent;
+.setup-card :deep(.n-card__content) {
+  padding: 16px;
 }
 
-.dark .setup-card :deep(.n-card) {
-  background: #1e293b;
-  border-color: #334155;
+.setup-header {
+  margin-bottom: 12px;
+  padding: 0 2px 4px;
 }
 
-.dark .setup-card :deep(.n-card-header) {
-  color: #f1f5f9;
+.setup-section {
+  max-width: none;
 }
 
-.dark .setup-card :deep(.n-form-item-label) {
-  color: #cbd5e1;
+.setup-section + .setup-section {
+  margin-top: 10px;
 }
 
-.dark .setup-card :deep(.n-divider) {
-  border-color: #334155;
-}
-
-.dark .setup-card :deep(.n-divider__title) {
-  color: #94a3b8;
+@media (max-width: 640px) {
+  .setup-card :deep(.n-card__content) {
+    padding: 12px;
+  }
 }
 </style>

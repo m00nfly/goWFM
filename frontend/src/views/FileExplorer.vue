@@ -1,55 +1,77 @@
 <template>
   <div class="file-explorer" :class="{ dark: themeStore.isDark }">
-    <!-- 面包屑导航 -->
-    <div class="breadcrumb">
-      <n-icon size="18" class="breadcrumb-icon">
-        <FolderOpenOutline />
-      </n-icon>
-      <span class="breadcrumb-link" @click="navigateTo('/')">根目录</span>
-      <template v-for="(seg, idx) in pathSegments" :key="seg.path">
-        <span class="breadcrumb-sep">/</span>
-        <span
-          v-if="idx === pathSegments.length - 1"
-          class="breadcrumb-current"
-        >{{ seg.name }}</span>
-        <span
-          v-else
-          class="breadcrumb-link"
-          @click="navigateTo(seg.path)"
-        >{{ seg.name }}</span>
-      </template>
-    </div>
+    <section class="explorer-overview" aria-label="文件库概览">
+      <div class="overview-main">
+        <div class="overview-icon">
+          <n-icon size="24"><FolderOpenOutline /></n-icon>
+        </div>
+        <div class="overview-copy">
+          <div class="breadcrumb" aria-label="当前位置">
+            <button class="breadcrumb-link" type="button" @click="navigateTo('/')">根目录</button>
+            <template v-for="(seg, idx) in pathSegments" :key="seg.path">
+              <span class="breadcrumb-sep">/</span>
+              <span
+                v-if="idx === pathSegments.length - 1"
+                class="breadcrumb-current"
+              >{{ seg.name }}</span>
+              <button
+                v-else
+                class="breadcrumb-link"
+                type="button"
+                @click="navigateTo(seg.path)"
+              >{{ seg.name }}</button>
+            </template>
+          </div>
+          <h1>{{ currentDirectoryName }}</h1>
+        </div>
+      </div>
 
-    <!-- 操作工具栏 -->
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <n-button v-if="hasPermUpload" @click="showMkdirModal = true">
-          <template #icon><n-icon><AddCircleOutline /></n-icon></template>
-          新建目录
-        </n-button>
-        <n-button v-if="hasPermUpload" type="primary" @click="showUploadModal = true">
-          <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
-          上传文件
-        </n-button>
-        <n-button v-if="currentPath !== '/'" @click="goToParent">
-          <template #icon><n-icon><ArrowBackOutline /></n-icon></template>
-          返回
-        </n-button>
+      <div class="overview-side">
+        <div class="stat-strip" aria-label="当前目录统计">
+          <div class="stat-item">
+            <span class="stat-value">{{ folderCount }}</span>
+            <span class="stat-label">文件夹</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ fileCount }}</span>
+            <span class="stat-label">文件</span>
+          </div>
+          <div class="stat-item stat-item-wide">
+            <span class="stat-value">{{ visibleSizeLabel }}</span>
+            <span class="stat-label">当前文件大小</span>
+          </div>
+        </div>
       </div>
-      <!-- 批量操作栏 -->
-      <div v-if="selectedItems.length > 0" class="batch-bar">
-        <n-dropdown trigger="hover" :options="selectedDropdownOptions" :render-label="renderDropdownLabel" placement="bottom-start" :max-height="300" scrollable>
-          <span class="batch-info batch-info-clickable">已选择 {{ selectedItems.length }} 项</span>
-        </n-dropdown>
-        <n-button size="small" @click="batchDownload" v-if="userStore.hasPermission(2)">批量下载</n-button>
-        <n-button size="small" @click="batchShare" v-if="hasPermShare">批量分享</n-button>
-        <n-button size="small" type="error" @click="batchDelete" v-if="userStore.user?.is_admin || userStore.hasPermission(4)">批量删除</n-button>
-        <n-button size="small" quaternary @click="selectedItems = []">取消选择</n-button>
-      </div>
-      <div class="toolbar-right">
+    </section>
+
+    <section
+      class="content-surface"
+      :class="{ 'has-floating-batch': selectedItems.length > 0 }"
+      aria-label="文件列表"
+    >
+      <div class="content-header">
+        <div class="header-tools-actions">
+          <n-button secondary @click="refresh">
+            <template #icon><n-icon><RefreshOutline /></n-icon></template>
+            刷新
+          </n-button>
+          <n-button v-if="hasPermUpload" secondary @click="showMkdirModal = true">
+            <template #icon><n-icon><AddCircleOutline /></n-icon></template>
+            新建目录
+          </n-button>
+          <n-button v-if="hasPermUpload" type="primary" @click="showUploadModal = true">
+            <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
+            上传文件
+          </n-button>
+          <n-button v-if="currentPath !== '/'" secondary @click="goToParent">
+            <template #icon><n-icon><ArrowBackOutline /></n-icon></template>
+            返回上级
+          </n-button>
+        </div>
+
         <n-input
           v-model:value="searchKeyword"
-          placeholder="搜索文件..."
+          placeholder="搜索文件名"
           clearable
           class="search-input"
         >
@@ -57,122 +79,157 @@
             <n-icon><SearchOutline /></n-icon>
           </template>
         </n-input>
-        <n-button quaternary circle @click="refresh">
-          <template #icon><n-icon><RefreshOutline /></n-icon></template>
-        </n-button>
-        <n-button quaternary circle @click="toggleViewMode">
-          <template #icon>
-            <n-icon><ListOutline v-if="viewMode === 'grid'" /><GridOutline v-else /></n-icon>
-          </template>
-        </n-button>
-      </div>
-    </div>
 
-    <!-- 无权限提示 -->
-    <n-result
-      v-if="permissionDenied"
-      status="403"
-      title="无访问权限"
-      :description="permissionDeniedMsg"
-      class="permission-denied-result"
-    />
-
-    <!-- 文件列表 (列表模式) -->
-    <div v-else-if="viewMode === 'list'" class="file-list">
-      <n-data-table
-        class="file-data-table"
-        size="small"
-        flex-height
-        virtual-scroll
-        :columns="columns"
-        :data="filteredFiles"
-        :bordered="false"
-        :loading="loading"
-        :row-key="rowKey"
-        :row-class-name="rowClassName"
-        :checked-row-keys="checkedKeys"
-        @update:checked-row-keys="onCheckedKeysChange"
-      />
-    </div>
-
-    <!-- 网格视图 -->
-    <div v-else class="file-grid-container">
-      <div v-if="filteredFiles.length === 0" class="grid-empty">
-        <n-empty description="暂无文件" />
-      </div>
-      <div v-else class="file-grid">
-        <div
-          v-for="file in filteredFiles"
-          :key="file.path || file.name"
-          class="grid-card"
-          :class="{ 'grid-card-selected': checkedKeySet.has(file.path || file.name) }"
-          @click="onGridCardClick(file)"
-        >
-          <n-checkbox
-            class="grid-card-checkbox"
-            :checked="checkedKeySet.has(file.path || file.name)"
-            @update:checked="toggleGridSelection(file.path || file.name, $event)"
-            @click.stop
-          />
-          <!-- 图标 - 带彩色背景 -->
-          <div class="grid-card-icon" :class="{ 'icon-folder': file.is_directory, 'icon-file': !file.is_directory }">
-            <n-icon :size="32" :color="getFileIcon(file.name, file.is_directory).color">
-              <component :is="getFileIcon(file.name, file.is_directory).icon" />
-            </n-icon>
-          </div>
-          <div class="grid-card-name" :title="file.name">{{ file.name }}</div>
-          <div class="grid-card-info">
-            <span v-if="!file.is_directory">{{ formatSize(file.size) }}</span>
-            <span v-else>文件夹</span>
-          </div>
-          <!-- 操作按钮 - 底部居中 -->
-          <div class="grid-card-actions">
-            <n-tooltip v-if="file.is_directory" trigger="hover" placement="top">
-              <template #trigger>
-                <button class="card-action-btn" @click.stop="navigateTo(file.path)">
-                  <n-icon size="16" color="#3b82f6"><EnterOutline /></n-icon>
-                </button>
-              </template>
-              进入目录
-            </n-tooltip>
-            <template v-else>
-              <n-tooltip v-if="file.can_download" trigger="hover" placement="top">
-                <template #trigger>
-                  <button class="card-action-btn" @click.stop="downloadFile(file)">
-                    <n-icon size="16" color="#3b82f6"><CloudDownloadOutline /></n-icon>
-                  </button>
-                </template>
-                下载
-              </n-tooltip>
-              <n-tooltip v-if="hasPermShare" trigger="hover" placement="top">
-                <template #trigger>
-                  <button class="card-action-btn" @click.stop="shareFile(file)">
-                    <n-icon size="16" color="#3b82f6"><ShareSocialOutline /></n-icon>
-                  </button>
-                </template>
-                分享
-              </n-tooltip>
-            </template>
-            <n-tooltip v-if="file.can_delete" trigger="hover" placement="top">
-              <template #trigger>
-                <button class="card-action-btn" @click.stop="deleteEntry(file)">
-                  <n-icon size="16" color="#ef4444"><TrashOutline /></n-icon>
-                </button>
-              </template>
-              删除
-            </n-tooltip>
-            <n-tooltip v-if="file.can_change" trigger="hover" placement="top">
-              <template #trigger>
-                <button class="card-action-btn" @click.stop="openMoveModal(file)">
-                  <n-icon size="16" color="#64748b"><CreateOutline /></n-icon>
-                </button>
-              </template>
-              移动/重命名
-            </n-tooltip>
-          </div>
+        <div class="view-switch" role="group" aria-label="视图切换">
+          <button
+            class="view-switch-btn"
+            :class="{ active: viewMode === 'list' }"
+            type="button"
+            aria-label="列表视图"
+            title="列表视图"
+            @click="viewMode = 'list'"
+          >
+            <n-icon size="18"><ListOutline /></n-icon>
+          </button>
+          <button
+            class="view-switch-btn"
+            :class="{ active: viewMode === 'grid' }"
+            type="button"
+            aria-label="网格视图"
+            title="网格视图"
+            @click="viewMode = 'grid'"
+          >
+            <n-icon size="18"><GridOutline /></n-icon>
+          </button>
         </div>
       </div>
-    </div>
+
+      <n-result
+        v-if="permissionDenied"
+        status="403"
+        title="无访问权限"
+        :description="permissionDeniedMsg"
+        class="permission-denied-result"
+      />
+
+      <div v-else-if="viewMode === 'list'" class="file-list">
+        <n-data-table
+          class="file-data-table"
+          size="small"
+          flex-height
+          virtual-scroll
+          :columns="columns"
+          :data="filteredFiles"
+          :bordered="false"
+          :loading="loading"
+          :row-key="rowKey"
+          :row-class-name="rowClassName"
+          :checked-row-keys="checkedKeys"
+          @update:checked-row-keys="onCheckedKeysChange"
+        />
+      </div>
+
+      <div v-else class="file-grid-container">
+        <div v-if="filteredFiles.length === 0" class="grid-empty">
+          <n-empty :description="searchKeyword ? '没有匹配的文件' : '暂无文件'" />
+        </div>
+        <div v-else class="file-grid">
+          <article
+            v-for="file in filteredFiles"
+            :key="file.path || file.name"
+            class="grid-card"
+            :class="{ 'grid-card-selected': checkedKeySet.has(file.path || file.name) }"
+            @click="onGridCardClick(file)"
+          >
+            <div class="grid-card-top">
+              <n-checkbox
+                class="grid-card-checkbox"
+                :checked="checkedKeySet.has(file.path || file.name)"
+                @update:checked="toggleGridSelection(file.path || file.name, $event)"
+                @click.stop
+              />
+              <span class="grid-card-kind">{{ file.is_directory ? '文件夹' : formatSize(file.size) }}</span>
+            </div>
+
+            <div class="grid-card-icon" :class="{ 'icon-folder': file.is_directory, 'icon-file': !file.is_directory }">
+              <n-icon :size="34" :color="getFileIcon(file.name, file.is_directory).color">
+                <component :is="getFileIcon(file.name, file.is_directory).icon" />
+              </n-icon>
+            </div>
+
+            <div class="grid-card-body">
+              <h3 class="grid-card-name" :title="file.name">{{ file.name }}</h3>
+              <p class="grid-card-info">
+                {{ file.is_directory ? '点击进入目录' : formatTime(file.mod_time) }}
+              </p>
+            </div>
+
+            <div class="grid-card-actions">
+              <n-tooltip v-if="file.is_directory" trigger="hover" placement="top">
+                <template #trigger>
+                  <button class="card-action-btn primary" type="button" @click.stop="navigateTo(file.path)">
+                    <n-icon size="16"><EnterOutline /></n-icon>
+                  </button>
+                </template>
+                进入目录
+              </n-tooltip>
+              <template v-else>
+                <n-tooltip v-if="file.can_download" trigger="hover" placement="top">
+                  <template #trigger>
+                    <button class="card-action-btn primary" type="button" @click.stop="downloadFile(file)">
+                      <n-icon size="16"><CloudDownloadOutline /></n-icon>
+                    </button>
+                  </template>
+                  下载
+                </n-tooltip>
+                <n-tooltip v-if="hasPermShare" trigger="hover" placement="top">
+                  <template #trigger>
+                    <button class="card-action-btn primary" type="button" @click.stop="shareFile(file)">
+                      <n-icon size="16"><ShareSocialOutline /></n-icon>
+                    </button>
+                  </template>
+                  分享
+                </n-tooltip>
+              </template>
+              <n-tooltip v-if="file.can_change" trigger="hover" placement="top">
+                <template #trigger>
+                  <button class="card-action-btn" type="button" @click.stop="openMoveModal(file)">
+                    <n-icon size="16"><CreateOutline /></n-icon>
+                  </button>
+                </template>
+                移动/重命名
+              </n-tooltip>
+              <n-tooltip v-if="file.can_delete" trigger="hover" placement="top">
+                <template #trigger>
+                  <button class="card-action-btn danger" type="button" @click.stop="deleteEntry(file)">
+                    <n-icon size="16"><TrashOutline /></n-icon>
+                  </button>
+                </template>
+                删除
+              </n-tooltip>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <section v-if="selectedItems.length > 0" class="batch-bar" aria-live="polite">
+        <div class="batch-summary">
+          <n-dropdown trigger="hover" :options="selectedDropdownOptions" :render-label="renderDropdownLabel" placement="top-start" :max-height="300" scrollable>
+            <button class="batch-info batch-info-clickable" type="button">
+              已选择 {{ selectedItems.length }} 项
+            </button>
+          </n-dropdown>
+          <span>{{ selectedFileCount }} 个文件</span>
+          <span>{{ selectedFolderCount }} 个文件夹</span>
+        </div>
+        <div class="batch-actions">
+          <n-button size="small" secondary @click="batchDownload" v-if="userStore.hasPermission(2)">批量下载</n-button>
+          <n-button size="small" secondary @click="batchShare" v-if="hasPermShare">批量分享</n-button>
+          <n-button size="small" type="error" secondary @click="batchDelete" v-if="userStore.user?.is_admin || userStore.hasPermission(4)">批量删除</n-button>
+          <n-button size="small" quaternary @click="selectedItems = []">取消选择</n-button>
+        </div>
+      </section>
+    </section>
 
     <!-- 上传文件模态框 -->
     <n-modal v-model:show="showUploadModal" title="上传文件" preset="dialog">
@@ -351,6 +408,11 @@ const pathSegments = computed(() => {
   }))
 })
 
+const currentDirectoryName = computed(() => {
+  if (currentPath.value === '/') return '根目录'
+  return currentPath.value.split('/').filter(Boolean).pop() || '根目录'
+})
+
 const parentPath = computed(() => {
   if (currentPath.value === '/') return '/'
   const parts = currentPath.value.split('/').filter(Boolean)
@@ -364,6 +426,31 @@ const filteredFiles = computed(() => {
   const keyword = searchKeyword.value.toLowerCase()
   return entries.value.filter((f: any) => f.name.toLowerCase().includes(keyword))
 })
+
+const folderCount = computed(() =>
+  entries.value.filter((item: any) => item.is_directory).length,
+)
+
+const fileCount = computed(() =>
+  entries.value.filter((item: any) => !item.is_directory).length,
+)
+
+const visibleSize = computed(() =>
+  filteredFiles.value.reduce((sum: number, item: any) => {
+    if (item.is_directory) return sum
+    return sum + (Number(item.size) || 0)
+  }, 0),
+)
+
+const visibleSizeLabel = computed(() => formatSize(visibleSize.value))
+
+const selectedFileCount = computed(() =>
+  selectedItems.value.filter(item => !item.is_directory).length,
+)
+
+const selectedFolderCount = computed(() =>
+  selectedItems.value.filter(item => item.is_directory).length,
+)
 
 // === 文件图标 ===
 function getFileIcon(name: string, isDir: boolean): { icon: any; color: string } {
@@ -445,7 +532,7 @@ const columns = computed<DataTableColumns>(() => {
       width: 80,
       sorter: (a: any, b: any) => a.size - b.size,
       render(row: any) {
-        return row.is_directory ? '—' : formatSize(row.size)
+        return row.is_directory ? '-' : formatSize(row.size)
       },
     },
   ]
@@ -593,11 +680,6 @@ function batchShare() {
   showShareModal.value = true
 }
 
-// === 视图切换 ===
-function toggleViewMode() {
-  viewMode.value = viewMode.value === 'list' ? 'grid' : 'list'
-}
-
 // === 网格视图选中（仅 checkbox 触发）===
 function toggleGridSelection(key: string, checked: boolean) {
   if (checked) {
@@ -644,12 +726,6 @@ function onGridCardClick(file: any) {
     navigateTo(file.path)
   }
   // 文件暂不做任何操作，预留后期文件预览功能入口
-}
-
-function downloadIfAllowed(file: any) {
-  if (file.can_download) {
-    downloadFile(file)
-  }
 }
 
 // === 高亮逻辑 ===
@@ -866,127 +942,436 @@ async function fetchAllUsers() {
 </script>
 
 <style scoped>
-/* ===== 容器 & 设计令牌 ===== */
 .file-explorer {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 10px;
   overflow: hidden;
+  color: var(--fe-text);
+  background: transparent;
 
-  /* ── 浅色模式 ── */
-  --fe-bg-card: #fff;
-  --fe-bg-action: #f1f5f9;
-  --fe-fg-primary: #1e293b;
-  --fe-fg-muted: #94a3b8;
-  --fe-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.1);
-
-  /* 主题色透明度档位 */
-  --fe-a-row-hover: 0.04;
-  --fe-a-row-sel: 0.08;
-  --fe-a-card-hover-border: 0.35;
-  --fe-a-card-shadow: 0.1;
-  --fe-a-batch-bg: 0.06;
-  --fe-a-batch-border: 0.2;
-  --fe-a-action-hover: 0.1;
-  --fe-a-file-icon: 0.1;
+  --fe-page: #f4f7fb;
+  --fe-surface: #f8fafc;
+  --fe-surface-strong: #eef3f8;
+  --fe-surface-soft: #f1f5f9;
+  --fe-field: #f8fafc;
+  --fe-text: #152033;
+  --fe-text-muted: #637083;
+  --fe-text-subtle: #8a97aa;
+  --fe-border: #dbe3ee;
+  --fe-border-soft: #e7edf5;
+  --fe-accent: var(--theme-color, #3b82f6);
+  --fe-accent-rgb: var(--theme-color-rgb, 59, 130, 246);
+  --fe-danger: #c2415b;
+  --fe-success: #168a5b;
+  --fe-folder: #c78215;
+  --fe-radius-lg: 18px;
+  --fe-radius-md: 14px;
+  --fe-radius-sm: 10px;
+  --fe-shadow-soft: 0 18px 50px rgba(42, 59, 87, 0.10);
+  --fe-shadow-card: 0 12px 34px rgba(42, 59, 87, 0.12);
+  --fe-row-hover: rgba(var(--fe-accent-rgb), 0.055);
+  --fe-row-selected: rgba(var(--fe-accent-rgb), 0.105);
+  --fe-control-shadow: 0 8px 22px rgba(var(--fe-accent-rgb), 0.13);
 }
 
-/* ===== 暗色模式 ===== */
 .dark {
-  --fe-bg-card: #1e293b;
-  --fe-bg-action: #334155;
-  --fe-fg-primary: #f1f5f9;
-  --fe-fg-muted: #64748b;
-  --fe-border-card: rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
-
-  --fe-a-row-hover: 0.1;
-  --fe-a-row-sel: 0.18;
-  --fe-a-card-hover-border: 0.5;
-  --fe-a-card-shadow: 0.2;
-  --fe-a-batch-bg: 0.12;
-  --fe-a-batch-border: 0.3;
-  --fe-a-action-hover: 0.18;
-  --fe-a-file-icon: 0.12;
+  --fe-page: #0f172a;
+  --fe-surface: #172033;
+  --fe-surface-strong: #1e2a42;
+  --fe-surface-soft: #111a2d;
+  --fe-field: #111827;
+  --fe-text: #edf3fb;
+  --fe-text-muted: #a7b2c3;
+  --fe-text-subtle: #78869a;
+  --fe-border: #2b3a51;
+  --fe-border-soft: #223047;
+  --fe-danger: #fb7185;
+  --fe-success: #34d399;
+  --fe-folder: #f7b955;
+  --fe-shadow-soft: 0 20px 56px rgba(2, 6, 23, 0.38);
+  --fe-shadow-card: 0 16px 42px rgba(2, 6, 23, 0.35);
+  --fe-row-hover: rgba(var(--fe-accent-rgb), 0.13);
+  --fe-row-selected: rgba(var(--fe-accent-rgb), 0.20);
+  --fe-control-shadow: 0 10px 26px rgba(2, 6, 23, 0.28);
 }
 
-/* ===== 面包屑 ===== */
+.explorer-overview {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 14px;
+  overflow: hidden;
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
+  background:
+    linear-gradient(135deg, rgba(var(--fe-accent-rgb), 0.12), transparent 34%),
+    linear-gradient(180deg, var(--fe-surface), var(--fe-surface-soft));
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.70);
+}
+
+.explorer-overview::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(248, 250, 252, 0.55), transparent 40%),
+    radial-gradient(circle at 92% 20%, rgba(var(--fe-accent-rgb), 0.12), transparent 28%);
+}
+
+.dark .explorer-overview::before {
+  background:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.18), transparent 40%),
+    radial-gradient(circle at 92% 20%, rgba(var(--fe-accent-rgb), 0.18), transparent 30%);
+}
+
+.dark .explorer-overview {
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.08);
+}
+
+.overview-main,
+.overview-side {
+  position: relative;
+  z-index: 1;
+}
+
+.overview-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.overview-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(var(--fe-accent-rgb), 0.18);
+  border-radius: 13px;
+  color: var(--fe-accent);
+  background: rgba(var(--fe-accent-rgb), 0.10);
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.68);
+}
+
+.overview-icon :deep(svg) {
+  width: 21px;
+  height: 21px;
+}
+
+.dark .overview-icon {
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.10);
+}
+
+.overview-copy {
+  min-width: 0;
+}
+
 .breadcrumb {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  font-size: 14px;
-  padding-bottom: 4px;
-}
-
-.breadcrumb-icon {
-  margin-right: 6px;
-  vertical-align: middle;
-  color: var(--fe-fg-muted);
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 3px;
+  font-size: 12px;
+  color: var(--fe-text-muted);
 }
 
 .breadcrumb-link {
-  color: var(--theme-color, #3b82f6);
+  max-width: 180px;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--fe-accent);
   cursor: pointer;
-  transition: opacity 0.2s;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.18s ease, opacity 0.18s ease;
 }
-.breadcrumb-link:hover { opacity: 0.8; }
 
-.breadcrumb-sep  { color: var(--fe-fg-muted); }
-.breadcrumb-current { font-weight: 700; color: var(--fe-fg-primary); }
+.breadcrumb-link:hover {
+  color: var(--theme-color-hover, var(--fe-accent));
+}
 
-/* ===== 工具栏 ===== */
-.toolbar {
+.breadcrumb-link:focus-visible,
+.view-switch-btn:focus-visible,
+.batch-info-clickable:focus-visible,
+.card-action-btn:focus-visible {
+  outline: 2px solid rgba(var(--fe-accent-rgb), 0.50);
+  outline-offset: 2px;
+}
+
+.breadcrumb-sep {
+  color: var(--fe-text-subtle);
+}
+
+.breadcrumb-current {
+  max-width: 220px;
+  overflow: hidden;
+  font-weight: 700;
+  color: var(--fe-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-copy h1 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--fe-text);
+  font-size: clamp(20px, 2.2vw, 26px);
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-wrap: balance;
+}
+
+.overview-side {
+  display: flex;
+  align-items: stretch;
+}
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(80px, auto));
+  min-width: 286px;
+  overflow: hidden;
+  border: 1px solid var(--fe-border-soft);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.66);
+  backdrop-filter: blur(14px);
+}
+
+.dark .stat-strip {
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 50px;
+  padding: 8px 10px;
+}
+
+.stat-item + .stat-item {
+  border-left: 1px solid var(--fe-border-soft);
+}
+
+.stat-value {
+  color: var(--fe-text);
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  color: var(--fe-text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.header-tools-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  flex: 1 1 220px;
+  width: auto;
+  min-width: 180px;
+  max-width: 420px;
+}
+
+.search-input :deep(.n-input) {
+  min-height: 40px;
+  border-radius: 10px;
+  background-color: var(--fe-field);
+}
+
+.view-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--fe-border-soft);
+  border-radius: 11px;
+  background: var(--fe-surface-strong);
+}
+
+.view-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fe-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.view-switch-btn:hover {
+  color: var(--fe-text);
+}
+
+.view-switch-btn.active {
+  color: var(--fe-accent);
+  background: var(--fe-surface);
+  box-shadow: 0 6px 16px rgba(42, 59, 87, 0.10);
+}
+
+.dark .view-switch-btn.active {
+  box-shadow: 0 8px 18px rgba(2, 6, 23, 0.28);
+}
+
+.view-switch-btn:active,
+.card-action-btn:active,
+.batch-info-clickable:active {
+  transform: translateY(1px);
+}
+
+.header-tools-actions {
+  flex: 0 1 auto;
+  justify-content: flex-start;
+}
+
+.header-tools-actions :deep(.n-button) {
+  min-height: 40px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.header-tools-actions :deep(.n-button--primary-type) {
+  box-shadow: var(--fe-control-shadow);
+}
+
+.batch-bar {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--fe-accent-rgb), 0.24);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(var(--fe-accent-rgb), 0.12), rgba(var(--fe-accent-rgb), 0.06)),
+    var(--fe-surface);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.42) inset,
+    0 16px 34px rgba(42, 59, 87, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.dark .batch-bar {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 16px 34px rgba(2, 6, 23, 0.38);
+}
+
+.batch-summary,
+.batch-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 8px 0;
 }
 
-.search-input {
-  width: 220px;
-}
-
-.toolbar-left,
-.toolbar-right { display: flex; align-items: center; gap: 8px; }
-.toolbar-right { margin-left: auto; }
-
-/* ===== 批量操作栏 ===== */
-.batch-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-batch-bg));
-  border: 1px solid rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-batch-border));
-  border-radius: 8px;
-  animation: fe-slide-in 0.2s ease;
+.batch-summary {
+  color: var(--fe-text-muted);
+  font-size: 12px;
 }
 
 .batch-info {
-  font-size: 13px;
-  color: var(--theme-color, #3b82f6);
-  font-weight: 500;
+  border: 0;
+  color: var(--fe-accent);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .batch-info-clickable {
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: background 0.15s;
+  padding: 4px 7px;
+  border-radius: 9px;
+  transition: background-color 0.18s ease, transform 0.18s ease;
 }
+
 .batch-info-clickable:hover {
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
+  background: rgba(var(--fe-accent-rgb), 0.12);
 }
 
-@keyframes fe-slide-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
+.batch-actions :deep(.n-button) {
+  min-height: 30px;
+  border-radius: 9px;
+  font-weight: 700;
 }
 
-/* ===== 无权限 ===== */
+.content-surface {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
+  background: var(--fe-surface);
+  box-shadow: 0 1px 0 rgba(248, 250, 252, 0.70) inset;
+}
+
+.content-surface.has-floating-batch .file-grid-container {
+  padding-bottom: 62px;
+}
+
+.dark .content-surface {
+  box-shadow: 0 1px 0 rgba(248, 250, 252, 0.08) inset;
+}
+
+.content-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fe-border-soft);
+}
+
+.content-header .view-switch {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .permission-denied-result {
   flex: 1;
   display: flex;
@@ -995,172 +1380,288 @@ async function fetchAllUsers() {
   align-items: center;
 }
 
-/* ===== 列表容器 ===== */
 .file-list {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--fe-bg-card);
-  border-radius: 8px;
+  background: var(--fe-surface);
 }
 
-/* ===== 网格视图 ===== */
 .file-grid-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  background:
+    linear-gradient(180deg, rgba(var(--fe-accent-rgb), 0.035), transparent 180px),
+    var(--fe-surface);
 }
 
 .file-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
-  padding: 16px 10px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  padding: 16px;
 }
 
 .grid-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: 260px;
 }
 
-/* ── 卡片 ── */
 .grid-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 20px 16px 16px;
-  background: var(--fe-bg-card);
-  border-radius: 12px;
-  border: 1px solid var(--fe-border-card);
+  min-height: 192px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid var(--fe-border-soft);
+  border-radius: var(--fe-radius-md);
+  background: var(--fe-surface);
   cursor: pointer;
-  transition: all 0.2s ease;
   user-select: none;
-
-  /* 虚拟化渲染：浏览器自动跳过视口外卡片的布局/绘制 */
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background-color 0.18s ease;
   content-visibility: auto;
-  contain-intrinsic-size: auto 180px;
+  contain-intrinsic-size: auto 192px;
+}
+
+.grid-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(var(--fe-accent-rgb), 0.09), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
 }
 
 .grid-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-card-hover-border));
-  box-shadow: 0 4px 18px rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-card-shadow));
+  border-color: rgba(var(--fe-accent-rgb), 0.34);
+  box-shadow: var(--fe-shadow-card);
+}
+
+.grid-card:hover::before {
+  opacity: 1;
 }
 
 .grid-card-selected {
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-row-sel));
-  border-color: var(--theme-color, #3b82f6);
+  border-color: rgba(var(--fe-accent-rgb), 0.56);
+  background: rgba(var(--fe-accent-rgb), 0.095);
 }
+
 .grid-card-selected:hover {
-  box-shadow: 0 4px 18px rgba(var(--theme-color-rgb, 59, 130, 246), calc(var(--fe-a-card-shadow) * 1.6));
+  box-shadow: 0 14px 36px rgba(var(--fe-accent-rgb), 0.18);
 }
 
-/* 复选框 */
+.grid-card-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
 .grid-card-checkbox {
-  position: absolute;
-  top: 8px;
-  left: 8px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.18s ease;
 }
+
 .grid-card:hover .grid-card-checkbox,
-.grid-card-selected .grid-card-checkbox { opacity: 1; }
-
-/* 操作按钮组 */
-.grid-card-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: 100%;
-  margin-top: auto;
-  padding-top: 8px;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.grid-card:hover .grid-card-actions { opacity: 1; }
-
-.card-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: var(--fe-bg-action);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  color: var(--fe-fg-muted);
-}
-.card-action-btn:hover {
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-action-hover));
-  color: var(--theme-color, #3b82f6);
+.grid-card-selected .grid-card-checkbox {
+  opacity: 1;
 }
 
-/* 图标背景 */
+.grid-card-kind {
+  max-width: 116px;
+  overflow: hidden;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--fe-text-muted);
+  background: var(--fe-surface-strong);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .grid-card-icon {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
-  margin-bottom: 12px;
+  width: 62px;
+  height: 62px;
+  margin: 10px auto 12px;
+  border: 1px solid transparent;
+  border-radius: 18px;
 }
-.icon-folder,
-.icon-file   { background: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-file-icon)); }
+
+.icon-folder {
+  border-color: rgba(199, 130, 21, 0.22);
+  background:
+    linear-gradient(135deg, rgba(199, 130, 21, 0.16), rgba(199, 130, 21, 0.07)),
+    var(--fe-surface-soft);
+}
+
+.icon-file {
+  border-color: rgba(var(--fe-accent-rgb), 0.18);
+  background:
+    linear-gradient(135deg, rgba(var(--fe-accent-rgb), 0.14), rgba(var(--fe-accent-rgb), 0.05)),
+    var(--fe-surface-soft);
+}
+
+.grid-card-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
+}
 
 .grid-card-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--fe-fg-primary);
+  display: -webkit-box;
   width: 100%;
-  word-break: break-word;
+  min-height: 40px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--fe-text);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
   overflow-wrap: anywhere;
-  line-height: 1.4;
-  margin-bottom: 4px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .grid-card-info {
+  width: 100%;
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--fe-text-muted);
   font-size: 11px;
-  color: var(--fe-fg-muted);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ===== 数据表格 ===== */
-.file-data-table { flex: 1; }
+.grid-card-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 34px;
+  margin-top: 10px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
 
-/* 行高 */
+.grid-card:hover .grid-card-actions,
+.grid-card-selected .grid-card-actions {
+  opacity: 1;
+}
+
+.card-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--fe-border-soft);
+  border-radius: 10px;
+  background: var(--fe-surface-strong);
+  color: var(--fe-text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.card-action-btn:hover {
+  border-color: rgba(var(--fe-accent-rgb), 0.22);
+  background: rgba(var(--fe-accent-rgb), 0.11);
+  color: var(--fe-accent);
+}
+
+.card-action-btn.primary {
+  color: var(--fe-accent);
+}
+
+.card-action-btn.danger {
+  color: var(--fe-danger);
+}
+
+.card-action-btn.danger:hover {
+  border-color: rgba(194, 65, 91, 0.24);
+  background: rgba(194, 65, 91, 0.10);
+  color: var(--fe-danger);
+}
+
+.file-data-table {
+  flex: 1;
+}
+
+.file-data-table :deep(.n-data-table) {
+  color: var(--fe-text);
+  background-color: var(--fe-surface);
+}
+
+.file-data-table :deep(.n-data-table-wrapper) {
+  background-color: var(--fe-surface);
+}
+
 .file-data-table :deep(.n-data-table-td),
 .file-data-table :deep(.n-data-table-th) {
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
   font-size: 13px;
+  border-color: var(--fe-border-soft) !important;
 }
-.file-data-table :deep(.n-data-table-th) { font-weight: 600; }
 
-/* 行悬停 */
+.file-data-table :deep(.n-data-table-th) {
+  color: var(--fe-text-muted);
+  background-color: var(--fe-surface-soft) !important;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.file-data-table :deep(.n-data-table-td) {
+  background-color: var(--fe-surface);
+}
+
 .file-data-table :deep(.n-data-table-tr:hover > .n-data-table-td) {
-  background-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-row-hover)) !important;
+  background-color: var(--fe-row-hover) !important;
 }
 
-/* 选中行 */
 .file-data-table :deep(.checked-row > .n-data-table-td) {
-  background-color: rgba(var(--theme-color-rgb, 59, 130, 246), var(--fe-a-row-sel)) !important;
+  background-color: var(--fe-row-selected) !important;
 }
 
-/* 高亮行（绿色闪动 - 语义色，不跟随主题） */
 .file-data-table :deep(.highlighted-row > .n-data-table-td) {
-  background-color: rgba(24, 160, 88, 0.08) !important;
+  background-color: rgba(22, 138, 91, 0.12) !important;
   transition: background-color 0.3s ease;
 }
 
-/* 名称列换行 */
 .file-data-table :deep(.col-name),
 .file-data-table :deep(.col-name .n-data-table-td__ellipsis) {
   white-space: normal !important;
@@ -1169,69 +1670,204 @@ async function fetchAllUsers() {
 .file-data-table :deep(.name-cell) {
   display: flex;
   align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
 .file-data-table :deep(.name-text) {
-  font-weight: 700;
+  color: var(--fe-text);
+  font-weight: 800;
   white-space: normal;
   word-break: break-all;
   overflow-wrap: anywhere;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .file-data-table :deep(.col-name .n-button__content) {
-  font-weight: 700;
+  color: var(--fe-accent);
+  font-weight: 800;
   white-space: normal;
   word-break: break-all;
   overflow-wrap: anywhere;
   text-align: left;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
-/* 操作列 */
-.file-data-table :deep(.col-actions) { white-space: nowrap; }
+.file-data-table :deep(.col-actions) {
+  white-space: nowrap;
+}
 
 .file-data-table :deep(.col-actions .action-btn) {
   opacity: 0;
-  transition: opacity 0.2s ease;
+  border-radius: 10px;
+  transition:
+    opacity 0.18s ease,
+    background-color 0.18s ease,
+    transform 0.18s ease;
 }
-.file-data-table :deep(.n-data-table-tr:hover .col-actions .action-btn),
-.file-data-table :deep(.checked-row .col-actions .action-btn) { opacity: 1; }
 
-/* 暗色表格背景 */
+.file-data-table :deep(.n-data-table-tr:hover .col-actions .action-btn),
+.file-data-table :deep(.checked-row .col-actions .action-btn) {
+  opacity: 1;
+}
+
+.file-data-table :deep(.col-actions .action-btn:active) {
+  transform: translateY(1px);
+}
+
 .dark .file-data-table :deep(.n-data-table),
 .dark .file-data-table :deep(.n-data-table-wrapper) {
-  background-color: var(--fe-bg-card);
-}
-.dark .file-data-table :deep(.n-data-table-th) {
-  background-color: var(--fe-bg-card) !important;
-}
-.dark .file-data-table :deep(.n-data-table-td) {
-  background-color: transparent;
-}
-.dark .file-data-table :deep(.n-data-table-base-table) {
-  border-color: var(--fe-border-card);
+  background-color: var(--fe-surface);
 }
 
-/* ===== 分享弹窗 ===== */
+.dark .file-data-table :deep(.n-data-table-th) {
+  background-color: var(--fe-surface-soft) !important;
+}
+
+.dark .file-data-table :deep(.n-data-table-td) {
+  background-color: var(--fe-surface);
+}
+
+.dark .file-data-table :deep(.n-data-table-base-table) {
+  border-color: var(--fe-border);
+}
+
 .share-file-list {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
 }
 
-/* ===== 移动端响应式 ===== */
-@media (max-width: 767px) {
-  .file-data-table :deep(.n-data-table-td),
-  .file-data-table :deep(.n-data-table-th) {
-    padding-top: 6px !important;
-    padding-bottom: 6px !important;
-  }
-
-  /* 触屏无 hover，操作按钮始终可见 */
+@media (hover: none) {
+  .grid-card-checkbox,
+  .grid-card-actions,
   .file-data-table :deep(.col-actions .action-btn) {
     opacity: 1;
+  }
+}
+
+@media (max-width: 1024px) {
+  .explorer-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-side {
+    justify-content: stretch;
+  }
+
+  .stat-strip {
+    width: 100%;
+    min-width: 0;
+  }
+
+}
+
+@media (max-width: 767px) {
+  .file-explorer {
+    gap: 9px;
+  }
+
+  .explorer-overview {
+    padding: 10px 12px;
+  }
+
+  .overview-main {
+    align-items: flex-start;
+  }
+
+  .overview-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .overview-copy h1 {
+    font-size: 21px;
+    white-space: normal;
+  }
+
+  .stat-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stat-item {
+    min-height: 44px;
+    padding: 7px 9px;
+  }
+
+  .stat-value {
+    font-size: 15px;
+  }
+
+  .stat-item-wide {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--fe-border-soft);
+    border-left: 0 !important;
+  }
+
+  .content-header {
+    padding: 8px;
+  }
+
+  .header-tools-actions {
+    width: 100%;
+  }
+
+  .search-input {
+    min-width: 160px;
+    max-width: none;
+  }
+
+  .view-switch {
+    width: auto;
+  }
+
+  .header-tools-actions :deep(.n-button) {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  .batch-bar {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .content-surface.has-floating-batch .file-grid-container {
+    padding-bottom: 108px;
+  }
+
+  .batch-actions :deep(.n-button) {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  .file-grid {
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .grid-card {
+    min-height: 182px;
+  }
+
+  .file-data-table :deep(.n-data-table-td),
+  .file-data-table :deep(.n-data-table-th) {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-explorer *,
+  .file-explorer *::before,
+  .file-explorer *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 </style>

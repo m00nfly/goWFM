@@ -1,153 +1,226 @@
 <template>
-  <div class="login-page" :class="{ dark: themeStore.isDark }" :style="loginBgStyle">
-    <!-- 背景装饰 -->
-    <template v-if="!loginBgUrl">
-      <div class="blob blob-blue"></div>
-      <div class="blob blob-purple"></div>
-    </template>
-
-    <!-- 主题切换按钮 -->
-    <button class="theme-toggle" @click="themeStore.toggleTheme()" :title="themeStore.isDark ? '切换亮色' : '切换暗色'">
-      <MoonOutline v-if="!themeStore.isDark" class="toggle-icon" />
-      <SunnyOutline v-else class="toggle-icon" />
-    </button>
-
-    <!-- 登录卡片 -->
-    <div class="login-wrapper">
-      <div class="glass-card">
-        <!-- Logo & 标题 -->
-        <div class="card-header">
-          <div v-if="customLogo" class="logo-custom">
-            <img :src="customLogo" class="logo-img" alt="Logo" />
+  <div class="login-page" :class="{ dark: themeStore.isDark, 'has-custom-bg': !!loginBgUrl }" :style="loginBgStyle">
+    <main class="login-shell" aria-label="登录">
+      <section class="brand-panel" aria-label="goWFM">
+        <div class="brand-mark-row">
+          <div v-if="customLogo" class="brand-logo-custom">
+            <img :src="customLogo" class="brand-logo-img" alt="Logo" />
           </div>
-          <div v-else class="logo-icon">
+          <div v-else class="brand-mark">
             <FolderOutline />
           </div>
-          <h1 class="title">{{ orgName || 'goWFM' }}</h1>
-          <p class="subtitle">{{ totpRequired ? '请输入二次验证码' : '登录您的账号' }}</p>
+          <div>
+            <p class="brand-kicker">私有文件工作台</p>
+            <p class="brand-name">{{ orgName || 'goWFM' }}</p>
+          </div>
         </div>
 
-        <!-- 登录表单 -->
-        <form @submit.prevent="handleLogin" class="login-form">
-          <!-- 正常登录表单（TOTP 未触发时显示） -->
-          <template v-if="!totpRequired">
-            <div class="input-group">
-              <label class="input-label">账号</label>
-              <div class="input-wrapper">
-                <MailOutline class="input-icon" />
-                <input
-                  v-model="form.username"
-                  type="text"
-                  required
-                  placeholder="账号/Email"
-                  class="input-field"
-                  autocomplete="username"
-                />
-              </div>
-            </div>
+        <div class="brand-copy">
+          <h1>回到你的安全文件空间</h1>
+          <p>集中管理文件、分享链接和团队权限，继续处理今天的工作。</p>
+        </div>
 
-            <div class="input-group">
-              <label class="input-label">密码</label>
-              <div class="input-wrapper">
-                <LockClosedOutline class="input-icon" />
-                <input
-                  ref="passwordRef"
-                  v-model="form.password"
-                  :type="showPassword ? 'text' : 'password'"
-                  required
-                  placeholder="••••••••"
-                  class="input-field"
-                  autocomplete="current-password"
-                />
-                <button type="button" class="eye-btn" @click="showPassword = !showPassword">
-                  <EyeOffOutline v-if="showPassword" class="eye-icon" />
-                  <EyeOutline v-else class="eye-icon" />
+        <div class="visual-stage" aria-hidden="true">
+          <div class="visual-card">
+            <img :src="heroImage" class="hero-art" alt="" />
+          </div>
+          <div class="signal-card signal-primary">
+            <ShieldCheckmarkOutline />
+            <span>权限检查</span>
+          </div>
+          <div class="signal-card signal-secondary">
+            <KeyOutline />
+            <span>安全会话</span>
+          </div>
+        </div>
+
+        <div class="brand-points" aria-label="平台能力">
+          <div class="brand-point">
+            <ShieldCheckmarkOutline />
+            <span>自托管部署</span>
+          </div>
+          <div class="brand-point">
+            <KeyOutline />
+            <span>双重验证</span>
+          </div>
+          <div class="brand-point">
+            <FolderOutline />
+            <span>文件与分享</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="auth-panel" aria-label="账号登录">
+        <button
+          class="theme-toggle"
+          type="button"
+          @click="themeStore.toggleTheme()"
+          :title="themeStore.isDark ? '切换亮色' : '切换暗色'"
+          :aria-label="themeStore.isDark ? '切换亮色' : '切换暗色'"
+        >
+          <MoonOutline v-if="!themeStore.isDark" class="toggle-icon" />
+          <SunnyOutline v-else class="toggle-icon" />
+        </button>
+
+        <div class="auth-card">
+          <div class="auth-header">
+            <p class="auth-label">{{ totpRequired ? '二次验证' : '账号登录' }}</p>
+            <h2>{{ totpRequired ? '完成安全确认' : '欢迎回来' }}</h2>
+            <p>{{ totpRequired ? '输入 Authenticator 应用中的验证码，恢复码也可使用。' : '使用你的账号进入工作台。' }}</p>
+          </div>
+
+          <form @submit.prevent="handleLogin" class="login-form">
+            <Transition name="auth-swap" mode="out-in">
+              <div v-if="!totpRequired" key="credentials" class="form-panel">
+                <div class="input-group">
+                  <div class="label-row">
+                    <label class="input-label" for="login-username">账号</label>
+                    <span class="field-hint">用户名或 Email</span>
+                  </div>
+                  <div class="input-wrapper">
+                    <MailOutline class="input-icon" />
+                    <input
+                      id="login-username"
+                      v-model="form.username"
+                      type="text"
+                      required
+                      placeholder="请输入账号"
+                      class="input-field"
+                      autocomplete="username"
+                    />
+                  </div>
+                </div>
+
+                <div class="input-group">
+                  <div class="label-row">
+                    <label class="input-label" for="login-password">密码</label>
+                    <span class="field-hint">区分大小写</span>
+                  </div>
+                  <div class="input-wrapper">
+                    <LockClosedOutline class="input-icon" />
+                    <input
+                      id="login-password"
+                      ref="passwordRef"
+                      v-model="form.password"
+                      :type="showPassword ? 'text' : 'password'"
+                      required
+                      placeholder="请输入密码"
+                      class="input-field input-field-with-action"
+                      autocomplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      class="eye-btn"
+                      @click="showPassword = !showPassword"
+                      :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                      :title="showPassword ? '隐藏密码' : '显示密码'"
+                    >
+                      <EyeOffOutline v-if="showPassword" class="eye-icon" />
+                      <EyeOutline v-else class="eye-icon" />
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="captchaEnabled" class="input-group">
+                  <div class="label-row">
+                    <label class="input-label" for="login-captcha">验证码</label>
+                    <span class="field-hint">点击图片刷新</span>
+                  </div>
+                  <div class="captcha-row">
+                    <div class="input-wrapper captcha-input">
+                      <LockClosedOutline class="input-icon" />
+                      <input
+                        id="login-captcha"
+                        v-model="form.captcha_code"
+                        type="text"
+                        required
+                        placeholder="输入验证码"
+                        class="input-field"
+                        autocomplete="off"
+                      />
+                    </div>
+                    <button type="button" class="captcha-image" @click="refreshCaptcha" title="刷新验证码" aria-label="刷新验证码">
+                      <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+                      <span v-else>加载中...</span>
+                    </button>
+                  </div>
+                </div>
+
+                <label class="remember-row">
+                  <input type="checkbox" v-model="rememberMe" class="checkbox" />
+                  <span>保持登录状态</span>
+                </label>
+
+                <button type="submit" class="login-btn" :disabled="loading">
+                  <span v-if="loading" class="spinner"></span>
+                  <span>{{ loading ? '登录中...' : '登录' }}</span>
                 </button>
               </div>
-            </div>
 
-            <div v-if="captchaEnabled" class="input-group">
-              <label class="input-label">验证码</label>
-              <div class="captcha-row">
-                <div class="input-wrapper" style="flex: 1">
-                  <LockClosedOutline class="input-icon" />
-                  <input
-                    v-model="form.captcha_code"
-                    type="text"
-                    required
-                    placeholder="请输入验证码"
-                    class="input-field"
-                    autocomplete="off"
-                  />
+              <div v-else key="totp" class="form-panel">
+                <div class="totp-notice">
+                  <ShieldCheckmarkOutline />
+                  <span>你的账号已通过密码校验，请完成第二步。</span>
                 </div>
-                <div class="captcha-image" @click="refreshCaptcha" title="点击刷新验证码">
-                  <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
-                  <span v-else>加载中...</span>
+
+                <div class="input-group">
+                  <div class="label-row">
+                    <label class="input-label" for="login-totp">验证码</label>
+                    <span class="field-hint">6 位验证码或恢复码</span>
+                  </div>
+                  <div class="input-wrapper">
+                    <LockClosedOutline class="input-icon" />
+                    <input
+                      id="login-totp"
+                      ref="totpCodeRef"
+                      v-model="totpCode"
+                      type="text"
+                      required
+                      placeholder="例如 123456"
+                      class="input-field"
+                      autocomplete="one-time-code"
+                      inputmode="numeric"
+                      maxlength="10"
+                      @keydown.enter.prevent="handleTOTPLogin"
+                    />
+                  </div>
                 </div>
+
+                <label class="remember-row">
+                  <input type="checkbox" v-model="trustDevice" class="checkbox" />
+                  <span>信任此设备，<span class="tabular-num">{{ trustDays }}</span> 天内无需再次验证</span>
+                </label>
+
+                <button type="button" class="login-btn" :disabled="totpLoading" @click="handleTOTPLogin">
+                  <span v-if="totpLoading" class="spinner"></span>
+                  <span>{{ totpLoading ? '验证中...' : '验证登录' }}</span>
+                </button>
+
+                <button type="button" class="back-btn" @click="totpRequired = false; totpCode = ''">
+                  <span aria-hidden="true">←</span>
+                  返回修改账号密码
+                </button>
               </div>
-            </div>
+            </Transition>
+          </form>
 
-            <label class="remember-row">
-              <input type="checkbox" v-model="rememberMe" class="checkbox" />
-              <span>保持登录状态</span>
-            </label>
-
-            <button type="submit" class="login-btn" :disabled="loading">
-              <span v-if="loading" class="spinner"></span>
-              <span v-else>立即登录</span>
-            </button>
-          </template>
-
-          <!-- TOTP 二次验证（凭据验证通过后显示） -->
-          <template v-else>
-            <div class="totp-notice">
-              请输入 Authenticator APP 中的 6 位验证码，或使用恢复码
-            </div>
-            <div class="input-group">
-              <label class="input-label">验证码</label>
-              <div class="input-wrapper">
-                <LockClosedOutline class="input-icon" />
-                <input
-                  ref="totpCodeRef"
-                  v-model="totpCode"
-                  type="text"
-                  required
-                  placeholder="例如 123456"
-                  class="input-field"
-                  autocomplete="one-time-code"
-                  inputmode="numeric"
-                  maxlength="10"
-                  @keydown.enter.prevent="handleTOTPLogin"
-                />
-              </div>
-            </div>
-            <label class="remember-row">
-              <input type="checkbox" v-model="trustDevice" class="checkbox" />
-              <span>信任此设备（{{ trustDays }} 天内无需再次验证）</span>
-            </label>
-            <button type="button" class="login-btn" :disabled="totpLoading" @click="handleTOTPLogin">
-              <span v-if="totpLoading" class="spinner"></span>
-              <span v-else>验证并登录</span>
-            </button>
-            <button type="button" class="back-btn" @click="totpRequired = false; totpCode = ''">← 返回修改账号密码</button>
-          </template>
-        </form>
-
-        <!-- 底部链接 -->
-        <div class="bottom-links">
-          <template v-if="orgName">
-            <a v-if="orgLink" :href="orgLink" target="_blank" rel="noopener noreferrer">{{ orgName }}</a>
-            <span v-else>{{ orgName }}</span>
-            <span class="sep">·</span>
-          </template>
-          <a href="https://gowfm.dev" target="_blank" rel="noopener noreferrer">goWFM</a>
-          <span class="sep">·</span>
-          <a href="https://github.com/m00nfly/gowfm" target="_blank" rel="noopener noreferrer">GitHub</a>
-          <span v-if="version" class="sep">·</span>
-          <span v-if="version" class="version-text">ver: {{ version }}</span>
+          <div class="bottom-links">
+            <template v-if="orgName">
+              <a v-if="orgLink" :href="orgLink" target="_blank" rel="noopener noreferrer">{{ orgName }}</a>
+              <span v-else>{{ orgName }}</span>
+              <span class="sep" aria-hidden="true"></span>
+            </template>
+            <a href="https://gowfm.dev" target="_blank" rel="noopener noreferrer">goWFM 官网</a>
+            <span class="sep" aria-hidden="true"></span>
+            <a href="https://github.com/m00nfly/gowfm" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <template v-if="version">
+              <span class="sep" aria-hidden="true"></span>
+              <span class="version-text">版本 {{ version }}</span>
+            </template>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 </template>
 
@@ -163,10 +236,13 @@ import {
   EyeOffOutline,
   SunnyOutline,
   MoonOutline,
+  ShieldCheckmarkOutline,
+  KeyOutline,
 } from '@vicons/ionicons5'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import heroImage from '@/assets/hero.png'
 
 const router = useRouter()
 const message = useMessage()
@@ -322,74 +398,337 @@ async function handleTOTPLogin() {
 
 <style scoped>
 .login-page {
+  --page-bg: #eef3f7;
+  --page-ink: #102033;
+  --muted-ink: #5b6a7b;
+  --soft-ink: #7d8b9a;
+  --panel-bg: rgba(255, 255, 255, 0.9);
+  --panel-strong: #fbfdff;
+  --line: rgba(16, 32, 51, 0.12);
+  --line-strong: rgba(16, 32, 51, 0.2);
+  --field-bg: #f8fafc;
+  --field-hover: #fbfdff;
+  --accent: var(--theme-color, #2563eb);
+  --accent-rgb: var(--theme-color-rgb, 37, 99, 235);
+  --accent-pressed: var(--theme-color-pressed, #1d4ed8);
+  --shadow-soft:
+    0 1px 2px rgba(16, 32, 51, 0.05),
+    0 24px 70px rgba(16, 32, 51, 0.12);
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: 16px;
   position: relative;
   overflow: hidden;
-  background: #f8fafc;
-  transition: background 0.3s ease;
+  padding: clamp(16px, 2.2vw, 24px);
+  color: var(--page-ink);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(238, 243, 247, 0.42)),
+    radial-gradient(circle at 12% 18%, rgba(var(--accent-rgb), 0.18), transparent 32%),
+    radial-gradient(circle at 88% 74%, rgba(22, 163, 74, 0.14), transparent 30%),
+    var(--page-bg);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.login-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(16, 32, 51, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 32, 51, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 84%);
+}
+
+.login-page.has-custom-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(238, 243, 247, 0.92), rgba(238, 243, 247, 0.58)),
+    radial-gradient(circle at 70% 50%, transparent, rgba(16, 32, 51, 0.18));
 }
 
 .login-page.dark {
-  background: #030712;
+  --page-bg: #07111f;
+  --page-ink: #f3f7fb;
+  --muted-ink: #a8b5c4;
+  --soft-ink: #7f8ea2;
+  --panel-bg: rgba(12, 22, 36, 0.9);
+  --panel-strong: #101c2e;
+  --line: rgba(255, 255, 255, 0.11);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --field-bg: rgba(255, 255, 255, 0.055);
+  --field-hover: rgba(255, 255, 255, 0.08);
+  --shadow-soft:
+    0 1px 2px rgba(0, 0, 0, 0.24),
+    0 28px 90px rgba(0, 0, 0, 0.42);
+  background:
+    linear-gradient(135deg, rgba(7, 17, 31, 0.94), rgba(11, 26, 45, 0.86)),
+    radial-gradient(circle at 12% 18%, rgba(var(--accent-rgb), 0.26), transparent 34%),
+    radial-gradient(circle at 88% 74%, rgba(22, 163, 74, 0.14), transparent 32%),
+    var(--page-bg);
 }
 
-/* ============ 背景装饰 ============ */
-.blob {
+.login-page.dark::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+.login-page.dark.has-custom-bg::after {
+  background:
+    linear-gradient(90deg, rgba(7, 17, 31, 0.93), rgba(7, 17, 31, 0.64)),
+    radial-gradient(circle at 70% 50%, transparent, rgba(0, 0, 0, 0.28));
+}
+
+.login-shell {
+  width: min(1016px, 100%);
+  min-height: min(640px, calc(100dvh - 32px));
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 0.72fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.brand-panel {
+  position: relative;
+  min-height: 608px;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 24px;
+  padding: 36px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0));
+}
+
+.brand-panel::before {
+  content: "";
   position: absolute;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  filter: blur(80px);
-  z-index: 0;
-  animation: blob-move 25s infinite alternate;
+  inset: 14px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  pointer-events: none;
 }
 
-.blob-blue {
-  top: -10%;
-  left: -10%;
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.2) 100%);
+.brand-mark-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
 }
 
-.blob-purple {
-  bottom: -10%;
-  right: -10%;
-  animation-delay: -10s;
-  background: linear-gradient(180deg, rgba(147, 51, 234, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%);
-}
-
-@keyframes blob-move {
-  from { transform: translate(-10%, -10%); }
-  to { transform: translate(20%, 20%); }
-}
-
-/* ============ 主题切换按钮 ============ */
-.theme-toggle {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  z-index: 10;
-  padding: 12px;
-  background: #fff;
-  border: none;
+.brand-mark,
+.brand-logo-custom {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  background: var(--panel-strong);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--line), 0 14px 34px rgba(16, 32, 51, 0.12);
+}
+
+.brand-mark svg {
+  width: 25px;
+  height: 25px;
+}
+
+.brand-logo-img {
+  max-width: 40px;
+  max-height: 40px;
+  object-fit: contain;
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+  border-radius: 12px;
+}
+
+.dark .brand-logo-img {
+  outline-color: rgba(255, 255, 255, 0.1);
+}
+
+.brand-kicker {
+  margin: 0 0 3px;
+  font-size: 12px;
+  color: var(--soft-ink);
+}
+
+.brand-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 760;
+  letter-spacing: 0;
+  color: var(--page-ink);
+}
+
+.brand-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 560px;
+}
+
+.brand-copy h1 {
+  margin: 0;
+  font-size: clamp(32px, 4.2vw, 54px);
+  line-height: 1.04;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.brand-copy p {
+  max-width: 46ch;
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--muted-ink);
+  text-wrap: pretty;
+}
+
+.visual-stage {
+  position: relative;
+  align-self: center;
+  min-height: 242px;
+  z-index: 1;
+}
+
+.visual-card {
+  width: min(286px, 68%);
+  aspect-ratio: 1 / 1;
+  margin: 2px auto 0;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.16)),
+    rgba(var(--accent-rgb), 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.48),
+    0 28px 70px rgba(16, 32, 51, 0.14);
+}
+
+.dark .visual-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.035)),
+    rgba(var(--accent-rgb), 0.1);
+}
+
+.hero-art {
+  width: min(248px, 84%);
+  height: auto;
+  filter: drop-shadow(0 24px 34px rgba(var(--accent-rgb), 0.2));
+}
+
+.signal-card {
+  position: absolute;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--page-ink);
+  background: color-mix(in srgb, var(--panel-strong) 86%, transparent);
+  box-shadow: 0 16px 34px rgba(16, 32, 51, 0.12);
+}
+
+.signal-card svg,
+.brand-point svg,
+.totp-notice svg {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+
+.signal-primary {
+  top: 26px;
+  right: 24px;
+}
+
+.signal-secondary {
+  left: 22px;
+  bottom: 26px;
+}
+
+.brand-points {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.brand-point {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--muted-ink);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.dark .brand-point {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.auth-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  border-left: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
+}
+
+.theme-toggle {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--page-ink);
+  background: var(--panel-strong);
+  box-shadow: 0 10px 26px rgba(16, 32, 51, 0.08);
   cursor: pointer;
-  transition: transform 0.2s ease;
-  color: #475569;
+  transition-property: transform, border-color, background-color, color;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
 }
 
 .theme-toggle:hover {
-  transform: scale(1.1);
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
 }
 
-.dark .theme-toggle {
-  background: #1f2937;
-  color: #fbbf24;
+.theme-toggle:active {
+  transform: scale(0.98);
 }
 
 .toggle-icon {
@@ -397,115 +736,100 @@ async function handleTOTPLogin() {
   height: 20px;
 }
 
-/* ============ 登录卡片容器 ============ */
-.login-wrapper {
+.auth-card {
   width: 100%;
-  max-width: 440px;
-  z-index: 1;
+  max-width: 360px;
 }
 
-.glass-card {
-  backdrop-filter: blur(20px);
-  background-color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 40px;
-  padding: 48px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+.auth-header {
+  margin-bottom: 22px;
 }
 
-.dark .glass-card {
-  background-color: rgba(17, 24, 39, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* ============ 卡片头部 ============ */
-.card-header {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-/* 自定义 Logo（矩形图片自适应） */
-.logo-custom {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 16px;
-}
-
-.logo-img {
-  max-height: 64px;
-  max-width: 200px;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-}
-
-/* 默认图标（无 Logo 时） */
-.logo-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--theme-color, #3b82f6);
-  padding: 12px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
-  margin-bottom: 16px;
-  color: #fff;
-  font-size: 32px;
-}
-
-.title {
-  font-size: 30px;
+.auth-label {
+  margin: 0 0 8px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: -0.025em;
-  color: #0f172a;
+  color: var(--accent);
+}
+
+.auth-header h2 {
   margin: 0;
+  font-size: 30px;
+  line-height: 1.12;
+  letter-spacing: 0;
+  color: var(--page-ink);
+  text-wrap: balance;
 }
 
-.dark .title {
-  color: #fff;
+.auth-header p {
+  margin: 8px 0 0;
+  color: var(--muted-ink);
+  line-height: 1.65;
+  text-wrap: pretty;
 }
 
-.subtitle {
-  color: #64748b;
-  margin-top: 8px;
-  font-size: 15px;
-}
-
-.dark .subtitle {
-  color: #94a3b8;
-}
-
-/* ============ 表单 ============ */
-.login-form {
+.login-form,
+.form-panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+}
+
+.login-form {
+  position: relative;
+}
+
+.form-panel {
+  gap: 16px;
+}
+
+.auth-swap-enter-active {
+  transition-property: opacity, transform, filter;
+  transition-duration: 260ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.auth-swap-leave-active {
+  transition-property: opacity, transform, filter;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in;
+}
+
+.auth-swap-enter-from {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(10px);
+}
+
+.auth-swap-leave-to {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(-8px);
 }
 
 .input-group {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .input-label {
   display: block;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #64748b;
-  margin-bottom: 8px;
-  padding-left: 4px;
-  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--page-ink);
 }
 
-.dark .input-label {
-  color: #94a3b8;
-}
-
-.input-group:focus-within .input-label {
-  color: var(--theme-color, #3b82f6);
-  transform: translateY(-2px);
+.field-hint {
+  font-size: 12px;
+  color: var(--soft-ink);
+  white-space: nowrap;
 }
 
 .input-wrapper {
@@ -516,69 +840,80 @@ async function handleTOTPLogin() {
 
 .input-icon {
   position: absolute;
-  left: 16px;
+  left: 14px;
   width: 20px;
   height: 20px;
-  color: #94a3b8;
+  color: var(--soft-ink);
   pointer-events: none;
 }
 
 .input-field {
   width: 100%;
-  padding: 16px 16px 16px 48px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  min-height: 48px;
+  padding: 13px 14px 13px 44px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
   outline: none;
+  color: var(--page-ink);
+  background: var(--field-bg);
+  font: inherit;
   font-size: 15px;
-  color: #0f172a;
-  transition: all 0.2s ease;
-  font-family: inherit;
+  transition-property: background-color, border-color, box-shadow, color;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+
+.input-field-with-action {
+  padding-right: 52px;
 }
 
 .input-field::placeholder {
-  color: #94a3b8;
+  color: var(--soft-ink);
+}
+
+.input-field:hover {
+  background: var(--field-hover);
 }
 
 .input-field:focus {
-  border-color: var(--theme-color, #3b82f6);
-  box-shadow: 0 0 0 3px rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
-}
-
-.dark .input-field {
-  background: rgba(17, 24, 39, 0.5);
-  border-color: #374151;
-  color: #fff;
-}
-
-.dark .input-field::placeholder {
-  color: #6b7280;
-}
-
-.dark .input-field:focus {
-  border-color: var(--theme-color, #3b82f6);
-  box-shadow: 0 0 0 3px rgba(var(--theme-color-rgb, 59, 130, 246), 0.2);
+  border-color: rgba(var(--accent-rgb), 0.58);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.14);
 }
 
 .eye-btn {
   position: absolute;
-  right: 16px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #94a3b8;
-  padding: 0;
-  display: flex;
+  right: 7px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
   align-items: center;
-  transition: color 0.2s;
+  justify-content: center;
+  border: 0;
+  border-radius: 12px;
+  color: var(--soft-ink);
+  background: transparent;
+  cursor: pointer;
+  transition-property: background-color, color, transform;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
 }
 
 .eye-btn:hover {
-  color: #475569;
+  color: var(--page-ink);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
-.dark .eye-btn:hover {
-  color: #cbd5e1;
+.eye-btn:active {
+  transform: scale(0.98);
+}
+
+.eye-btn:focus-visible,
+.theme-toggle:focus-visible,
+.captcha-image:focus-visible,
+.back-btn:focus-visible,
+.login-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18);
 }
 
 .eye-icon {
@@ -586,51 +921,110 @@ async function handleTOTPLogin() {
   height: 20px;
 }
 
-/* ============ 记住我 ============ */
-.remember-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #475569;
+.captcha-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 116px;
+  gap: 10px;
 }
 
-.dark .remember-row {
-  color: #94a3b8;
+.captcha-input {
+  min-width: 0;
 }
 
-.checkbox {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border-color: #cbd5e1;
-  accent-color: var(--theme-color, #3b82f6);
-  cursor: pointer;
-}
-
-/* ============ 登录按钮 ============ */
-.login-btn {
-  width: 100%;
-  background: var(--theme-color, #3b82f6);
-  color: #fff;
-  font-weight: 700;
-  font-size: 16px;
-  padding: 16px;
-  border: none;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-  min-height: 56px;
+.captcha-image {
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--muted-ink);
+  background: var(--field-bg);
+  cursor: pointer;
+  font: inherit;
+  transition-property: border-color, background-color, transform;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+
+.captcha-image:hover {
+  border-color: rgba(var(--accent-rgb), 0.42);
+  background: var(--field-hover);
+}
+
+.captcha-image:active {
+  transform: scale(0.98);
+}
+
+.captcha-image img {
+  height: 48px;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
+
+.dark .captcha-image img {
+  outline-color: rgba(255, 255, 255, 0.1);
+}
+
+.captcha-image span {
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.remember-row {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted-ink);
+  font-size: 14px;
+  line-height: 1.45;
+  cursor: pointer;
+  text-wrap: pretty;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tabular-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.login-btn {
+  width: 100%;
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 14px;
+  color: #f8fbff;
+  background: var(--accent);
+  box-shadow: 0 18px 34px rgba(var(--accent-rgb), 0.26);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 760;
+  cursor: pointer;
+  transition-property: transform, background-color, box-shadow, opacity;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
 }
 
 .login-btn:hover:not(:disabled) {
-  background: var(--theme-color-pressed, #2563eb);
+  background: var(--accent-pressed);
+  box-shadow: 0 22px 40px rgba(var(--accent-rgb), 0.3);
+  transform: translateY(-1px);
 }
 
 .login-btn:active:not(:disabled) {
@@ -638,160 +1032,189 @@ async function handleTOTPLogin() {
 }
 
 .login-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.68;
   cursor: not-allowed;
 }
 
-/* ============ 加载动画 ============ */
 .spinner {
-  width: 20px;
-  height: 20px;
-  border: 2.5px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #f8fbff;
   border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-/* ============ 底部链接 ============ */
-.bottom-links {
-  margin-top: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #94a3b8;
-  flex-wrap: wrap;
-}
-
-.bottom-links a {
-  color: #94a3b8;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.bottom-links a:hover {
-  color: #475569;
-}
-
-.dark .bottom-links a:hover {
-  color: #cbd5e1;
-}
-
-.bottom-links .sep {
-  margin: 0 2px;
-  color: #cbd5e1;
-}
-
-.dark .bottom-links .sep {
-  color: #4b5563;
-}
-
-.bottom-links .version-text {
-  color: #94a3b8;
-  font-size: 11px;
-}
-
-/* ============ 验证码 ============ */
-.captcha-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.captcha-image {
-  flex-shrink: 0;
-  height: 48px;
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: pointer;
-  border: 1px solid #e2e8f0;
-  transition: border-color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f0f4f8;
-}
-
-.captcha-image:hover {
-  border-color: var(--theme-color, #3b82f6);
-}
-
-.dark .captcha-image {
-  border-color: #374151;
-  background: #1e293b;
-}
-
-.dark .captcha-image:hover {
-  border-color: var(--theme-color, #3b82f6);
-}
-
-.captcha-image img {
-  height: 48px;
-  display: block;
-}
-
-.captcha-image span {
-  font-size: 12px;
-  color: #94a3b8;
-  padding: 0 8px;
-}
-
-/* ============ TOTP 样式 ============ */
 .totp-notice {
-  text-align: center;
-  color: #64748b;
-  font-size: 13px;
-  margin-bottom: 4px;
-  line-height: 1.6;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
+  border-radius: 14px;
+  color: var(--muted-ink);
+  background: rgba(var(--accent-rgb), 0.07);
+  font-size: 14px;
+  line-height: 1.55;
 }
 
-.dark .totp-notice {
-  color: #94a3b8;
+.totp-notice svg {
+  margin-top: 1px;
+  flex: 0 0 auto;
 }
 
 .back-btn {
-  width: 100%;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 14px;
+  color: var(--muted-ink);
   background: transparent;
-  color: #64748b;
-  font-size: 13px;
-  padding: 8px;
-  border: none;
+  font: inherit;
+  font-size: 14px;
   cursor: pointer;
-  font-family: inherit;
-  transition: color 0.2s;
+  transition-property: color, background-color, transform;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
 }
 
 .back-btn:hover {
-  color: #475569;
+  color: var(--page-ink);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
-.dark .back-btn {
-  color: #94a3b8;
+.back-btn:active {
+  transform: scale(0.98);
 }
 
-.dark .back-btn:hover {
-  color: #cbd5e1;
+.bottom-links {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--soft-ink);
+  font-size: 12px;
 }
 
-/* ============ 响应式 ============ */
-@media (max-width: 480px) {
-  .glass-card {
-    padding: 32px 24px;
-    border-radius: 28px;
+.bottom-links a {
+  color: var(--muted-ink);
+  text-decoration: none;
+  transition-property: color;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+
+.bottom-links a:hover {
+  color: var(--page-ink);
+}
+
+.sep {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.version-text {
+  color: var(--soft-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media (max-width: 920px) {
+  .login-page {
+    padding: 20px;
+    align-items: stretch;
   }
 
-  .title {
-    font-size: 24px;
+  .login-shell {
+    min-height: auto;
+    grid-template-columns: 1fr;
   }
 
-  .logo-img {
-    max-height: 48px;
-    max-width: 160px;
+  .brand-panel {
+    min-height: auto;
+    gap: 24px;
+    padding: 34px;
+  }
+
+  .brand-panel::before,
+  .visual-stage,
+  .brand-points {
+    display: none;
+  }
+
+  .brand-copy h1 {
+    font-size: clamp(32px, 8vw, 44px);
+  }
+
+  .auth-panel {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 34px;
+  }
+}
+
+@media (max-width: 560px) {
+  .login-page {
+    padding: 12px;
+  }
+
+  .login-shell {
+    border-radius: 24px;
+  }
+
+  .brand-panel,
+  .auth-panel {
+    padding: 24px;
+  }
+
+  .theme-toggle {
+    top: 18px;
+    right: 18px;
+  }
+
+  .auth-header h2 {
+    font-size: 28px;
+  }
+
+  .captcha-row {
+    grid-template-columns: 1fr;
+  }
+
+  .captcha-image {
+    width: 100%;
+  }
+
+  .label-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .field-hint {
+    white-space: normal;
   }
 }
 </style>

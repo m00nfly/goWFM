@@ -1,24 +1,34 @@
 <template>
-  <n-spin :show="loading">
-    <n-form label-placement="left" label-width="140px" :model="form">
-      <n-form-item label="站点名称">
-        <n-input v-model:value="form.site_name" placeholder="请输入站点名称" />
-      </n-form-item>
-      <n-form-item label="站点链接">
-        <n-input v-model:value="form.site_link" placeholder="如 https://example.com" />
-      </n-form-item>
-      <n-form-item label="分享目录路径">
-        <n-input v-model:value="form.data_root_path" placeholder="文件存储的绝对路径" />
-      </n-form-item>
-      <n-form-item label="最大上传大小">
-        <n-input-number v-model:value="uploadSizeMB" :min="1" :max="102400" style="width: 180px" />
-        <span style="margin-left: 8px; color: #999">MB</span>
-      </n-form-item>
-      <n-form-item>
-        <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-      </n-form-item>
-    </n-form>
-  </n-spin>
+  <div class="workspace-form-scroll settings-tab-scroll">
+    <n-spin :show="loading">
+      <n-form class="settings-tab-form" label-placement="left" label-width="160px" :model="form">
+        <section class="settings-section">
+          <header class="settings-section-header">
+            <h2>基础参数</h2>
+            <p>配置站点身份、访问地址与文件存储限制</p>
+          </header>
+          <div class="settings-section-body">
+            <n-form-item label="站点名称">
+              <n-input v-model:value="form.site_name" placeholder="请输入站点名称" />
+            </n-form-item>
+            <n-form-item label="站点链接">
+              <n-input v-model:value="form.site_link" placeholder="如 https://example.com" />
+            </n-form-item>
+            <n-form-item label="分享目录路径">
+              <n-input v-model:value="form.data_root_path" placeholder="文件存储的绝对路径" />
+            </n-form-item>
+            <n-form-item label="最大上传大小">
+              <n-input-number v-model:value="uploadSizeMB" :min="1" :max="102400" style="width: 180px" />
+              <span class="workspace-inline-note">MB</span>
+            </n-form-item>
+          </div>
+        </section>
+        <footer class="settings-tab-actions">
+          <n-button type="primary" :loading="saving" @click="handleSave">保存设置</n-button>
+        </footer>
+      </n-form>
+    </n-spin>
+  </div>
 </template>
 
 <script setup lang="ts">

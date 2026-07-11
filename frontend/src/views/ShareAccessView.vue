@@ -1,5 +1,5 @@
 <template>
-  <div class="share-access-content" :class="{ dark: themeStore.isDark }">
+  <div class="workspace-page share-access-content" :class="{ dark: themeStore.isDark }">
     <!-- 主内容 -->
     <main class="share-main">
       <!-- 错误状态 -->
@@ -8,7 +8,7 @@
       </div>
 
       <!-- 加载中 -->
-      <n-spin v-else :show="loading">
+      <n-spin v-else :show="loading" class="share-spin">
         <template v-if="!loading && shareInfo">
           <!-- 分享信息头部 -->
           <div class="share-header">
@@ -35,24 +35,26 @@
           </div>
 
           <!-- 文件卡片网格 -->
-          <div class="file-grid" :class="{ 'single-file': shareInfo.files.length === 1 }">
-            <div v-for="file in shareInfo.files" :key="file.file_name" class="file-card">
-              <div class="file-icon-area" :style="{ color: getFileColor(file.file_name) }">
-                <n-icon :size="32"><component :is="getFileIconComp(file.file_name)" /></n-icon>
-              </div>
-              <div class="file-info">
-                <h3 class="file-name" :title="file.file_name">{{ file.file_name }}</h3>
-                <p class="file-size">{{ formatSize(file.file_size) }}</p>
-              </div>
-              <div class="file-actions">
-                <button class="action-btn action-download" @click="downloadFile(file)">
-                  <n-icon size="16"><DownloadOutline /></n-icon>
-                  <span>下载</span>
-                </button>
-                <button class="action-btn action-link" @click="copyDownloadLink(file)">
-                  <n-icon size="16"><LinkOutline /></n-icon>
-                  <span>链接</span>
-                </button>
+          <div class="file-surface">
+            <div class="file-grid" :class="{ 'single-file': shareInfo.files.length === 1 }">
+              <div v-for="file in shareInfo.files" :key="file.file_name" class="file-card">
+                <div class="file-icon-area" :style="{ color: getFileColor(file.file_name) }">
+                  <n-icon :size="28"><component :is="getFileIconComp(file.file_name)" /></n-icon>
+                </div>
+                <div class="file-info">
+                  <h3 class="file-name" :title="file.file_name">{{ file.file_name }}</h3>
+                  <p class="file-size">{{ formatSize(file.file_size) }}</p>
+                </div>
+                <div class="file-actions">
+                  <button class="action-btn action-download" @click="downloadFile(file)">
+                    <n-icon size="16"><DownloadOutline /></n-icon>
+                    <span>下载</span>
+                  </button>
+                  <button class="action-btn action-link" @click="copyDownloadLink(file)">
+                    <n-icon size="16"><LinkOutline /></n-icon>
+                    <span>链接</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -193,73 +195,88 @@ onMounted(async () => {
 
 <style scoped>
 .share-access-content {
-  height: 100%;
-  overflow-y: auto;
-}
-
-.dark.share-access-content {
-  /* dark mode handled by parent MainLayout, local class for scoped selector matching */
+  overflow: hidden;
+  background: var(--workspace-bg);
 }
 
 /* ---- 主内容区 ---- */
 .share-main {
-  padding: 32px 0 40px;
-  max-width: 1280px;
   width: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .error-container {
   display: flex;
   justify-content: center;
-  padding-top: 60px;
+  padding-top: 44px;
+}
+
+.share-spin {
+  flex: 1;
+  min-height: 0;
+}
+
+.share-spin :deep(.n-spin-content) {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ---- 分享信息头部 ---- */
 .share-header {
-  margin-bottom: 40px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--workspace-border);
+  border-radius: var(--workspace-radius-xl);
+  background:
+    linear-gradient(180deg, rgba(var(--workspace-accent-rgb), 0.06), rgba(var(--workspace-accent-rgb), 0)),
+    var(--workspace-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
 .share-header-left {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
 }
 
 .share-avatar-icon {
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 8px rgba(var(--theme-color-rgb, 59, 130, 246), 0.3));
+  filter: drop-shadow(0 8px 18px rgba(var(--workspace-accent-rgb), 0.18));
 }
 
 .share-meta {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .share-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0f172a;
   margin: 0;
-  line-height: 1.3;
-  transition: color 0.3s ease;
-}
-
-.dark .share-title {
-  color: #f1f5f9;
+  color: var(--workspace-text);
+  font-size: 18px;
+  font-weight: 760;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .share-meta-items {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .meta-item {
@@ -267,102 +284,109 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  color: #64748b;
-  transition: color 0.3s ease;
-}
-
-.dark .meta-item {
-  color: #94a3b8;
+  color: var(--workspace-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- 文件卡片网格 ---- */
+.file-surface {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid var(--workspace-border);
+  border-radius: var(--workspace-radius-xl);
+  background: var(--workspace-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
 .file-grid {
+  height: 100%;
+  overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  align-content: start;
+  gap: 10px;
+  padding: 6px 2px 8px;
+  scrollbar-gutter: stable;
 }
 
 .file-grid.single-file {
-  max-width: 320px;
+  width: min(340px, 100%);
   margin: 0 auto;
 }
 
 .file-card {
-  background: #fff;
-  border: 1px solid rgba(var(--theme-color-rgb, 59, 130, 246), 0.08);
-  border-radius: 20px;
-  padding: 24px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 14px;
+  border: 1px solid var(--workspace-border-soft);
+  border-radius: var(--workspace-radius-lg);
+  background: color-mix(in srgb, var(--workspace-surface-soft) 84%, transparent);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .file-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), 0.3);
-  box-shadow: 0 12px 28px rgba(var(--theme-color-rgb, 59, 130, 246), 0.1);
+  transform: translateY(-2px);
+  border-color: rgba(var(--workspace-accent-rgb), 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--workspace-accent-rgb), 0.12),
+    0 10px 24px rgba(var(--workspace-accent-rgb), 0.1);
 }
 
-.dark .file-card {
-  background: #1e293b;
-  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), 0.12);
-}
-
-.dark .file-card:hover {
-  border-color: rgba(var(--theme-color-rgb, 59, 130, 246), 0.4);
-  box-shadow: 0 12px 28px rgba(var(--theme-color-rgb, 59, 130, 246), 0.18);
+.dark .share-header,
+.dark .file-surface {
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.08);
 }
 
 .file-icon-area {
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
   flex-shrink: 0;
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.1);
-}
-
-.dark .file-icon-area {
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.12);
+  background: rgba(var(--workspace-accent-rgb), 0.1);
 }
 
 .file-info {
   flex: 1;
-  margin-bottom: 16px;
+  min-width: 0;
+  margin-bottom: 12px;
 }
 
 .file-name {
   font-size: 13px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--workspace-text);
   margin: 0 0 4px;
   word-break: break-word;
   overflow-wrap: anywhere;
   line-height: 1.4;
-  transition: color 0.3s ease;
-}
-
-.dark .file-name {
-  color: #f1f5f9;
 }
 
 .file-size {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--workspace-text-muted);
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- 操作按钮 ---- */
 .file-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 
 .action-btn {
@@ -370,60 +394,49 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 0;
-  border: none;
-  border-radius: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--workspace-radius-md);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
 }
 
 .action-download {
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.08);
-  color: var(--theme-color, #3b82f6);
+  background: rgba(var(--workspace-accent-rgb), 0.1);
+  color: var(--workspace-accent);
 }
 
 .action-download:hover {
-  background: var(--theme-color, #3b82f6);
-  color: #fff;
-}
-
-.dark .action-download {
-  background: rgba(var(--theme-color-rgb, 59, 130, 246), 0.15);
-  color: #60a5fa;
-}
-
-.dark .action-download:hover {
-  background: var(--theme-color, #3b82f6);
-  color: #fff;
+  background: var(--workspace-accent);
+  color: var(--workspace-on-accent);
 }
 
 .action-link {
-  background: transparent;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
+  background: var(--workspace-field);
+  border-color: var(--workspace-border);
+  color: var(--workspace-text-muted);
 }
 
 .action-link:hover {
-  border-color: var(--theme-color, #3b82f6);
-  color: var(--theme-color, #3b82f6);
-}
-
-.dark .action-link {
-  border-color: #475569;
-  color: #94a3b8;
-}
-
-.dark .action-link:hover {
-  border-color: #60a5fa;
-  color: #60a5fa;
+  border-color: rgba(var(--workspace-accent-rgb), 0.34);
+  color: var(--workspace-accent);
 }
 
 /* ---- 响应式 ---- */
 @media (max-width: 640px) {
   .share-title {
-    font-size: 20px;
+    font-size: 17px;
   }
 
   .share-header-left {
@@ -433,6 +446,11 @@ onMounted(async () => {
 
   .share-meta-items {
     gap: 8px;
+  }
+
+  .file-surface,
+  .share-header {
+    border-radius: var(--workspace-radius-lg);
   }
 }
 </style>

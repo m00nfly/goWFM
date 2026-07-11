@@ -1,6 +1,13 @@
 <template>
-  <div class="sys-settings-wrap">
-    <n-card :bordered="false" title="系统设置" class="sys-settings-card">
+  <div class="workspace-page sys-settings-wrap">
+    <section class="workspace-surface sys-settings-surface">
+      <header class="workspace-header">
+        <div class="workspace-title-block">
+          <h1 class="workspace-title">系统设置</h1>
+          <p class="workspace-subtitle">集中维护基础、外观、安全、日志、邮件与分享策略</p>
+        </div>
+      </header>
+
       <n-tabs type="line" animated class="sys-settings-tabs">
         <n-tab-pane name="basic" tab="基础设置">
           <BasicSettingsTab />
@@ -21,12 +28,12 @@
           <ShareSettingsTab />
         </n-tab-pane>
       </n-tabs>
-    </n-card>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { NCard, NTabs, NTabPane } from 'naive-ui'
+import { NTabs, NTabPane } from 'naive-ui'
 import BasicSettingsTab from './settings/BasicSettingsTab.vue'
 import SecuritySettingsTab from './settings/SecuritySettingsTab.vue'
 import LogSettingsTab from './settings/LogSettingsTab.vue'
@@ -36,36 +43,33 @@ import ShareSettingsTab from './settings/ShareSettingsTab.vue'
 </script>
 
 <style scoped>
-/* 约束整体高度，防止页面撑出视口 */
-.sys-settings-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sys-settings-card {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.sys-settings-card :deep(.n-card-content) {
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
 .sys-settings-tabs {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 核心：用 vh 给 pane-wrapper 一个独立于父链的明确高度上限，触发 overflow-y 滚动 */
+.sys-settings-tabs :deep(.n-tabs-nav) {
+  padding: 0 12px;
+  border-bottom: 1px solid var(--workspace-border-soft);
+  background: rgba(var(--workspace-accent-rgb), 0.025);
+}
+
+.sys-settings-tabs :deep(.n-tabs-tab) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-weight: 650;
+}
+
 .sys-settings-tabs :deep(.n-tabs-pane-wrapper) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.sys-settings-tabs :deep(.n-tab-pane) {
+  min-height: 100%;
+  padding: 0;
 }
 </style>
