@@ -21,6 +21,10 @@ api.interceptors.response.use(
     }
 
     if (status === 403) {
+      if (err.response?.data?.code === 'TOTP_SETUP_REQUIRED') {
+        if (window.location.pathname !== '/settings') window.location.href = '/settings'
+        return Promise.reject(err)
+      }
       const msg = (window as any).$message
       if (msg?.error) {
         msg.error('权限不足')

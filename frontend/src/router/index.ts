@@ -113,6 +113,11 @@ router.beforeEach(async (to, _from, next) => {
     return next('/login')
   }
 
+  // 管理员强制启用但尚未绑定时，只允许进入个人设置完成绑定。
+  if ((userStore.user.totp_reset_required || (userStore.user.totp_forced && !userStore.user.totp_enabled)) && to.name !== 'settings') {
+    return next('/settings')
+  }
+
   if (requiresAuth && !userStore.user) {
     return next('/login')
   }

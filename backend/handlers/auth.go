@@ -78,6 +78,22 @@ func Login(c *gin.Context) {
 	// 6. 检查是否需要 TOTP 验证
 	services.GlobalBlocker.ResetOnSuccess(ip, req.Username)
 
+	if user.TotpResetRequired || (user.TotpForced && !user.TotpEnabled) {
+		qrBase64, setupErr := services.SetupTOTP(user.ID, user.Username)
+		if setupErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 TOTP 绑定信息失败"})
+			return
+		}
+		loginToken := generateToken()
+		storeLoginToken(loginToken, user.ID)
+		c.JSON(http.StatusOK, gin.H{
+			"totp_setup_required": true,
+			"login_token":         loginToken,
+			"qr_code":             "data:image/png;base64," + qrBase64,
+		})
+		return
+	}
+
 	if user.TotpEnabled {
 		// 检查信任设备
 		trustedToken, _ := c.Cookie("gowfm_trusted")
@@ -107,6 +123,10 @@ func Login(c *gin.Context) {
 }
 
 func doLoginSession(c *gin.Context, userID int64, sessionTimeout int, ip string) {
+	doLoginSessionWithData(c, userID, sessionTimeout, ip, nil)
+}
+
+func doLoginSessionWithData(c *gin.Context, userID int64, sessionTimeout int, ip string, data gin.H) {
 	sessionDuration := time.Duration(sessionTimeout) * time.Minute
 	session, err := services.CreateSession(userID, sessionDuration)
 	if err != nil {
@@ -119,15 +139,19 @@ func doLoginSession(c *gin.Context, userID int64, sessionTimeout int, ip string)
 	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("gowfm_session", session.Token, int(sessionDuration.Seconds()), "/", "", secure, true)
-	c.JSON(http.StatusOK, gin.H{"message": "login successful"})
+	result := gin.H{"message": "login successful"}
+	for key, value := range data {
+		result[key] = value
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 // ---------- TOTP 登录验证 ----------
 
 type LoginTOTPRequest struct {
-	LoginToken string `json:"login_token" binding:"required"`
-	Code       string `json:"code" binding:"required"`
-	TrustDevice bool  `json:"trust_device"`
+	LoginToken  string `json:"login_token" binding:"required"`
+	Code        string `json:"code" binding:"required"`
+	TrustDevice bool   `json:"trust_device"`
 }
 
 func LoginTOTP(c *gin.Context) {
@@ -137,13 +161,14 @@ func LoginTOTP(c *gin.Context) {
 		return
 	}
 
-	userID, ok := consumeLoginToken(req.LoginToken)
+	userID, ok := getLoginToken(req.LoginToken)
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "登录凭证已过期，请重新登录"})
 		return
 	}
 
 	ip := c.ClientIP()
+	recoveryUsed := false
 
 	// 先尝试 TOTP 验证码
 	err := services.VerifyTOTP(userID, req.Code)
@@ -155,13 +180,19 @@ func LoginTOTP(c *gin.Context) {
 			return
 		}
 		// 恢复码登录成功
+		if resetErr := services.InvalidateTOTPAfterRecovery(userID); resetErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "恢复 OTP 安全状态失败"})
+			return
+		}
+		recoveryUsed = true
 		services.CreateLog(userID, models.ActionTOTPRecovery, "", ip, nil)
 	} else {
 		services.CreateLog(userID, models.ActionLoginTOTP, "", ip, nil)
 	}
+	consumeLoginToken(req.LoginToken)
 
 	// 信任设备
-	if req.TrustDevice {
+	if req.TrustDevice && !recoveryUsed {
 		deviceToken, err := services.CreateTrustedDevice(userID, c.GetHeader("User-Agent"))
 		if err == nil {
 			trustDays := config.GetSecurity().TotpTrustDays
@@ -174,7 +205,39 @@ func LoginTOTP(c *gin.Context) {
 	}
 
 	sec := config.GetSecurity()
-	doLoginSession(c, userID, sec.SessionTimeout, ip)
+	doLoginSessionWithData(c, userID, sec.SessionTimeout, ip, gin.H{"recovery_used": recoveryUsed})
+}
+
+// LoginTOTPSetup 在账号密码已验证的临时登录上下文中完成 TOTP 绑定并登录。
+func LoginTOTPSetup(c *gin.Context) {
+	var req struct {
+		LoginToken string `json:"login_token" binding:"required"`
+		Code       string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入验证码"})
+		return
+	}
+
+	userID, ok := getLoginToken(req.LoginToken)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "登录凭证已过期，请重新登录"})
+		return
+	}
+	user, err := services.GetUserByID(userID)
+	if err != nil || (!user.TotpResetRequired && !(user.TotpForced && !user.TotpEnabled)) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "当前账号无需重新绑定 TOTP"})
+		return
+	}
+	codes, err := services.VerifyTOTPSetup(userID, req.Code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	consumeLoginToken(req.LoginToken)
+	services.CreateLog(userID, models.ActionTOTPEnable, "", c.ClientIP(), map[string]interface{}{"source": "login_setup"})
+	sec := config.GetSecurity()
+	doLoginSessionWithData(c, userID, sec.SessionTimeout, c.ClientIP(), gin.H{"recovery_codes": codes})
 }
 
 // ---------- 临时登录 token（内存存储） ----------
@@ -197,6 +260,14 @@ func storeLoginToken(token string, userID int64) {
 }
 
 func consumeLoginToken(token string) (int64, bool) {
+	userID, ok := getLoginToken(token)
+	if ok {
+		delete(loginTokens, token)
+	}
+	return userID, ok
+}
+
+func getLoginToken(token string) (int64, bool) {
 	entry, ok := loginTokens[token]
 	if !ok {
 		return 0, false
@@ -205,7 +276,6 @@ func consumeLoginToken(token string) (int64, bool) {
 		delete(loginTokens, token)
 		return 0, false
 	}
-	delete(loginTokens, token)
 	return entry.UserID, true
 }
 
@@ -251,13 +321,15 @@ func GetMe(c *gin.Context) {
 	}
 
 	result := gin.H{
-		"id":           user.ID,
-		"username":     user.Username,
-		"display_name": user.DisplayName,
-		"email":        user.Email,
-		"is_admin":     user.IsAdmin,
-		"permissions":  user.Permissions,
-		"totp_enabled": user.TotpEnabled,
+		"id":                  user.ID,
+		"username":            user.Username,
+		"display_name":        user.DisplayName,
+		"email":               user.Email,
+		"is_admin":            user.IsAdmin,
+		"permissions":         user.Permissions,
+		"totp_enabled":        user.TotpEnabled,
+		"totp_forced":         user.TotpForced,
+		"totp_reset_required": user.TotpResetRequired,
 	}
 
 	// Include share stats if user has share permission

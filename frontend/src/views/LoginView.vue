@@ -64,14 +64,14 @@
 
         <div class="auth-card">
           <div class="auth-header">
-            <p class="auth-label">{{ totpRequired ? '二次验证' : '账号登录' }}</p>
-            <h2>{{ totpRequired ? '完成安全确认' : '欢迎回来' }}</h2>
-            <p>{{ totpRequired ? '输入 Authenticator 应用中的验证码，恢复码也可使用。' : '使用你的账号进入工作台。' }}</p>
+            <p class="auth-label">{{ totpSetupRequired ? '绑定验证器' : totpRequired ? '二次验证' : '账号登录' }}</p>
+            <h2>{{ totpSetupRequired ? (totpSetupStep === 3 ? '保存恢复码' : '重新绑定 TOTP') : totpRequired ? '完成安全确认' : '欢迎回来' }}</h2>
+            <p>{{ totpSetupRequired ? (totpSetupStep === 3 ? '这是恢复账户访问权限的唯一备用凭据。' : '原密钥已失效，请完成新验证器绑定。') : totpRequired ? '输入 Authenticator 应用中的验证码，恢复码也可使用。' : '使用你的账号进入工作台。' }}</p>
           </div>
 
           <form @submit.prevent="handleLogin" class="login-form">
             <Transition name="auth-swap" mode="out-in">
-              <div v-if="!totpRequired" key="credentials" class="form-panel">
+              <div v-if="!totpRequired && !totpSetupRequired" key="credentials" class="form-panel">
                 <div class="input-group">
                   <div class="label-row">
                     <label class="input-label" for="login-username">账号</label>
@@ -157,7 +157,7 @@
                 </button>
               </div>
 
-              <div v-else key="totp" class="form-panel">
+              <div v-else-if="totpRequired" key="totp" class="form-panel">
                 <div class="totp-notice">
                   <ShieldCheckmarkOutline />
                   <span>你的账号已通过密码校验，请完成第二步。</span>
@@ -200,6 +200,45 @@
                   <span aria-hidden="true">←</span>
                   返回修改账号密码
                 </button>
+              </div>
+
+              <div v-else key="totp-setup" class="form-panel">
+                <div class="totp-notice">
+                  <ShieldCheckmarkOutline />
+                  <span>{{ totpSetupStep === 3 ? '新验证器绑定成功，请妥善保存恢复码。' : '账号密码验证成功，请完成新验证器绑定。' }}</span>
+                </div>
+
+                <template v-if="totpSetupStep === 1">
+                  <div class="login-qr-wrap">
+                    <img :src="totpSetupQr" alt="TOTP 绑定二维码" class="login-qr" />
+                  </div>
+                  <div class="input-group">
+                    <div class="label-row">
+                      <label class="input-label" for="login-totp-setup">Authenticator 验证码</label>
+                      <span class="field-hint">6 位数字</span>
+                    </div>
+                    <div class="input-wrapper">
+                      <LockClosedOutline class="input-icon" />
+                      <input id="login-totp-setup" ref="totpCodeRef" v-model="totpCode" type="text"
+                        required placeholder="例如 123456" class="input-field" autocomplete="one-time-code"
+                        inputmode="numeric" maxlength="6" @keydown.enter.prevent="handleTOTPSetupLogin" />
+                    </div>
+                  </div>
+                  <button type="button" class="login-btn" :disabled="totpLoading" @click="handleTOTPSetupLogin">
+                    <span v-if="totpLoading" class="spinner"></span>
+                    <span>{{ totpLoading ? '验证中...' : '验证并绑定' }}</span>
+                  </button>
+                  <button type="button" class="back-btn" @click="resetTOTPFlow"><span aria-hidden="true">←</span>返回修改账号密码</button>
+                </template>
+
+                <template v-else>
+                  <div class="login-recovery-codes">
+                    <code v-for="code in totpRecoveryCodes" :key="code">{{ code }}</code>
+                  </div>
+                  <p class="setup-secret-hint">每个恢复码只能使用一次，关闭后将无法再次查看。</p>
+                  <button type="button" class="login-btn" @click="copyTOTPRecoveryCodes">复制恢复码</button>
+                  <button type="button" class="back-btn" @click="finishTOTPSetupLogin">我已保存，进入系统</button>
+                </template>
               </div>
             </Transition>
           </form>
@@ -271,6 +310,10 @@ const rememberMe = ref(false)
 
 // TOTP 相关
 const totpRequired = ref(false)
+const totpSetupRequired = ref(false)
+const totpSetupQr = ref('')
+const totpSetupStep = ref(1)
+const totpRecoveryCodes = ref<string[]>([])
 const totpCode = ref('')
 const totpLoading = ref(false)
 const trustDevice = ref(false)
@@ -343,6 +386,13 @@ async function handleLogin() {
   loading.value = true
   try {
     const res = await api.post('/api/auth/login', form)
+    if (res.data.totp_setup_required) {
+      totpSetupRequired.value = true
+      loginToken.value = res.data.login_token
+      totpSetupQr.value = res.data.qr_code
+      totpSetupStep.value = 1
+      return
+    }
     if (res.data.totp_required) {
       // 需要 TOTP 二次验证
       totpRequired.value = true
@@ -393,6 +443,48 @@ async function handleTOTPLogin() {
   } finally {
     totpLoading.value = false
   }
+}
+
+async function handleTOTPSetupLogin() {
+  if (!/^\d{6}$/.test(totpCode.value)) {
+    message.warning('请输入 6 位验证码')
+    return
+  }
+  totpLoading.value = true
+  try {
+    const res = await api.post('/api/auth/login/totp/setup', { login_token: loginToken.value, code: totpCode.value })
+    totpRecoveryCodes.value = res.data.recovery_codes || []
+    totpSetupStep.value = 3
+    totpCode.value = ''
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '绑定失败')
+    totpCode.value = ''
+    totpCodeRef.value?.focus()
+  } finally {
+    totpLoading.value = false
+  }
+}
+
+function copyTOTPRecoveryCodes() {
+  navigator.clipboard.writeText(totpRecoveryCodes.value.join('\n'))
+    .then(() => message.success('恢复码已复制'))
+    .catch(() => message.warning('复制失败，请手动记录'))
+}
+
+async function finishTOTPSetupLogin() {
+  await userStore.fetchMe()
+  message.success('TOTP 绑定成功，已登录')
+  router.replace('/')
+}
+
+function resetTOTPFlow() {
+  totpRequired.value = false
+  totpSetupRequired.value = false
+  totpCode.value = ''
+  loginToken.value = ''
+  totpSetupQr.value = ''
+  totpSetupStep.value = 1
+  totpRecoveryCodes.value = []
 }
 </script>
 
@@ -656,6 +748,43 @@ async function handleTOTPLogin() {
   width: 18px;
   height: 18px;
   color: var(--accent);
+}
+
+.login-qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+.login-qr {
+  width: 180px;
+  height: 180px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+}
+
+.setup-secret-hint {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.login-recovery-codes {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-align: center;
+}
+
+.login-recovery-codes code {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
 }
 
 .signal-primary {

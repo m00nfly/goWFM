@@ -17,7 +17,7 @@ func scanUser(row interface{ Scan(...interface{}) error }) (*models.User, error)
 	u := &models.User{}
 	var totpCreatedAt sql.NullString
 	err := row.Scan(&u.ID, &u.Username, &u.Password, &u.DisplayName, &u.Email,
-		&u.IsAdmin, &u.Permissions, &u.TotpEnabled, &u.TotpSecret, &totpCreatedAt,
+		&u.IsAdmin, &u.Permissions, &u.TotpEnabled, &u.TotpForced, &u.TotpResetRequired, &u.TotpSecret, &totpCreatedAt,
 		&u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func CreateUser(username, password, displayName, email string, isAdmin bool, per
 	return GetUserByID(id)
 }
 
-const userSelectCols = `id, username, password_hash, display_name, email, is_admin, permissions, COALESCE(totp_enabled,0), COALESCE(totp_secret,''), totp_created_at, created_at, updated_at`
+const userSelectCols = `id, username, password_hash, display_name, email, is_admin, permissions, COALESCE(totp_enabled,0), COALESCE(totp_forced,0), COALESCE(totp_reset_required,0), COALESCE(totp_secret,''), totp_created_at, created_at, updated_at`
 
 func GetUserByID(id int64) (*models.User, error) {
 	return scanUser(db.DB.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE id = ?`, id))
@@ -137,7 +137,7 @@ func CleanExpiredSessions() (int64, error) {
 }
 
 func ListAllUsers() ([]gin.H, error) {
-	rows, err := db.DB.Query(`SELECT id, username, display_name, email, is_admin, permissions, COALESCE(totp_enabled,0), created_at FROM users ORDER BY id`)
+	rows, err := db.DB.Query(`SELECT id, username, display_name, email, is_admin, permissions, COALESCE(totp_enabled,0), COALESCE(totp_forced,0), COALESCE(totp_reset_required,0), created_at FROM users ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -146,14 +146,15 @@ func ListAllUsers() ([]gin.H, error) {
 	for rows.Next() {
 		var id int64
 		var username, displayName, email string
-		var isAdmin, totpEnabled bool
+		var isAdmin, totpEnabled, totpForced, totpResetRequired bool
 		var permissions int
 		var createdAt string
-		rows.Scan(&id, &username, &displayName, &email, &isAdmin, &permissions, &totpEnabled, &createdAt)
+		rows.Scan(&id, &username, &displayName, &email, &isAdmin, &permissions, &totpEnabled, &totpForced, &totpResetRequired, &createdAt)
 		result = append(result, gin.H{
 			"id": id, "username": username, "display_name": displayName,
 			"email": email, "is_admin": isAdmin, "permissions": permissions,
-			"totp_enabled": totpEnabled, "created_at": createdAt,
+			"totp_enabled": totpEnabled, "totp_forced": totpForced,
+			"totp_reset_required": totpResetRequired, "created_at": createdAt,
 		})
 	}
 	return result, nil

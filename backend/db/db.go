@@ -137,6 +137,8 @@ func migrate(d *sql.DB) error {
 	// 迁移：TOTP 字段
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT ''`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0`)
+	d.Exec(`ALTER TABLE users ADD COLUMN totp_forced BOOLEAN DEFAULT 0`)
+	d.Exec(`ALTER TABLE users ADD COLUMN totp_reset_required BOOLEAN DEFAULT 0`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_created_at DATETIME`)
 
 	// 迁移：TOTP 恢复码表

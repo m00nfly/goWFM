@@ -35,31 +35,37 @@
     </section>
   </div>
 
-  <n-modal v-model:show="showCreateModal" title="创建用户" preset="dialog">
-    <n-form ref="createFormRef" :model="createForm" :rules="createRules" label-placement="left" label-width="80">
-      <n-form-item label="用户名" path="username">
-        <n-input v-model:value="createForm.username" />
-      </n-form-item>
-      <n-form-item label="密码" path="password">
-        <n-input v-model:value="createForm.password" type="password" />
-      </n-form-item>
-      <n-form-item label="显示名称" path="display_name">
-        <n-input v-model:value="createForm.display_name" />
-      </n-form-item>
-      <n-form-item label="邮箱" path="email">
-        <n-input v-model:value="createForm.email" />
-      </n-form-item>
-      <n-form-item label="权限" path="permissions">
-        <n-checkbox-group v-model:value="permChecks">
-          <n-space>
-            <n-checkbox :value="1">浏览</n-checkbox>
-            <n-checkbox :value="2">下载</n-checkbox>
-            <n-checkbox :value="4">上传</n-checkbox>
-            <n-checkbox :value="8">分享</n-checkbox>
-            <n-checkbox :value="16">日志</n-checkbox>
-          </n-space>
-        </n-checkbox-group>
-      </n-form-item>
+  <n-modal v-model:show="showCreateModal" title="创建用户" preset="dialog" class="create-user-modal">
+    <n-form ref="createFormRef" :model="createForm" :rules="createRules" label-placement="top" class="edit-user-form">
+      <section class="edit-section">
+        <div class="edit-section-heading"><h3>账户信息</h3><span>用于登录系统</span></div>
+        <div class="edit-field-grid">
+          <n-form-item label="用户名" path="username"><n-input v-model:value="createForm.username" placeholder="请输入用户名" /></n-form-item>
+          <n-form-item label="初始密码" path="password"><n-input v-model:value="createForm.password" type="password" show-password-on="click" placeholder="至少 6 位" /></n-form-item>
+          <n-form-item label="显示名称"><n-input v-model:value="createForm.display_name" placeholder="选填" /></n-form-item>
+          <n-form-item label="邮箱"><n-input v-model:value="createForm.email" placeholder="选填" /></n-form-item>
+        </div>
+      </section>
+      <section class="edit-section">
+        <div class="edit-section-heading"><h3>角色与权限</h3></div>
+        <div class="setting-row">
+          <div class="setting-copy"><strong>管理员</strong><span>拥有全部系统管理权限</span></div>
+          <n-switch v-model:value="createForm.is_admin" />
+        </div>
+        <div class="permission-block">
+          <span class="permission-label">功能权限</span>
+          <n-checkbox-group v-model:value="permChecks"><div class="permission-grid">
+            <n-checkbox :value="1">浏览</n-checkbox><n-checkbox :value="2">下载</n-checkbox><n-checkbox :value="4">上传</n-checkbox><n-checkbox :value="8">分享</n-checkbox><n-checkbox :value="16">日志</n-checkbox>
+          </div></n-checkbox-group>
+        </div>
+      </section>
+      <section class="edit-section">
+        <div class="edit-section-heading"><h3>账户安全</h3></div>
+        <div class="setting-row">
+          <div class="setting-copy"><strong>强制 OTP</strong><span>首次登录时绑定，启用后用户不可自行关闭 OTP</span></div>
+          <n-switch v-model:value="createForm.totp_forced" />
+        </div>
+      </section>
     </n-form>
     <template #action>
       <n-button @click="showCreateModal = false">取消</n-button>
@@ -67,32 +73,69 @@
     </template>
   </n-modal>
 
-  <n-modal v-model:show="showEditModal" title="编辑用户" preset="dialog">
-    <n-form :model="editForm" label-placement="left" label-width="80">
-      <n-form-item label="显示名称">
-        <n-input v-model:value="editForm.display_name" />
-      </n-form-item>
-      <n-form-item label="邮箱">
-        <n-input v-model:value="editForm.email" />
-      </n-form-item>
-      <n-form-item label="管理员">
-        <n-switch v-model:value="editForm.is_admin" />
-      </n-form-item>
-      <n-form-item label="TOTP">
-        <n-switch v-model:value="editForm.totp_enabled" />
-        <span class="workspace-inline-note">管理员强制启用后，用户需在个人设置中扫码绑定</span>
-      </n-form-item>
-      <n-form-item label="权限">
-        <n-checkbox-group v-model:value="editPermChecks">
-          <n-space>
-            <n-checkbox :value="1">浏览</n-checkbox>
-            <n-checkbox :value="2">下载</n-checkbox>
-            <n-checkbox :value="4">上传</n-checkbox>
-            <n-checkbox :value="8">分享</n-checkbox>
-            <n-checkbox :value="16">日志</n-checkbox>
-          </n-space>
-        </n-checkbox-group>
-      </n-form-item>
+  <n-modal v-model:show="showEditModal" title="编辑用户" preset="dialog" class="edit-user-modal">
+    <n-form :model="editForm" label-placement="top" class="edit-user-form">
+      <section class="edit-section">
+        <div class="edit-section-heading">
+          <h3>基础信息</h3>
+          <span>{{ editForm.username }}</span>
+        </div>
+        <div class="edit-field-grid">
+          <n-form-item label="显示名称">
+            <n-input v-model:value="editForm.display_name" placeholder="请输入显示名称" />
+          </n-form-item>
+          <n-form-item label="邮箱">
+            <n-input v-model:value="editForm.email" placeholder="请输入邮箱地址" />
+          </n-form-item>
+        </div>
+      </section>
+
+      <section class="edit-section">
+        <div class="edit-section-heading"><h3>角色与权限</h3></div>
+        <div class="setting-row">
+          <div class="setting-copy"><strong>管理员</strong><span>拥有全部系统管理权限</span></div>
+          <n-switch v-model:value="editForm.is_admin" />
+        </div>
+        <div class="permission-block">
+          <span class="permission-label">功能权限</span>
+          <n-checkbox-group v-model:value="editPermChecks">
+            <div class="permission-grid">
+              <n-checkbox :value="1">浏览</n-checkbox>
+              <n-checkbox :value="2">下载</n-checkbox>
+              <n-checkbox :value="4">上传</n-checkbox>
+              <n-checkbox :value="8">分享</n-checkbox>
+              <n-checkbox :value="16">日志</n-checkbox>
+            </div>
+          </n-checkbox-group>
+        </div>
+      </section>
+
+      <section class="edit-section">
+        <div class="edit-section-heading"><h3>账户安全</h3></div>
+        <div class="setting-row security-row">
+          <div class="setting-copy"><strong>强制 OTP</strong><span>启用后用户不可自行关闭 OTP</span></div>
+          <div class="security-actions">
+            <n-switch v-model:value="editForm.totp_forced" />
+            <n-popconfirm
+              v-if="editForm.totp_enabled"
+              positive-text="确认重置"
+              negative-text="取消"
+              @positive-click="handleResetTOTP"
+            >
+              <template #trigger>
+                <n-button secondary type="warning" :loading="resetLoading">
+                  <template #icon><n-icon><RefreshOutline /></n-icon></template>
+                  重置密钥
+                </n-button>
+              </template>
+              <div class="reset-confirm-copy">
+                <strong>确认重置 {{ editForm.username }} 的 OTP 密钥？</strong>
+                <span>旧密钥、恢复码和信任设备将立即失效，现有会话也会被注销。</span>
+              </div>
+            </n-popconfirm>
+          </div>
+        </div>
+      </section>
     </n-form>
     <template #action>
       <n-button @click="showEditModal = false">取消</n-button>
@@ -105,10 +148,10 @@
 import { ref, reactive, onMounted, computed, h } from 'vue'
 import {
   NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
-  NCheckboxGroup, NCheckbox, NSwitch, NTag, NIcon, NTooltip, useMessage,
+  NCheckboxGroup, NCheckbox, NSwitch, NTag, NIcon, NTooltip, NPopconfirm, useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
+import { AddOutline, CreateOutline, RefreshOutline, TrashOutline } from '@vicons/ionicons5'
 import api from '@/api'
 import { useViewport } from '@/composables/useViewport'
 
@@ -121,16 +164,17 @@ const createLoading = ref(false)
 const editLoading = ref(false)
 
 const createFormRef = ref<any>(null)
-const createForm = reactive({ username: '', password: '', display_name: '', email: '' })
+const createForm = reactive({ username: '', password: '', display_name: '', email: '', is_admin: false, totp_forced: false })
 const permChecks = ref<number[]>([1, 2])
 const createRules = {
   username: [{ required: true, message: '必填' }],
   password: [{ required: true, message: '必填' }, { min: 6, message: '至少6位' }],
 }
 
-const editForm = reactive({ id: 0, display_name: '', email: '', is_admin: false, totp_enabled: false })
+const editForm = reactive({ id: 0, username: '', display_name: '', email: '', is_admin: false, totp_enabled: false, totp_forced: false })
 const editPermChecks = ref<number[]>([])
-const originalTotpEnabled = ref(false)
+const originalTotpForced = ref(false)
+const resetLoading = ref(false)
 
 const columns = computed<DataTableColumns>(() => {
   const cols: DataTableColumns = [
@@ -149,11 +193,11 @@ const columns = computed<DataTableColumns>(() => {
     { title: '管理员', key: 'is_admin', width: 80, render: (row: any) => row.is_admin ? '是' : '否' },
     {
       title: 'TOTP',
-      key: 'totp_enabled',
-      width: 90,
+      key: 'totp_forced',
+      width: 110,
       render: (row: any) =>
-        h(NTag, { type: row.totp_enabled ? 'success' : 'default', size: 'small' }, () =>
-          row.totp_enabled ? '已启用' : '未启用',
+        h(NTag, { type: row.totp_reset_required ? 'warning' : row.totp_forced ? (row.totp_enabled ? 'success' : 'warning') : (row.totp_enabled ? 'info' : 'default'), size: 'small' }, () =>
+          row.totp_reset_required ? '待重新绑定' : row.totp_forced ? (row.totp_enabled ? '强制启用' : '待绑定') : (row.totp_enabled ? '自主启用' : '未启用'),
         ),
     },
   )
@@ -224,6 +268,8 @@ async function handleCreate() {
     await api.post('/api/users', { ...createForm, permissions: calcPerms(permChecks.value) })
     message.success('用户创建成功')
     showCreateModal.value = false
+    Object.assign(createForm, { username: '', password: '', display_name: '', email: '', is_admin: false, totp_forced: false })
+    permChecks.value = [1, 2]
     fetchUsers()
   } catch (err: any) {
     message.error(err.response?.data?.error || '创建失败')
@@ -234,11 +280,13 @@ async function handleCreate() {
 
 function openEdit(row: any) {
   editForm.id = row.id
+  editForm.username = row.username
   editForm.display_name = row.display_name
   editForm.email = row.email
   editForm.is_admin = row.is_admin
   editForm.totp_enabled = row.totp_enabled
-  originalTotpEnabled.value = row.totp_enabled
+  editForm.totp_forced = row.totp_forced
+  originalTotpForced.value = row.totp_forced
   editPermChecks.value = []
   if (row.permissions & 1) editPermChecks.value.push(1)
   if (row.permissions & 2) editPermChecks.value.push(2)
@@ -259,9 +307,9 @@ async function handleEdit() {
     })
 
     // 如果 TOTP 状态变更，调用专门接口
-    if (editForm.totp_enabled !== originalTotpEnabled.value) {
+    if (editForm.totp_forced !== originalTotpForced.value) {
       await api.put(`/api/users/${editForm.id}/totp`, {
-        totp_enabled: editForm.totp_enabled,
+        totp_forced: editForm.totp_forced,
       })
     }
 
@@ -286,10 +334,143 @@ async function handleDelete(row: any) {
   }
 }
 
+async function handleResetTOTP() {
+  resetLoading.value = true
+  try {
+    await api.post(`/api/users/${editForm.id}/totp/reset`)
+    editForm.totp_enabled = false
+    message.success('TOTP 密钥已重置，用户下次登录时必须重新绑定')
+    fetchUsers()
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '重置失败')
+  } finally {
+    resetLoading.value = false
+  }
+}
+
 </script>
 
 <style scoped>
 .users-data-table :deep(.n-data-table-td) {
   font-variant-numeric: tabular-nums;
+}
+
+:deep(.edit-user-modal),
+:deep(.create-user-modal) {
+  width: min(620px, calc(100vw - 32px));
+}
+
+.edit-user-form {
+  display: grid;
+  gap: 14px;
+}
+
+.edit-section {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--workspace-soft-bg, rgba(127, 127, 127, 0.06));
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.1);
+}
+
+.edit-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.edit-section-heading h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.edit-section-heading span,
+.setting-copy span {
+  color: var(--n-text-color-3);
+  font-size: 12px;
+}
+
+.edit-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.edit-field-grid :deep(.n-form-item) {
+  margin-bottom: 0;
+}
+
+.setting-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setting-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.permission-block {
+  margin-top: 14px;
+}
+
+.permission-label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--n-label-text-color);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.permission-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.security-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.security-actions :deep(.n-button) {
+  min-height: 40px;
+}
+
+.reset-confirm-copy {
+  max-width: 280px;
+  display: grid;
+  gap: 5px;
+}
+
+.reset-confirm-copy span {
+  color: var(--n-text-color-3);
+  font-size: 12px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+@media (max-width: 560px) {
+  .edit-field-grid,
+  .permission-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .security-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .security-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 </style>

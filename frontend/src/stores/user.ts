@@ -9,6 +9,9 @@ interface User {
   email: string
   is_admin: boolean
   permissions: number
+  totp_enabled: boolean
+  totp_forced: boolean
+  totp_reset_required: boolean
   share_stats?: {
     expired: number
     valid: number

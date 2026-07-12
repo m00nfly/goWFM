@@ -33,6 +33,7 @@ func setupRouter() *gin.Engine {
 
 	r.POST("/api/auth/login", handlers.Login)
 	r.POST("/api/auth/login/totp", handlers.LoginTOTP)
+	r.POST("/api/auth/login/totp/setup", handlers.LoginTOTPSetup)
 	r.POST("/api/auth/logout", handlers.Logout)
 	r.GET("/api/auth/captcha", handlers.GetCaptcha)
 
@@ -58,6 +59,7 @@ func setupRouter() *gin.Engine {
 		// TOTP 管理（管理员）
 		auth.DELETE("/users/:id/totp", middleware.AdminRequired(), handlers.AdminDisableTOTP)
 		auth.PUT("/users/:id/totp", middleware.AdminRequired(), handlers.AdminUpdateTOTP)
+		auth.POST("/users/:id/totp/reset", middleware.AdminRequired(), handlers.AdminResetTOTP)
 
 		auth.GET("/files", handlers.ListFiles)
 		auth.POST("/files/upload", handlers.UploadFile)
