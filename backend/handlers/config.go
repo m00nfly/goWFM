@@ -87,6 +87,7 @@ func GetConfig(c *gin.Context) {
 		data = config.GetLog()
 	case "email":
 		cfg := config.GetEmail()
+		senderName := services.EffectiveSenderName(cfg.SenderName)
 		// 密码不返回明文，只告知是否已配置
 		data = gin.H{
 			"smtp_host":       cfg.SMTPHost,
@@ -95,7 +96,9 @@ func GetConfig(c *gin.Context) {
 			"has_password":    cfg.SMTPPassword != "",
 			"enable_tls":      cfg.EnableTLS,
 			"skip_tls_verify": cfg.SkipTLSVerify,
-			"sender_address":  cfg.SenderAddress,
+			"sender_name":     senderName,
+			"sender_email":    cfg.SenderEmail,
+			"templates":       cfg.Templates,
 		}
 	case "appearance":
 		cfg := config.GetAppearance()
@@ -190,10 +193,20 @@ func UpdateConfig(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 			return
 		}
+		current := config.GetEmail()
 		// 如果密码为空字符串则保留原密码
 		if s.SMTPPassword == "" {
-			current := config.GetEmail()
 			s.SMTPPassword = current.SMTPPassword
+		}
+		if s.Templates == nil {
+			s.Templates = current.Templates
+		}
+		if s.SenderEmail == "" {
+			s.SenderEmail = s.SenderAddress
+		}
+		if err := services.ValidateEmailSettings(s); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
 		newData, _ = json.Marshal(s)
 		err = services.UpdateEmailSettings(s)
@@ -221,6 +234,21 @@ func UpdateConfig(c *gin.Context) {
 		"message":          "配置已更新",
 		"restart_required": restart,
 	})
+}
+
+// TestEmailSettings 使用已保存的 SMTP 配置向指定邮箱发送测试邮件。
+func TestEmailSettings(c *gin.Context) {
+	recipient := config.GetEmail().SenderEmail
+	if err := services.SendTestEmail(recipient); err != nil {
+		result := gin.H{"error": err.Error()}
+		if code, message, ok := services.SMTPErrorDetails(err); ok {
+			result["smtp_code"] = code
+			result["smtp_message"] = message
+		}
+		c.JSON(http.StatusBadGateway, result)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "测试邮件已发送", "recipient": recipient})
 }
 
 // GetConfigInfo 返回公开配置信息（无需登录）

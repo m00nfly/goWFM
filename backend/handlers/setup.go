@@ -32,6 +32,7 @@ type SetupRequest struct {
 	DataRootPath  string `json:"data_root_path"`
 	ServerPort    int    `json:"server_port"`
 	AdminPassword string `json:"admin_password"`
+	AdminEmail    string `json:"admin_email"`
 	MaxUploadSize int64  `json:"max_upload_size"`
 }
 
@@ -54,6 +55,10 @@ func PostSetup(c *gin.Context) {
 
 	if req.AdminPassword == "" || len(req.AdminPassword) < 6 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "admin password must be at least 6 characters"})
+		return
+	}
+	if _, err := services.NormalizeEmail(req.AdminEmail); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入有效的管理员邮箱"})
 		return
 	}
 	if req.DataRootPath == "" {
@@ -103,7 +108,7 @@ func PostSetup(c *gin.Context) {
 	}
 
 	// 创建管理员用户
-	admin, err := services.CreateUser("admin", req.AdminPassword, "Administrator", "", true, models.PermAll)
+	admin, err := services.CreateUser("admin", req.AdminPassword, "Administrator", req.AdminEmail, true, models.PermAll)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create admin user failed"})
 		return

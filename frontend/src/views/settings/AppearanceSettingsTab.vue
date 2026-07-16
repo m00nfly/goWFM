@@ -1,7 +1,7 @@
 <template>
   <div class="workspace-form-scroll settings-tab-scroll">
     <n-spin :show="loading">
-      <n-form class="settings-tab-form" label-placement="left" label-width="160px" :model="form">
+	  <n-form class="settings-tab-form" label-placement="left" label-width="160px" :show-feedback="false" :model="form">
         <section class="settings-section">
           <header class="settings-section-header">
             <h2>品牌与主题</h2>

@@ -102,7 +102,7 @@ router.beforeEach(async (to, _from, next) => {
 
   // public 路由直接放行（含 Guest 模式下的 MainLayout 子页面）
   if (isPublic) {
-    if (to.name === 'login' && userStore.user) {
+	if (to.name === 'login' && userStore.user && !to.query.reset_token) {
       return next('/')
     }
     return next()

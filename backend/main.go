@@ -34,6 +34,9 @@ func setupRouter() *gin.Engine {
 	r.POST("/api/auth/login", handlers.Login)
 	r.POST("/api/auth/login/totp", handlers.LoginTOTP)
 	r.POST("/api/auth/login/totp/setup", handlers.LoginTOTPSetup)
+	r.POST("/api/auth/password-reset/request", handlers.RequestPasswordReset)
+	r.POST("/api/auth/password-reset/status", handlers.PasswordResetStatus)
+	r.POST("/api/auth/password-reset/complete", handlers.ResetPassword)
 	r.POST("/api/auth/logout", handlers.Logout)
 	r.GET("/api/auth/captcha", handlers.GetCaptcha)
 
@@ -83,6 +86,7 @@ func setupRouter() *gin.Engine {
 		// 配置管理 API
 		auth.GET("/admin/config/:category", middleware.AdminRequired(), handlers.GetConfig)
 		auth.PUT("/admin/config/:category", middleware.AdminRequired(), handlers.UpdateConfig)
+		auth.POST("/admin/email/test", middleware.AdminRequired(), handlers.TestEmailSettings)
 	}
 
 	sharePublic := r.Group("/share")
@@ -170,6 +174,11 @@ func main() {
 
 			// 清理过期信任设备
 			services.CleanExpiredTrustedDevices()
+
+			// 清理过期或已使用的密码重置令牌
+			if err := services.CleanupExpiredPasswordResetTokens(); err != nil {
+				log.Printf("Failed to clean password reset tokens: %v", err)
+			}
 		}
 	}()
 

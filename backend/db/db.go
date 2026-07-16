@@ -163,5 +163,43 @@ func migrate(d *sql.DB) error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	)`)
 
+	// 密码重置令牌仅存储 SHA-256 摘要；原始令牌只会出现在发送给用户的邮件中。
+	if _, err := d.Exec(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		token_hash TEXT UNIQUE NOT NULL,
+		expires_at DATETIME NOT NULL,
+		used_at DATETIME,
+		request_ip TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	)`); err != nil {
+		return fmt.Errorf("create password reset token table: %w", err)
+	}
+	if _, err := d.Exec(`CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id, created_at)`); err != nil {
+		return fmt.Errorf("create password reset user index: %w", err)
+	}
+	if _, err := d.Exec(`CREATE INDEX IF NOT EXISTS idx_password_reset_expiry ON password_reset_tokens(expires_at)`); err != nil {
+		return fmt.Errorf("create password reset expiry index: %w", err)
+	}
+
+	// 旧数据库可能已含重复邮箱，触发器不会阻止启动，但会保证之后的新增与修改保持唯一。
+	if _, err := d.Exec(`CREATE TRIGGER IF NOT EXISTS users_email_unique_insert
+		BEFORE INSERT ON users WHEN NEW.id != 0 AND trim(NEW.email) != ''
+		BEGIN
+			SELECT CASE WHEN EXISTS (SELECT 1 FROM users WHERE id != 0 AND lower(email) = lower(NEW.email))
+			THEN RAISE(ABORT, 'email already in use') END;
+		END`); err != nil {
+		return fmt.Errorf("create user email insert trigger: %w", err)
+	}
+	if _, err := d.Exec(`CREATE TRIGGER IF NOT EXISTS users_email_unique_update
+		BEFORE UPDATE OF email ON users WHEN NEW.id != 0 AND trim(NEW.email) != ''
+		BEGIN
+			SELECT CASE WHEN EXISTS (SELECT 1 FROM users WHERE id != NEW.id AND id != 0 AND lower(email) = lower(NEW.email))
+			THEN RAISE(ABORT, 'email already in use') END;
+		END`); err != nil {
+		return fmt.Errorf("create user email update trigger: %w", err)
+	}
+
 	return nil
 }

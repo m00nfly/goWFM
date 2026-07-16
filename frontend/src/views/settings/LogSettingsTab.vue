@@ -1,7 +1,7 @@
 <template>
   <div class="workspace-form-scroll settings-tab-scroll">
     <n-spin :show="loading">
-      <n-form class="settings-tab-form" label-placement="left" label-width="170px" :model="form">
+	  <n-form class="settings-tab-form" label-placement="left" label-width="170px" :show-feedback="false" :model="form">
         <section class="settings-section">
           <header class="settings-section-header">
             <h2>日志策略</h2>
@@ -69,6 +69,8 @@ const allLogTypes = [
   { value: 'USER_UPDATE', label: '更新用户' },
   { value: 'USER_DELETE', label: '删除用户' },
   { value: 'MOVE', label: '移动文件' },
+	{ value: 'PASSWORD_RESET_REQUEST', label: '申请重置密码' },
+	{ value: 'PASSWORD_RESET_COMPLETE', label: '完成重置密码' },
 ]
 
 function selectAll() {

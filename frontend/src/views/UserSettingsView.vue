@@ -12,12 +12,12 @@
         <div class="settings-grid">
           <n-card :bordered="false" class="workspace-mini-card settings-card profile-card">
           <template #header><div class="settings-card-heading"><strong>个人资料</strong><span>用于页面展示和账号联系</span></div></template>
-          <n-form :model="form" label-placement="top" class="settings-form">
+		  <n-form ref="profileFormRef" :model="form" :rules="profileRules" label-placement="top" class="settings-form">
             <div class="settings-field-grid">
             <n-form-item label="显示名称">
               <n-input v-model:value="form.display_name" placeholder="请输入显示名称" />
             </n-form-item>
-            <n-form-item label="邮箱">
+			<n-form-item label="邮箱" path="email">
               <n-input v-model:value="form.email" placeholder="请输入邮箱地址" />
             </n-form-item>
             </div>
@@ -148,7 +148,14 @@ const themeStore = useThemeStore()
 const saving = ref(false)
 const pwSaving = ref(false)
 
+const profileFormRef = ref<any>(null)
 const form = reactive({ display_name: '', email: '' })
+const profileRules = {
+	email: [
+	  { required: true, message: '邮箱为必填项', trigger: ['input', 'blur'] },
+	  { type: 'email' as const, message: '请输入有效的邮箱地址', trigger: ['input', 'blur'] },
+	],
+}
 const pwForm = reactive({ current_password: '', new_password: '', totp_code: '' })
 
 // TOTP
@@ -191,6 +198,11 @@ async function loadTOTPStatus() {
 }
 
 async function handleSave() {
+	try {
+	  await profileFormRef.value?.validate()
+	} catch {
+	  return
+	}
   saving.value = true
   try {
     await api.put('/api/users/me', form)

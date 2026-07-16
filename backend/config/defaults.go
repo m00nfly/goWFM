@@ -40,6 +40,7 @@ func DefaultLog() LogSettings {
 			"SHARE_CREATE", "SHARE_ACCESS", "SHARE_DELETE",
 			"CHANGE_OWNER", "USER_CREATE", "USER_UPDATE", "USER_DELETE", "MOVE",
 			"CONFIG_CHANGE",
+			"PASSWORD_RESET_REQUEST", "PASSWORD_RESET_COMPLETE",
 		},
 	}
 }
@@ -53,7 +54,32 @@ func DefaultEmail() EmailSettings {
 		SMTPPassword:  "",
 		EnableTLS:     true,
 		SkipTLSVerify: false,
-		SenderAddress: "",
+		SenderName:    "",
+		SenderEmail:   "",
+		Templates: map[string]EmailTemplate{
+			"reset_password": DefaultResetPasswordTemplate(),
+		},
+	}
+}
+
+// DefaultResetPasswordTemplate 返回密码重置邮件的默认模板。
+func DefaultResetPasswordTemplate() EmailTemplate {
+	return EmailTemplate{
+		Subject: "重置您的 {{.SiteName}} 密码",
+		HTML: `<!doctype html>
+<html lang="zh-CN">
+<body style="margin:0;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#172033">
+  <div style="max-width:560px;margin:0 auto;padding:40px 20px">
+    <div style="background:#ffffff;border-radius:16px;padding:32px;box-shadow:0 12px 36px rgba(28,45,72,.10)">
+      <h1 style="font-size:22px;margin:0 0 18px">重置密码</h1>
+      <p>您好，{{.Username}}：</p>
+      <p>我们收到了您的密码重置请求。请在 {{.ExpiresMinutes}} 分钟内点击下方按钮完成重置。</p>
+      <p style="margin:28px 0"><a href="{{.ResetURL}}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px">重置密码</a></p>
+      <p style="font-size:13px;color:#667085">若您未发起此请求，请忽略本邮件。此链接仅可使用一次。</p>
+    </div>
+  </div>
+</body>
+</html>`,
 	}
 }
 

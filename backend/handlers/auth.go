@@ -57,7 +57,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 4. 验证用户名
-	user, err := services.GetUserByUsername(req.Username)
+	user, err := services.GetUserByLogin(req.Username)
 	if err != nil {
 		time.Sleep(1 * time.Second)
 		services.GlobalBlocker.RecordFailure(ip, req.Username)

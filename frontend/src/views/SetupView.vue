@@ -11,6 +11,9 @@
           <n-form-item label="admin密码" path="admin_password">
             <n-input v-model:value="form.admin_password" type="password" placeholder="至少6位密码" />
           </n-form-item>
+		  <n-form-item label="管理员邮箱" path="admin_email">
+			<n-input v-model:value="form.admin_email" placeholder="用于安全找回密码" />
+		  </n-form-item>
         </div>
 
         <div class="workspace-form-panel setup-section">
@@ -75,6 +78,7 @@ const logLevelOptions = [
 
 const form = reactive({
   admin_password: '',
+	admin_email: '',
   site_name: '',
   site_link: '',
   data_root_path: '',
@@ -90,6 +94,10 @@ const rules: FormRules = {
     { required: true, message: '请输入管理员密码', trigger: 'blur' },
     { min: 6, message: '密码至少6位', trigger: 'blur' },
   ],
+	admin_email: [
+	  { required: true, message: '请输入管理员邮箱', trigger: ['input', 'blur'] },
+	  { type: 'email', message: '请输入有效的邮箱地址', trigger: ['input', 'blur'] },
+	],
   data_root_path: [
     { required: true, message: '请输入数据存储路径', trigger: 'blur' },
   ],

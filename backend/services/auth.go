@@ -3,6 +3,9 @@ package services
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"net/mail"
+	"strings"
 	"time"
 
 	"goWFM/db"
@@ -12,6 +15,17 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var ErrEmailInUse = errors.New("email is already in use")
+
+func NormalizeEmail(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	parsed, err := mail.ParseAddress(value)
+	if err != nil || parsed.Address != value || value == "" {
+		return "", fmt.Errorf("invalid email address")
+	}
+	return value, nil
+}
 
 func scanUser(row interface{ Scan(...interface{}) error }) (*models.User, error) {
 	u := &models.User{}
@@ -30,13 +44,22 @@ func scanUser(row interface{ Scan(...interface{}) error }) (*models.User, error)
 }
 
 func CreateUser(username, password, displayName, email string, isAdmin bool, permissions int) (*models.User, error) {
+	normalizedEmail, err := NormalizeEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if used, err := IsEmailInUse(normalizedEmail, 0); err != nil {
+		return nil, err
+	} else if used {
+		return nil, ErrEmailInUse
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 	result, err := db.DB.Exec(
 		`INSERT INTO users (username, password_hash, display_name, email, is_admin, permissions) VALUES (?, ?, ?, ?, ?, ?)`,
-		username, string(hash), displayName, email, isAdmin, permissions,
+		strings.TrimSpace(username), string(hash), strings.TrimSpace(displayName), normalizedEmail, isAdmin, permissions,
 	)
 	if err != nil {
 		return nil, err
@@ -53,6 +76,33 @@ func GetUserByID(id int64) (*models.User, error) {
 
 func GetUserByUsername(username string) (*models.User, error) {
 	return scanUser(db.DB.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE username = ?`, username))
+}
+
+// GetUserByLogin 支持使用用户名或 Email 登录。Email 新增/更新时保证唯一。
+func GetUserByLogin(identifier string) (*models.User, error) {
+	identifier = strings.TrimSpace(identifier)
+	return scanUser(db.DB.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE username = ? OR (id != 0 AND lower(email) = lower(?)) LIMIT 1`, identifier, identifier))
+}
+
+func GetUserByEmail(email string) (*models.User, error) {
+	normalized, err := NormalizeEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	var count int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE id != 0 AND lower(email) = lower(?)`, normalized).Scan(&count); err != nil {
+		return nil, err
+	}
+	if count != 1 {
+		return nil, sql.ErrNoRows
+	}
+	return scanUser(db.DB.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE id != 0 AND lower(email) = lower(?)`, normalized))
+}
+
+func IsEmailInUse(email string, excludeUserID int64) (bool, error) {
+	var count int
+	err := db.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE id != 0 AND id != ? AND lower(email) = lower(?)`, excludeUserID, email).Scan(&count)
+	return count > 0, err
 }
 
 func CheckPassword(user *models.User, password string) bool {
@@ -161,9 +211,18 @@ func ListAllUsers() ([]gin.H, error) {
 }
 
 func UpdateUserFields(id int64, displayName, email string, isAdmin bool, permissions int) (*models.User, error) {
-	_, err := db.DB.Exec(
+	normalizedEmail, err := NormalizeEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if used, err := IsEmailInUse(normalizedEmail, id); err != nil {
+		return nil, err
+	} else if used {
+		return nil, ErrEmailInUse
+	}
+	_, err = db.DB.Exec(
 		`UPDATE users SET display_name = ?, email = ?, is_admin = ?, permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		displayName, email, isAdmin, permissions, id,
+		strings.TrimSpace(displayName), normalizedEmail, isAdmin, permissions, id,
 	)
 	if err != nil {
 		return nil, err

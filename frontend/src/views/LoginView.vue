@@ -64,14 +64,110 @@
 
         <div class="auth-card">
           <div class="auth-header">
-            <p class="auth-label">{{ totpSetupRequired ? '绑定验证器' : totpRequired ? '二次验证' : '账号登录' }}</p>
-            <h2>{{ totpSetupRequired ? (totpSetupStep === 3 ? '保存恢复码' : '重新绑定 TOTP') : totpRequired ? '完成安全确认' : '欢迎回来' }}</h2>
-            <p>{{ totpSetupRequired ? (totpSetupStep === 3 ? '这是恢复账户访问权限的唯一备用凭据。' : '原密钥已失效，请完成新验证器绑定。') : totpRequired ? '输入 Authenticator 应用中的验证码，恢复码也可使用。' : '使用你的账号进入工作台。' }}</p>
+			<p class="auth-label">{{ authHeading.label }}</p>
+			<h2>{{ authHeading.title }}</h2>
+			<p>{{ authHeading.description }}</p>
           </div>
 
-          <form @submit.prevent="handleLogin" class="login-form">
+		  <form @submit.prevent="handleFormSubmit" class="login-form">
             <Transition name="auth-swap" mode="out-in">
-              <div v-if="!totpRequired && !totpSetupRequired" key="credentials" class="form-panel">
+			  <div v-if="passwordFlow === 'forgot'" key="forgot-password" class="form-panel">
+				<template v-if="!forgotSent">
+				  <div class="security-notice">
+					<MailOutline />
+					<span>输入账户绑定邮箱。无论账户是否存在，系统都会返回相同结果。</span>
+				  </div>
+				  <div class="input-group">
+					<div class="label-row">
+					  <label class="input-label" for="forgot-email">邮箱</label>
+					  <span class="field-hint">账户绑定邮箱</span>
+					</div>
+					<div class="input-wrapper">
+					  <MailOutline class="input-icon" />
+					  <input id="forgot-email" ref="forgotEmailRef" v-model="forgotEmail" type="email" required
+						placeholder="name@example.com" class="input-field" autocomplete="email" @keydown.enter.prevent="handleForgotPassword" />
+					</div>
+				  </div>
+				  <div v-if="captchaEnabled" class="input-group">
+					<div class="label-row">
+					  <label class="input-label" for="forgot-captcha">验证码</label>
+					  <span class="field-hint">点击图片刷新</span>
+					</div>
+					<div class="captcha-row">
+					  <div class="input-wrapper captcha-input">
+						<LockClosedOutline class="input-icon" />
+						<input id="forgot-captcha" v-model="form.captcha_code" type="text" required placeholder="输入验证码"
+						  class="input-field" autocomplete="off" @keydown.enter.prevent="handleForgotPassword" />
+					  </div>
+					  <button type="button" class="captcha-image" @click="refreshCaptcha" title="刷新验证码" aria-label="刷新验证码">
+						<img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+						<span v-else>加载中...</span>
+					  </button>
+					</div>
+				  </div>
+				  <button type="button" class="login-btn" :disabled="forgotLoading" @click="handleForgotPassword">
+					<span v-if="forgotLoading" class="spinner"></span>
+					<span>{{ forgotLoading ? '提交中...' : '发送重置邮件' }}</span>
+				  </button>
+				</template>
+				<div v-else class="request-complete">
+				  <div class="request-complete-icon"><MailOutline /></div>
+				  <strong>请检查邮箱</strong>
+				  <p>如果该邮箱对应有效账户，重置邮件将在稍后送达。链接 15 分钟内有效。</p>
+				</div>
+				<button type="button" class="back-btn" @click="returnToLogin"><span aria-hidden="true">←</span>返回登录</button>
+			  </div>
+
+			  <div v-else-if="passwordFlow === 'reset'" key="reset-password" class="form-panel">
+				<div v-if="resetChecking" class="reset-checking"><span class="spinner spinner-dark"></span><span>正在验证重置链接...</span></div>
+				<template v-else-if="!resetError">
+				  <div class="security-notice">
+					<ShieldCheckmarkOutline />
+					<span>{{ resetTOTPRequired ? '此账户已启用 TOTP，提交新密码时必须完成二次验证。' : '链接验证通过。重置后其他登录会话将自动失效。' }}</span>
+				  </div>
+				  <div class="input-group">
+					<div class="label-row"><label class="input-label" for="reset-password">新密码</label><span class="field-hint">至少 6 位</span></div>
+					<div class="input-wrapper">
+					  <LockClosedOutline class="input-icon" />
+					  <input id="reset-password" v-model="resetForm.new_password" :type="showResetPassword ? 'text' : 'password'" required
+						placeholder="请输入新密码" class="input-field input-field-with-action" autocomplete="new-password" />
+					  <button type="button" class="eye-btn" @click="showResetPassword = !showResetPassword" :aria-label="showResetPassword ? '隐藏密码' : '显示密码'">
+						<EyeOffOutline v-if="showResetPassword" class="eye-icon" /><EyeOutline v-else class="eye-icon" />
+					  </button>
+					</div>
+				  </div>
+				  <div class="input-group">
+					<div class="label-row"><label class="input-label" for="reset-confirm">确认新密码</label><span class="field-hint">再次输入</span></div>
+					<div class="input-wrapper"><LockClosedOutline class="input-icon" />
+					  <input id="reset-confirm" v-model="resetForm.confirm_password" :type="showResetPassword ? 'text' : 'password'" required
+						placeholder="请再次输入新密码" class="input-field" autocomplete="new-password" @keydown.enter.prevent="handleResetPassword" />
+					</div>
+				  </div>
+				  <div v-if="resetTOTPRequired" class="input-group">
+					<div class="label-row"><label class="input-label" for="reset-totp">TOTP 验证码</label><span class="field-hint">当前 6 位数字</span></div>
+					<div class="input-wrapper"><KeyOutline class="input-icon" />
+					  <input id="reset-totp" v-model="resetForm.totp_code" type="text" required placeholder="例如 123456"
+						class="input-field" autocomplete="one-time-code" inputmode="numeric" maxlength="6" @keydown.enter.prevent="handleResetPassword" />
+					</div>
+				  </div>
+				  <button type="button" class="login-btn" :disabled="resetLoading" @click="handleResetPassword">
+					<span v-if="resetLoading" class="spinner"></span><span>{{ resetLoading ? '重置中...' : '确认重置密码' }}</span>
+				  </button>
+				</template>
+				<div v-else class="request-complete error-state">
+				  <div class="request-complete-icon"><KeyOutline /></div><strong>链接不可用</strong><p>{{ resetError }}</p>
+				</div>
+				<button type="button" class="back-btn" @click="openForgotPassword"><span aria-hidden="true">←</span>重新申请重置链接</button>
+			  </div>
+
+			  <div v-else-if="passwordFlow === 'reset-success'" key="reset-success" class="form-panel">
+				<div class="request-complete">
+				  <div class="request-complete-icon"><ShieldCheckmarkOutline /></div><strong>密码重置成功</strong><p>所有旧登录会话已失效，请使用新密码重新登录。</p>
+				</div>
+				<button type="button" class="login-btn" @click="returnToLogin">返回登录</button>
+			  </div>
+
+			  <div v-else-if="!totpRequired && !totpSetupRequired" key="credentials" class="form-panel">
                 <div class="input-group">
                   <div class="label-row">
                     <label class="input-label" for="login-username">账号</label>
@@ -146,10 +242,13 @@
                   </div>
                 </div>
 
-                <label class="remember-row">
-                  <input type="checkbox" v-model="rememberMe" class="checkbox" />
-                  <span>保持登录状态</span>
-                </label>
+				<div class="login-options-row">
+				  <label class="remember-row">
+					<input type="checkbox" v-model="rememberMe" class="checkbox" />
+					<span>保持登录状态</span>
+				  </label>
+				  <button type="button" class="forgot-link" @click="openForgotPassword">忘记密码？</button>
+				</div>
 
                 <button type="submit" class="login-btn" :disabled="loading">
                   <span v-if="loading" class="spinner"></span>
@@ -289,7 +388,21 @@ const userStore = useUserStore()
 const themeStore = useThemeStore()
 const loading = ref(false)
 const showPassword = ref(false)
+const showResetPassword = ref(false)
 const passwordRef = ref<HTMLInputElement | null>(null)
+
+type PasswordFlow = 'login' | 'forgot' | 'reset' | 'reset-success'
+const passwordFlow = ref<PasswordFlow>('login')
+const forgotEmail = ref('')
+const forgotEmailRef = ref<HTMLInputElement | null>(null)
+const forgotLoading = ref(false)
+const forgotSent = ref(false)
+const resetToken = ref('')
+const resetChecking = ref(false)
+const resetLoading = ref(false)
+const resetTOTPRequired = ref(false)
+const resetError = ref('')
+const resetForm = reactive({ new_password: '', confirm_password: '', totp_code: '' })
 
 const orgName = ref('')
 const orgLink = ref('')
@@ -321,6 +434,31 @@ const trustDays = ref(30)
 const loginToken = ref('')
 const totpCodeRef = ref<HTMLInputElement | null>(null)
 
+const authHeading = computed(() => {
+  if (passwordFlow.value === 'forgot') {
+    return forgotSent.value
+      ? { label: '邮件已申请', title: '下一步请检查邮箱', description: '为保护账户隐私，系统不会显示该邮箱是否已注册。' }
+      : { label: '找回密码', title: '恢复账户访问', description: '我们会向账户绑定邮箱发送一次性重置链接。' }
+  }
+  if (passwordFlow.value === 'reset') {
+    return { label: '安全重置', title: '设置新密码', description: '重置链接只能使用一次，并将在 15 分钟后失效。' }
+  }
+  if (passwordFlow.value === 'reset-success') {
+    return { label: '重置完成', title: '账户已恢复', description: '新密码现已生效。' }
+  }
+  if (totpSetupRequired.value) {
+    return {
+      label: '绑定验证器',
+      title: totpSetupStep.value === 3 ? '保存恢复码' : '重新绑定 TOTP',
+      description: totpSetupStep.value === 3 ? '这是恢复账户访问权限的唯一备用凭据。' : '原密钥已失效，请完成新验证器绑定。',
+    }
+  }
+  if (totpRequired.value) {
+    return { label: '二次验证', title: '完成安全确认', description: '输入 Authenticator 应用中的验证码，恢复码也可使用。' }
+  }
+  return { label: '账号登录', title: '欢迎回来', description: '使用你的账号进入工作台。' }
+})
+
 const loginBgStyle = computed(() => {
   if (loginBgUrl.value) {
     return {
@@ -334,8 +472,14 @@ const loginBgStyle = computed(() => {
 })
 
 onMounted(async () => {
+	const tokenFromURL = new URLSearchParams(window.location.search).get('reset_token') || ''
+	if (tokenFromURL) {
+	  resetToken.value = tokenFromURL
+	  passwordFlow.value = 'reset'
+	  window.history.replaceState({}, document.title, window.location.pathname)
+	}
   // 已登录则跳转首页
-  if (userStore.user) {
+	if (userStore.user && !tokenFromURL) {
     router.replace('/')
     return
   }
@@ -355,7 +499,102 @@ onMounted(async () => {
   } catch {
     // 忽略错误，使用默认值
   }
+	if (tokenFromURL) await inspectResetToken()
 })
+
+function openForgotPassword() {
+	passwordFlow.value = 'forgot'
+	forgotSent.value = false
+	resetError.value = ''
+	resetToken.value = ''
+	totpRequired.value = false
+	totpSetupRequired.value = false
+	if (captchaEnabled.value) refreshCaptcha()
+	setTimeout(() => forgotEmailRef.value?.focus(), 100)
+}
+
+function returnToLogin() {
+	passwordFlow.value = 'login'
+	forgotSent.value = false
+	forgotEmail.value = ''
+	resetToken.value = ''
+	resetError.value = ''
+	resetTOTPRequired.value = false
+	Object.assign(resetForm, { new_password: '', confirm_password: '', totp_code: '' })
+	if (captchaEnabled.value) refreshCaptcha()
+	setTimeout(() => passwordRef.value?.focus(), 100)
+}
+
+async function handleForgotPassword() {
+	if (!/^\S+@\S+\.\S+$/.test(forgotEmail.value.trim())) {
+	  message.warning('请输入有效的账户绑定邮箱')
+	  return
+	}
+	if (captchaEnabled.value && !form.captcha_code) {
+	  message.warning('请输入验证码')
+	  return
+	}
+	forgotLoading.value = true
+	try {
+	  await api.post('/api/auth/password-reset/request', {
+		email: forgotEmail.value.trim(),
+		captcha_id: form.captcha_id,
+		captcha_code: form.captcha_code,
+	  })
+	  forgotSent.value = true
+	} catch (err: any) {
+	  message.error(err.response?.data?.error || '提交失败，请稍后重试')
+	  if (captchaEnabled.value) await refreshCaptcha()
+	} finally {
+	  forgotLoading.value = false
+	}
+}
+
+async function inspectResetToken() {
+	resetChecking.value = true
+	resetError.value = ''
+	try {
+	  const res = await api.post('/api/auth/password-reset/status', { token: resetToken.value })
+	  resetTOTPRequired.value = !!res.data.totp_required
+	} catch (err: any) {
+	  resetError.value = err.response?.data?.error || '重置链接无效或已过期'
+	} finally {
+	  resetChecking.value = false
+	}
+}
+
+async function handleResetPassword() {
+	if (resetForm.new_password.length < 6) {
+	  message.warning('新密码至少需要 6 位')
+	  return
+	}
+	if (resetForm.new_password !== resetForm.confirm_password) {
+	  message.warning('两次输入的新密码不一致')
+	  return
+	}
+	if (resetTOTPRequired.value && !/^\d{6}$/.test(resetForm.totp_code)) {
+	  message.warning('请输入当前 6 位 TOTP 验证码')
+	  return
+	}
+	resetLoading.value = true
+	try {
+	  await api.post('/api/auth/password-reset/complete', {
+		token: resetToken.value,
+		new_password: resetForm.new_password,
+		totp_code: resetForm.totp_code,
+	  })
+	  passwordFlow.value = 'reset-success'
+	  resetToken.value = ''
+	  Object.assign(resetForm, { new_password: '', confirm_password: '', totp_code: '' })
+	} catch (err: any) {
+	  const error = err.response?.data?.error || '密码重置失败'
+	  message.error(error)
+	  if (!err.response?.data?.code) resetError.value = error
+	  resetForm.totp_code = ''
+	} finally {
+	  resetLoading.value = false
+	}
+}
 
 async function refreshCaptcha() {
   try {
@@ -418,6 +657,15 @@ async function handleLogin() {
   } finally {
     loading.value = false
   }
+}
+
+function handleFormSubmit() {
+	if (passwordFlow.value === 'forgot') return handleForgotPassword()
+	if (passwordFlow.value === 'reset') return handleResetPassword()
+	if (passwordFlow.value !== 'login') return
+	if (totpRequired.value) return handleTOTPLogin()
+	if (totpSetupRequired.value && totpSetupStep.value === 1) return handleTOTPSetupLogin()
+	return handleLogin()
 }
 
 async function handleTOTPLogin() {
@@ -1039,6 +1287,7 @@ function resetTOTPFlow() {
 .eye-btn:focus-visible,
 .theme-toggle:focus-visible,
 .captcha-image:focus-visible,
+.forgot-link:focus-visible,
 .back-btn:focus-visible,
 .login-btn:focus-visible {
   outline: none;
@@ -1116,6 +1365,37 @@ function resetTOTPFlow() {
   text-wrap: pretty;
 }
 
+.login-options-row {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.forgot-link {
+  min-height: 40px;
+  padding: 0 2px;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition-property: color, transform;
+  transition-duration: 180ms;
+}
+
+.forgot-link:hover {
+  color: var(--accent-pressed);
+}
+
+.forgot-link:active {
+  transform: scale(0.96);
+}
+
 .checkbox {
   width: 18px;
   height: 18px;
@@ -1178,7 +1458,8 @@ function resetTOTPFlow() {
   to { transform: rotate(360deg); }
 }
 
-.totp-notice {
+.totp-notice,
+.security-notice {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -1191,9 +1472,79 @@ function resetTOTPFlow() {
   line-height: 1.55;
 }
 
-.totp-notice svg {
+.totp-notice svg,
+.security-notice svg {
+	width: 20px;
+	height: 20px;
   margin-top: 1px;
   flex: 0 0 auto;
+}
+
+.totp-notice > span,
+.security-notice > span {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow-wrap: anywhere;
+	text-wrap: pretty;
+}
+
+.request-complete {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  border-radius: 14px;
+  color: var(--muted-ink);
+  background: rgba(var(--accent-rgb), 0.07);
+  text-align: center;
+}
+
+.request-complete strong {
+  color: var(--page-ink);
+  font-size: 18px;
+}
+
+.request-complete p {
+  margin: 0;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.request-complete-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.request-complete-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.error-state .request-complete-icon {
+  color: #d03050;
+  background: rgba(208, 48, 80, 0.1);
+}
+
+.reset-checking {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted-ink);
+}
+
+.spinner-dark {
+  border-color: rgba(var(--accent-rgb), 0.2);
+  border-top-color: var(--accent);
 }
 
 .back-btn {

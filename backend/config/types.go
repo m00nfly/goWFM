@@ -40,7 +40,18 @@ type EmailSettings struct {
 	SMTPPassword  string `json:"smtp_password"`
 	EnableTLS     bool   `json:"enable_tls"`
 	SkipTLSVerify bool   `json:"skip_tls_verify"`
-	SenderAddress string `json:"sender_address"`
+	SenderName    string `json:"sender_name"`
+	SenderEmail   string `json:"sender_email"`
+	// SenderAddress 用于兼容旧版配置，读取时会作为 SenderEmail 的回退值。
+	SenderAddress string                   `json:"sender_address,omitempty"`
+	Templates     map[string]EmailTemplate `json:"templates"`
+}
+
+// EmailTemplate 是一种通知邮件的可配置主题与 HTML 内容。
+// 使用 map 存储是为了后续可以在不变更配置结构的情况下增加更多通知类型。
+type EmailTemplate struct {
+	Subject string `json:"subject"`
+	HTML    string `json:"html"`
 }
 
 // AppearanceSettings 外观设置（含原 Web 设置字段）

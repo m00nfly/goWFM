@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -23,7 +24,7 @@ type CreateUserRequest struct {
 	Username    string `json:"username" binding:"required"`
 	Password    string `json:"password" binding:"required,min=6"`
 	DisplayName string `json:"display_name"`
-	Email       string `json:"email"`
+	Email       string `json:"email" binding:"required,email"`
 	Permissions int    `json:"permissions"`
 	IsAdmin     bool   `json:"is_admin"`
 	TotpForced  bool   `json:"totp_forced"`
@@ -38,6 +39,10 @@ func CreateUser(c *gin.Context) {
 
 	user, err := services.CreateUser(req.Username, req.Password, req.DisplayName, req.Email, req.IsAdmin, req.Permissions)
 	if err != nil {
+		if errors.Is(err, services.ErrEmailInUse) {
+			c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被其他账户使用"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create user failed: " + err.Error()})
 		return
 	}
@@ -64,7 +69,7 @@ func CreateUser(c *gin.Context) {
 
 type UpdateUserRequest struct {
 	DisplayName string `json:"display_name"`
-	Email       string `json:"email"`
+	Email       string `json:"email" binding:"required,email"`
 	Permissions int    `json:"permissions"`
 	IsAdmin     *bool  `json:"is_admin"`
 }
@@ -108,6 +113,10 @@ func UpdateUser(c *gin.Context) {
 
 	_, err = services.UpdateUserFields(id, req.DisplayName, req.Email, isAdmin, req.Permissions)
 	if err != nil {
+		if errors.Is(err, services.ErrEmailInUse) {
+			c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被其他账户使用"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update user failed"})
 		return
 	}
@@ -154,7 +163,7 @@ func DeleteUser(c *gin.Context) {
 
 type UpdateMeRequest struct {
 	DisplayName string `json:"display_name"`
-	Email       string `json:"email"`
+	Email       string `json:"email" binding:"required,email"`
 }
 
 func UpdateMe(c *gin.Context) {
@@ -173,6 +182,10 @@ func UpdateMe(c *gin.Context) {
 
 	_, err = services.UpdateUserFields(userID, req.DisplayName, req.Email, user.IsAdmin, user.Permissions)
 	if err != nil {
+		if errors.Is(err, services.ErrEmailInUse) {
+			c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被其他账户使用"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update failed"})
 		return
 	}

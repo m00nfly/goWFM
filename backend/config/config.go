@@ -94,6 +94,15 @@ func LoadFromDB(getter func(key string) (string, error)) error {
 	}
 	if val, err := getter(KeyEmail); err == nil && val != "" {
 		json.Unmarshal([]byte(val), &email)
+		if email.SenderEmail == "" {
+			email.SenderEmail = email.SenderAddress
+		}
+		if email.Templates == nil {
+			email.Templates = map[string]EmailTemplate{}
+		}
+		if _, ok := email.Templates["reset_password"]; !ok {
+			email.Templates["reset_password"] = DefaultResetPasswordTemplate()
+		}
 	}
 	if val, err := getter(KeyAppearance); err == nil && val != "" {
 		json.Unmarshal([]byte(val), &appearance)

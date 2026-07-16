@@ -43,7 +43,7 @@
           <n-form-item label="用户名" path="username"><n-input v-model:value="createForm.username" placeholder="请输入用户名" /></n-form-item>
           <n-form-item label="初始密码" path="password"><n-input v-model:value="createForm.password" type="password" show-password-on="click" placeholder="至少 6 位" /></n-form-item>
           <n-form-item label="显示名称"><n-input v-model:value="createForm.display_name" placeholder="选填" /></n-form-item>
-          <n-form-item label="邮箱"><n-input v-model:value="createForm.email" placeholder="选填" /></n-form-item>
+		  <n-form-item label="邮箱" path="email"><n-input v-model:value="createForm.email" placeholder="用于通知与密码找回" /></n-form-item>
         </div>
       </section>
       <section class="edit-section">
@@ -74,7 +74,7 @@
   </n-modal>
 
   <n-modal v-model:show="showEditModal" title="编辑用户" preset="dialog" class="edit-user-modal">
-    <n-form :model="editForm" label-placement="top" class="edit-user-form">
+	<n-form ref="editFormRef" :model="editForm" :rules="editRules" label-placement="top" class="edit-user-form">
       <section class="edit-section">
         <div class="edit-section-heading">
           <h3>基础信息</h3>
@@ -84,7 +84,7 @@
           <n-form-item label="显示名称">
             <n-input v-model:value="editForm.display_name" placeholder="请输入显示名称" />
           </n-form-item>
-          <n-form-item label="邮箱">
+		  <n-form-item label="邮箱" path="email">
             <n-input v-model:value="editForm.email" placeholder="请输入邮箱地址" />
           </n-form-item>
         </div>
@@ -169,9 +169,20 @@ const permChecks = ref<number[]>([1, 2])
 const createRules = {
   username: [{ required: true, message: '必填' }],
   password: [{ required: true, message: '必填' }, { min: 6, message: '至少6位' }],
+	email: [
+	  { required: true, message: '邮箱为必填项', trigger: ['input', 'blur'] },
+	  { type: 'email' as const, message: '请输入有效的邮箱地址', trigger: ['input', 'blur'] },
+	],
 }
 
+const editFormRef = ref<any>(null)
 const editForm = reactive({ id: 0, username: '', display_name: '', email: '', is_admin: false, totp_enabled: false, totp_forced: false })
+const editRules = {
+	email: [
+	  { required: true, message: '邮箱为必填项', trigger: ['input', 'blur'] },
+	  { type: 'email' as const, message: '请输入有效的邮箱地址', trigger: ['input', 'blur'] },
+	],
+}
 const editPermChecks = ref<number[]>([])
 const originalTotpForced = ref(false)
 const resetLoading = ref(false)
@@ -297,6 +308,11 @@ function openEdit(row: any) {
 }
 
 async function handleEdit() {
+	try {
+	  await editFormRef.value?.validate()
+	} catch {
+	  return
+	}
   editLoading.value = true
   try {
     await api.put(`/api/users/${editForm.id}`, {
