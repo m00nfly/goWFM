@@ -37,7 +37,7 @@
           <!-- 文件卡片网格 -->
           <div class="file-surface">
             <div class="file-grid" :class="{ 'single-file': shareInfo.files.length === 1 }">
-              <div v-for="file in shareInfo.files" :key="file.file_name" class="file-card">
+              <div v-for="file in shareInfo.files" :key="file.id" class="file-card">
                 <div class="file-icon-area" :style="{ color: getFileColor(file.file_name) }">
                   <n-icon :size="28"><component :is="getFileIconComp(file.file_name)" /></n-icon>
                 </div>
@@ -46,14 +46,29 @@
                   <p class="file-size">{{ formatSize(file.file_size) }}</p>
                 </div>
                 <div class="file-actions">
-                  <button class="action-btn action-download" @click="downloadFile(file)">
+                  <button
+                    class="action-btn action-download"
+                    :disabled="isFilePending(file.id)"
+                    :aria-label="`下载 ${file.file_name}`"
+                    @click="downloadFile(file)"
+                  >
                     <n-icon size="16"><DownloadOutline /></n-icon>
-                    <span>下载</span>
+                    <span>{{ pendingAction[file.id] === 'download' ? '获取中' : '下载' }}</span>
                   </button>
-                  <button class="action-btn action-link" @click="copyDownloadLink(file)">
-                    <n-icon size="16"><LinkOutline /></n-icon>
-                    <span>链接</span>
-                  </button>
+                  <n-tooltip trigger="hover" placement="top" :delay="300">
+                    <template #trigger>
+                      <button
+                        class="action-btn action-link"
+                        :disabled="isFilePending(file.id)"
+                        :aria-label="`获取 ${file.file_name} 的一次性下载链接`"
+                        @click="copyDownloadLink(file)"
+                      >
+                        <n-icon size="16"><LinkOutline /></n-icon>
+                        <span>{{ pendingAction[file.id] === 'link' ? '获取中' : '链接' }}</span>
+                      </button>
+                    </template>
+                    链接仅在有效期内使用一次；再次下载请重新点击“链接”获取新链接
+                  </n-tooltip>
                 </div>
               </div>
             </div>
@@ -67,7 +82,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { NIcon, NResult, NSpin, useMessage } from 'naive-ui'
+import { NIcon, NResult, NSpin, NTooltip, useMessage } from 'naive-ui'
 import api from '@/api'
 import { useThemeStore } from '@/stores/theme'
 import { formatSize } from '@/utils/format'
@@ -104,13 +119,16 @@ interface ShareInfo {
   file_count: number
   total_size: number
   files: Array<{
+    id: number
     file_name: string
     file_size: number
-    file_path: string
     download_count: number
   }>
 }
 const shareInfo = ref<ShareInfo | null>(null)
+type ShareFile = ShareInfo['files'][number]
+type PendingAction = 'download' | 'link'
+const pendingAction = ref<Record<number, PendingAction | undefined>>({})
 
 const expireDisplay = computed(() => {
   if (!shareInfo.value?.expire_at) return '永久有效'
@@ -160,21 +178,45 @@ function getFileIconComp(name: string) {
   return Document
 }
 
-// 操作
-function downloadFile(file: { file_name: string }) {
-  const token = route.params.token as string
-  const url = `/share/${token}/${encodeURIComponent(file.file_name)}`
-  window.location.href = url
+function isFilePending(fileID: number) {
+  return pendingAction.value[fileID] !== undefined
 }
 
-async function copyDownloadLink(file: { file_name: string }) {
+async function getTemporaryDownloadURL(file: ShareFile): Promise<string> {
   const token = route.params.token as string
-  const url = `${window.location.origin}/share/${token}/${encodeURIComponent(file.file_name)}`
-  const ok = await copyToClipboard(url)
-  if (ok) {
-    message.success('下载链接已复制到剪贴板')
-  } else {
-    message.error('复制失败！')
+  const response = await api.post(`/share/${token}/files/${file.id}/download-link`)
+  return new URL(response.data.url, window.location.origin).toString()
+}
+
+// 操作
+async function downloadFile(file: ShareFile) {
+  if (isFilePending(file.id)) return
+  pendingAction.value[file.id] = 'download'
+  try {
+    const url = await getTemporaryDownloadURL(file)
+    window.location.assign(url)
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '获取临时下载链接失败')
+  } finally {
+    delete pendingAction.value[file.id]
+  }
+}
+
+async function copyDownloadLink(file: ShareFile) {
+  if (isFilePending(file.id)) return
+  pendingAction.value[file.id] = 'link'
+  try {
+    const url = await getTemporaryDownloadURL(file)
+    const ok = await copyToClipboard(url)
+    if (ok) {
+      message.success('一次性下载链接已复制到剪贴板')
+    } else {
+      message.error('复制失败，请重新获取链接')
+    }
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '获取临时下载链接失败')
+  } finally {
+    delete pendingAction.value[file.id]
   }
 }
 
@@ -394,7 +436,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 10px;
   border: 1px solid transparent;
   border-radius: var(--workspace-radius-md);
@@ -410,6 +452,19 @@ onMounted(async () => {
 
 .action-btn:hover {
   transform: translateY(-1px);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.action-btn:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.action-btn:disabled:hover {
+  transform: none;
 }
 
 .action-download {

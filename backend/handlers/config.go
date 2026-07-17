@@ -216,6 +216,10 @@ func UpdateConfig(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 			return
 		}
+		if err := services.ValidateShareSettings(s); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		newData, _ = json.Marshal(s)
 		err = services.UpdateShareSettings(s)
 	}

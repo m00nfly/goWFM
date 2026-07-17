@@ -92,9 +92,10 @@ func setupRouter() *gin.Engine {
 	sharePublic := r.Group("/share")
 	sharePublic.Use(middleware.OptionalAuth())
 	{
+		sharePublic.GET("/download/:downloadToken/:filename", handlers.TemporaryShareFileDownload)
 		sharePublic.GET("/:token", handlers.AccessShareEntry)
 		sharePublic.GET("/:token/info", handlers.GetShareInfo)
-		sharePublic.GET("/:token/:filename", handlers.ShareFileDownload)
+		sharePublic.POST("/:token/files/:fileID/download-link", handlers.CreateShareDownloadLink)
 	}
 
 	staticFS, err := getFrontendFS()

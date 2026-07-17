@@ -19,3 +19,8 @@ type ShareFile struct {
 	FilePath      string `json:"file_path"`
 	DownloadCount int    `json:"download_count"`
 }
+
+type ShareDownload struct {
+	ShareToken string
+	File       ShareFile
+}

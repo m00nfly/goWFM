@@ -1,16 +1,39 @@
 package services
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"goWFM/db"
 	"goWFM/models"
-
-	"github.com/google/uuid"
 )
+
+const (
+	shareTokenAlphabet  = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	shareTokenLength    = 12
+	shareTokenTimeChars = 7
+	shareTokenAttempts  = 10
+)
+
+var (
+	ErrShareFileNotFound   = errors.New("file does not belong to this share")
+	ErrDownloadLinkInvalid = errors.New("download link is invalid, used, or expired")
+)
+
+type IssuedShareDownloadLink struct {
+	Token     string
+	Filename  string
+	ExpiresAt time.Time
+}
 
 // GetShareStats returns expired and valid share counts.
 // If ownerID > 0, counts only that user's shares; otherwise counts all shares.
@@ -38,7 +61,6 @@ func CreateShare(filePaths []string, ownerID int64, expireDays int, name string)
 		return nil, errors.New("at least one file path is required")
 	}
 
-	token := uuid.New().String()
 	var expireAt *time.Time
 	if expireDays > 0 {
 		t := time.Now().Add(time.Duration(expireDays) * 24 * time.Hour)
@@ -50,22 +72,49 @@ func CreateShare(filePaths []string, ownerID int64, expireDays int, name string)
 		expireAtStr = expireAt.Format(time.RFC3339)
 	}
 
-	result, err := db.DB.Exec(
-		`INSERT INTO shares (token, name, file_path, owner_id, expire_at) VALUES (?, ?, '', ?, ?)`,
-		token, name, ownerID, expireAtStr,
-	)
+	tx, err := db.DB.Begin()
 	if err != nil {
 		return nil, err
 	}
-	id, _ := result.LastInsertId()
+	defer tx.Rollback()
 
-	// 循环插入 share_files 表
+	var (
+		token string
+		id    int64
+	)
+	for attempt := 0; attempt < shareTokenAttempts; attempt++ {
+		token, err = generateShareToken(time.Now())
+		if err != nil {
+			return nil, err
+		}
+		result, insertErr := tx.Exec(
+			`INSERT INTO shares (token, name, file_path, owner_id, expire_at) VALUES (?, ?, '', ?, ?)`,
+			token, name, ownerID, expireAtStr,
+		)
+		if insertErr == nil {
+			id, err = result.LastInsertId()
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+		if !strings.Contains(insertErr.Error(), "UNIQUE constraint failed: shares.token") {
+			return nil, insertErr
+		}
+	}
+	if id == 0 {
+		return nil, errors.New("failed to generate a unique share id")
+	}
+
 	for _, fp := range filePaths {
-		_, err := db.DB.Exec(
+		_, err := tx.Exec(
 			`INSERT INTO share_files (share_id, file_path) VALUES (?, ?)`, id, fp)
 		if err != nil {
 			return nil, fmt.Errorf("insert share_files: %w", err)
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 
 	return &models.Share{
@@ -76,6 +125,229 @@ func CreateShare(filePaths []string, ownerID int64, expireDays int, name string)
 		ExpireAt:  expireAt,
 		CreatedAt: time.Now(),
 	}, nil
+}
+
+// generateShareToken combines a millisecond time factor with cryptographic
+// randomness. The database UNIQUE constraint and retry loop in CreateShare
+// provide the final collision guarantee.
+func generateShareToken(now time.Time) (string, error) {
+	token := make([]byte, shareTokenLength)
+	timestamp := uint64(now.UnixMilli())
+	for i := shareTokenTimeChars - 1; i >= 0; i-- {
+		token[i] = shareTokenAlphabet[timestamp%uint64(len(shareTokenAlphabet))]
+		timestamp /= uint64(len(shareTokenAlphabet))
+	}
+
+	randomPart, err := randomAlphaNumeric(shareTokenLength - shareTokenTimeChars)
+	if err != nil {
+		return "", err
+	}
+	copy(token[shareTokenTimeChars:], randomPart)
+	return string(token), nil
+}
+
+func randomAlphaNumeric(length int) ([]byte, error) {
+	result := make([]byte, 0, length)
+	buffer := make([]byte, length*2)
+	for len(result) < length {
+		if _, err := rand.Read(buffer); err != nil {
+			return nil, err
+		}
+		for _, value := range buffer {
+			// 248 is the largest multiple of 62 below 256, avoiding modulo bias.
+			if value >= 248 {
+				continue
+			}
+			result = append(result, shareTokenAlphabet[int(value)%len(shareTokenAlphabet)])
+			if len(result) == length {
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+func generateDownloadToken() (string, error) {
+	value := make([]byte, 24)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(value), nil
+}
+
+func hashDownloadToken(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(digest[:])
+}
+
+func parseStoredTime(value string) (time.Time, error) {
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid stored time %q", value)
+}
+
+// IssueShareDownloadLink validates the share and selected file, revokes every
+// previous link for that file, and creates the only currently valid link.
+func IssueShareDownloadLink(shareToken string, fileID int64, ttl time.Duration) (*IssuedShareDownloadLink, error) {
+	if ttl <= 0 {
+		return nil, errors.New("download link timeout must be positive")
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var (
+		shareID  int64
+		deleted  int
+		expireAt sqlNullString
+	)
+	err = tx.QueryRow(`SELECT id, deleted, expire_at FROM shares WHERE token = ?`, shareToken).
+		Scan(&shareID, &deleted, &expireAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New("share not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if deleted == 1 {
+		return nil, errors.New("source file has been deleted")
+	}
+	if expireAt.Valid {
+		parsed, parseErr := parseStoredTime(expireAt.String)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if parsed.Before(time.Now()) {
+			return nil, errors.New("share link expired")
+		}
+	}
+
+	var filePath string
+	err = tx.QueryRow(`SELECT file_path FROM share_files WHERE id = ? AND share_id = ?`, fileID, shareID).Scan(&filePath)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrShareFileNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	formattedNow := now.Format(time.RFC3339Nano)
+	if _, err := tx.Exec(`UPDATE share_download_tokens
+		SET invalidated_at = ?
+		WHERE share_id = ? AND share_file_id = ? AND used_at IS NULL AND invalidated_at IS NULL`,
+		formattedNow, shareID, fileID); err != nil {
+		return nil, err
+	}
+
+	expiresAt := now.Add(ttl)
+	var rawToken string
+	for attempt := 0; attempt < shareTokenAttempts; attempt++ {
+		rawToken, err = generateDownloadToken()
+		if err != nil {
+			return nil, err
+		}
+		_, insertErr := tx.Exec(`INSERT INTO share_download_tokens
+			(token_hash, share_id, share_file_id, expires_at) VALUES (?, ?, ?, ?)`,
+			hashDownloadToken(rawToken), shareID, fileID, expiresAt.Format(time.RFC3339Nano))
+		if insertErr == nil {
+			break
+		}
+		if !strings.Contains(insertErr.Error(), "UNIQUE constraint failed: share_download_tokens.token_hash") {
+			return nil, insertErr
+		}
+		rawToken = ""
+	}
+	if rawToken == "" {
+		return nil, errors.New("failed to generate a unique download token")
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return &IssuedShareDownloadLink{
+		Token:     rawToken,
+		Filename:  filepath.Base(filePath),
+		ExpiresAt: expiresAt,
+	}, nil
+}
+
+// ConsumeShareDownloadLink atomically marks a temporary link as used before
+// returning the file metadata. Only the transaction winner may start a download.
+func ConsumeShareDownloadLink(rawToken, requestedFilename string) (*models.ShareDownload, error) {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var (
+		file            models.ShareFile
+		shareToken      string
+		shareDeleted    int
+		linkExpiresAt   string
+		linkUsedAt      sqlNullString
+		linkInvalidated sqlNullString
+		shareExpiresAt  sqlNullString
+	)
+	err = tx.QueryRow(`SELECT sf.id, sf.share_id, sf.file_path, sf.download_count,
+		s.token, s.deleted, s.expire_at, d.expires_at, d.used_at, d.invalidated_at
+		FROM share_download_tokens d
+		JOIN shares s ON s.id = d.share_id
+		JOIN share_files sf ON sf.id = d.share_file_id AND sf.share_id = d.share_id
+		WHERE d.token_hash = ?`, hashDownloadToken(rawToken)).Scan(
+		&file.ID, &file.ShareID, &file.FilePath, &file.DownloadCount,
+		&shareToken, &shareDeleted, &shareExpiresAt, &linkExpiresAt, &linkUsedAt, &linkInvalidated,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrDownloadLinkInvalid
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	expiresAt, err := parseStoredTime(linkExpiresAt)
+	if err != nil || linkUsedAt.Valid || linkInvalidated.Valid || !expiresAt.After(now) {
+		return nil, ErrDownloadLinkInvalid
+	}
+	if shareDeleted == 1 {
+		return nil, ErrDownloadLinkInvalid
+	}
+	if shareExpiresAt.Valid {
+		parsed, parseErr := parseStoredTime(shareExpiresAt.String)
+		if parseErr != nil || parsed.Before(now) {
+			return nil, ErrDownloadLinkInvalid
+		}
+	}
+	if filepath.Base(file.FilePath) != requestedFilename {
+		return nil, ErrDownloadLinkInvalid
+	}
+
+	result, err := tx.Exec(`UPDATE share_download_tokens SET used_at = ?
+		WHERE token_hash = ? AND used_at IS NULL AND invalidated_at IS NULL`,
+		now.UTC().Format(time.RFC3339Nano), hashDownloadToken(rawToken))
+	if err != nil {
+		return nil, err
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
+		return nil, ErrDownloadLinkInvalid
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return &models.ShareDownload{ShareToken: shareToken, File: file}, nil
 }
 
 func GetShareByToken(token string) (*models.Share, error) {

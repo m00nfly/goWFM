@@ -16,6 +16,10 @@
               <n-input-number v-model:value="form.max_shares_per_user" :min="0" :max="100000" style="width: 150px" />
               <span class="workspace-inline-note">0 表示不限制</span>
             </n-form-item>
+            <n-form-item label="文件链接超时">
+              <n-input-number v-model:value="form.file_link_timeout_minutes" :min="1" :max="1440" style="width: 150px" />
+              <span class="workspace-inline-note">分钟，临时链接仅可使用一次</span>
+            </n-form-item>
             <n-form-item label="允许匿名下载">
               <n-switch v-model:value="form.allow_anonymous_download" />
               <span class="workspace-inline-note">关闭后分享链接需要登录才能下载</span>
@@ -42,6 +46,7 @@ const saving = ref(false)
 const form = ref({
   default_expire_days: 7,
   max_shares_per_user: 0,
+  file_link_timeout_minutes: 5,
   allow_anonymous_download: true,
 })
 

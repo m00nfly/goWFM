@@ -71,4 +71,5 @@ type ShareSettings struct {
 	DefaultExpireDays      int  `json:"default_expire_days"`
 	MaxSharesPerUser       int  `json:"max_shares_per_user"` // 0 表示无限制
 	AllowAnonymousDownload bool `json:"allow_anonymous_download"`
+	FileLinkTimeoutMinutes int  `json:"file_link_timeout_minutes"` // 一次性文件下载链接有效期（分钟）
 }

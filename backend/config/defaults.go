@@ -103,5 +103,6 @@ func DefaultShare() ShareSettings {
 		DefaultExpireDays:      7,
 		MaxSharesPerUser:       0, // 0 表示无限制
 		AllowAnonymousDownload: true,
+		FileLinkTimeoutMinutes: 5,
 	}
 }

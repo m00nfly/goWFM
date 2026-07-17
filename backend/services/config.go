@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 
 	"goWFM/config"
@@ -139,6 +140,9 @@ func UpdateAppearanceSettings(s config.AppearanceSettings) error {
 
 // UpdateShareSettings 更新分享设置
 func UpdateShareSettings(s config.ShareSettings) error {
+	if err := ValidateShareSettings(s); err != nil {
+		return err
+	}
 	data, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -147,5 +151,12 @@ func UpdateShareSettings(s config.ShareSettings) error {
 		return err
 	}
 	config.SetShare(s)
+	return nil
+}
+
+func ValidateShareSettings(s config.ShareSettings) error {
+	if s.FileLinkTimeoutMinutes < 1 || s.FileLinkTimeoutMinutes > 1440 {
+		return errors.New("file link timeout must be between 1 and 1440 minutes")
+	}
 	return nil
 }

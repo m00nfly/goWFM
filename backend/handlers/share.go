@@ -2,11 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"goWFM/config"
 	"goWFM/models"
@@ -188,9 +192,9 @@ func GetShareInfo(c *gin.Context) {
 	}
 
 	type fileInfo struct {
+		ID            int64  `json:"id"`
 		FileName      string `json:"file_name"`
 		FileSize      int64  `json:"file_size"`
-		FilePath      string `json:"file_path"`
 		DownloadCount int    `json:"download_count"`
 	}
 
@@ -207,9 +211,9 @@ func GetShareInfo(c *gin.Context) {
 		}
 		totalSize += info.Size()
 		files = append(files, fileInfo{
+			ID:            f.ID,
 			FileName:      filepath.Base(fullPath),
 			FileSize:      info.Size(),
-			FilePath:      f.FilePath,
 			DownloadCount: f.DownloadCount,
 		})
 	}
@@ -247,56 +251,85 @@ func AccessShareEntry(c *gin.Context) {
 	serveIndexHTML(c)
 }
 
-// ShareFileDownload handles file download via /share/:token/:filename.
-// The filename in URL allows wget/curl to save with the correct name.
-func ShareFileDownload(c *gin.Context) {
-	token := c.Param("token")
-	filename := c.Param("filename")
-
-	// 1. Validate token
-	share, err := services.ValidateShareAccess(token)
-	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+// CreateShareDownloadLink validates the selected share file and issues a
+// short-lived, single-use URL. Issuing a new URL revokes older URLs for it.
+func CreateShareDownloadLink(c *gin.Context) {
+	if !config.GetShare().AllowAnonymousDownload && c.GetInt64("userID") == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "请登录后获取下载链接"})
 		return
 	}
 
-	// 2. Get share files and find matching filename
-	shareFiles, err := services.GetShareFiles(share.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "get share files failed"})
+	fileID, err := strconv.ParseInt(c.Param("fileID"), 10, 64)
+	if err != nil || fileID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file id"})
 		return
 	}
-
-	var matchedFile *models.ShareFile
-	for i, f := range shareFiles {
-		if filepath.Base(f.FilePath) == filename {
-			matchedFile = &shareFiles[i]
-			break
+	timeoutMinutes := config.GetShare().FileLinkTimeoutMinutes
+	if timeoutMinutes <= 0 {
+		timeoutMinutes = config.DefaultShare().FileLinkTimeoutMinutes
+	}
+	issued, err := services.IssueShareDownloadLink(
+		c.Param("token"), fileID, time.Duration(timeoutMinutes)*time.Minute,
+	)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, services.ErrShareFileNotFound) {
+			status = http.StatusNotFound
 		}
-	}
-	if matchedFile == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 3. Get full file path
-	fullPath, err := services.DownloadFile(matchedFile.FilePath)
+	linkPath := fmt.Sprintf("/share/download/%s/%s", issued.Token, url.PathEscape(issued.Filename))
+	siteLink := strings.TrimRight(config.GetBasic().SiteLink, "/")
+	if siteLink != "" {
+		linkPath = siteLink + linkPath
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, gin.H{
+		"url":        linkPath,
+		"expires_at": issued.ExpiresAt,
+	})
+}
+
+// TemporaryShareFileDownload consumes a one-time token before opening the
+// file. The trailing filename keeps curl and wget filename detection working.
+func TemporaryShareFileDownload(c *gin.Context) {
+	if !config.GetShare().AllowAnonymousDownload && c.GetInt64("userID") == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "请登录后下载文件"})
+		return
+	}
+
+	download, err := services.ConsumeShareDownloadLink(c.Param("downloadToken"), c.Param("filename"))
+	if err != nil {
+		status := http.StatusInternalServerError
+		message := "download failed"
+		if errors.Is(err, services.ErrDownloadLinkInvalid) {
+			status = http.StatusGone
+			message = "下载链接无效、已使用或已过期"
+		}
+		c.JSON(status, gin.H{"error": message})
+		return
+	}
+
+	// The token is already committed as used before any filesystem access.
+	fullPath, err := services.DownloadFile(download.File.FilePath)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
 
-	// 4. Set Content-Disposition for browser download
+	filename := filepath.Base(download.File.FilePath)
 	c.Header("Content-Disposition", BuildAttachmentDisposition(filename))
-
-	// 5. Serve file
+	c.Header("Cache-Control", "private, no-store, max-age=0")
+	c.Header("Pragma", "no-cache")
+	c.Header("Referrer-Policy", "no-referrer")
 	c.File(fullPath)
 
-	// 6. Increment file download count + audit log
-	services.IncrementFileDownload(matchedFile.ID)
+	services.IncrementFileDownload(download.File.ID)
 	userID := c.GetInt64("userID")
-	services.CreateLog(userID, models.ActionDownload, matchedFile.FilePath, c.ClientIP(), map[string]interface{}{
-		"token":      token,
+	services.CreateLog(userID, models.ActionDownload, download.File.FilePath, c.ClientIP(), map[string]interface{}{
+		"token":      download.ShareToken,
 		"user_agent": c.Request.UserAgent(),
 	})
 }
