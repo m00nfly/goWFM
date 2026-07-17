@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -61,10 +62,58 @@ func CreateUser(c *gin.Context) {
 		"username":     user.Username,
 		"display_name": user.DisplayName,
 		"email":        user.Email,
+		"avatar":       user.AvatarData,
 		"is_admin":     user.IsAdmin,
 		"permissions":  user.Permissions,
 		"totp_forced":  user.TotpForced,
 	})
+}
+
+func UploadMyAvatar(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, services.MaxAvatarBytes+(512<<10))
+
+	fileHeader, err := c.FormFile("avatar")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择有效的头像文件"})
+		return
+	}
+	if fileHeader.Size > services.MaxAvatarBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "头像文件不能超过 2 MB"})
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取头像文件失败"})
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, services.MaxAvatarBytes+1))
+	if err != nil || int64(len(data)) > services.MaxAvatarBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "头像文件不能超过 2 MB"})
+		return
+	}
+	avatarData, err := services.BuildAvatarData(data)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := services.UpdateUserAvatar(userID, avatarData); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存头像失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "头像已更新", "avatar": avatarData})
+}
+
+func DeleteMyAvatar(c *gin.Context) {
+	if err := services.UpdateUserAvatar(c.GetInt64("userID"), ""); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除头像失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "头像已恢复为默认样式"})
 }
 
 type UpdateUserRequest struct {

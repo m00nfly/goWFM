@@ -100,13 +100,12 @@
             <!-- 用户下拉 -->
             <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
               <div class="user-trigger">
-                <n-avatar
-                  round
-                  :size="32"
+                <UserAvatar
+                  :size="34"
+                  :avatar="userStore.user.avatar"
+                  :name="displayName"
                   class="user-avatar"
-                >
-                  <n-icon size="20"><PersonCircle /></n-icon>
-                </n-avatar>
+                />
                 <span class="user-display-name">{{ displayName }}</span>
               </div>
             </n-dropdown>
@@ -145,7 +144,7 @@
 import { ref, computed, h, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  NDropdown, NIcon, NAvatar, NTooltip, NBadge, NPopselect,
+  NDropdown, NIcon, NTooltip, NBadge, NPopselect,
 } from 'naive-ui'
 import {
   FolderOpenOutline,
@@ -158,13 +157,13 @@ import {
   SunnyOutline,
   MoonOutline,
   MenuOutline,
-  PersonCircle,
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { useConfig } from '@/composables/useConfig'
 import { useViewport } from '@/composables/useViewport'
 import api from '@/api'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -479,10 +478,7 @@ onUnmounted(() => {
 }
 
 .user-avatar {
-  color: var(--workspace-on-accent);
-  background-color: var(--workspace-accent) !important;
   cursor: pointer;
-  font-size: 14px;
 }
 
 .user-display-name {

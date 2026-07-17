@@ -7,6 +7,7 @@ interface User {
   username: string
   display_name: string
   email: string
+  avatar: string
   is_admin: boolean
   permissions: number
   totp_enabled: boolean

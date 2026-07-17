@@ -39,10 +39,16 @@ func ListFiles(c *gin.Context) {
 	if entries == nil {
 		entries = []services.FileEntry{}
 	}
+	canUpload, err := services.CanUploadToDirectory(relativePath, user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"path":    relativePath,
-		"entries": entries,
+		"path":       relativePath,
+		"entries":    entries,
+		"can_upload": canUpload,
 	})
 }
 
@@ -51,11 +57,6 @@ func UploadFile(c *gin.Context) {
 	user, err := services.GetUserByID(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "get user failed"})
-		return
-	}
-
-	if !user.HasPermission(models.PermUpload) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
 		return
 	}
 
@@ -74,6 +75,15 @@ func UploadFile(c *gin.Context) {
 	targetDir := c.PostForm("path")
 	if targetDir == "" {
 		targetDir = "/"
+	}
+	canUpload, err := services.CanUploadToDirectory(targetDir, user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !canUpload {
+		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
+		return
 	}
 
 	fullDir, err := services.SafePath(targetDir)
@@ -111,17 +121,21 @@ func CreateDir(c *gin.Context) {
 		return
 	}
 
-	if !user.HasPermission(models.PermUpload) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
-		return
-	}
-
 	var req struct {
 		Path string `json:"path" binding:"required"`
 		Name string `json:"name" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	canUpload, err := services.CanUploadToDirectory(req.Path, user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !canUpload {
+		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
 		return
 	}
 

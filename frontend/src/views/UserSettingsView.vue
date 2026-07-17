@@ -11,20 +11,36 @@
       <div class="workspace-form-scroll user-settings-scroll">
         <div class="settings-grid">
           <n-card :bordered="false" class="workspace-mini-card settings-card profile-card">
-          <template #header><div class="settings-card-heading"><strong>个人资料</strong><span>用于页面展示和账号联系</span></div></template>
-		  <n-form ref="profileFormRef" :model="form" :rules="profileRules" label-placement="top" class="settings-form">
-            <div class="settings-field-grid">
-            <n-form-item label="显示名称">
-              <n-input v-model:value="form.display_name" placeholder="请输入显示名称" />
-            </n-form-item>
-			<n-form-item label="邮箱" path="email">
-              <n-input v-model:value="form.email" placeholder="请输入邮箱地址" />
-            </n-form-item>
+            <template #header><div class="settings-card-heading"><strong>个人资料</strong><span>用于页面展示和账号联系</span></div></template>
+            <div class="profile-avatar-panel">
+              <UserAvatar
+                :size="72"
+                :avatar="userStore.user?.avatar"
+                :name="form.display_name || userStore.user?.username"
+              />
+              <div class="profile-avatar-copy">
+                <strong>个人头像</strong>
+                <span>支持 JPG、PNG、WebP，文件不超过 2 MB</span>
+                <div class="profile-avatar-actions">
+                  <input ref="avatarInputRef" class="avatar-file-input" type="file" accept="image/jpeg,image/png,image/webp" @change="handleAvatarSelect" />
+                  <n-button secondary :loading="avatarUploading" @click="selectAvatarFile">上传头像</n-button>
+                  <n-button v-if="userStore.user?.avatar" text type="error" :loading="avatarRemoving" @click="removeAvatar">恢复默认</n-button>
+                </div>
+              </div>
             </div>
-            <div class="card-actions">
-              <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-            </div>
-          </n-form>
+            <n-form ref="profileFormRef" :model="form" :rules="profileRules" label-placement="top" class="settings-form">
+              <div class="settings-field-grid">
+                <n-form-item label="显示名称">
+                  <n-input v-model:value="form.display_name" placeholder="请输入显示名称" />
+                </n-form-item>
+                <n-form-item label="邮箱" path="email">
+                  <n-input v-model:value="form.email" placeholder="请输入邮箱地址" />
+                </n-form-item>
+              </div>
+              <div class="card-actions">
+                <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
+              </div>
+            </n-form>
           </n-card>
 
           <n-card :bordered="false" class="workspace-mini-card settings-card password-card">
@@ -139,6 +155,7 @@ import {
   NAlert, NModal, useMessage,
 } from 'naive-ui'
 import api from '@/api'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 
@@ -147,6 +164,9 @@ const userStore = useUserStore()
 const themeStore = useThemeStore()
 const saving = ref(false)
 const pwSaving = ref(false)
+const avatarUploading = ref(false)
+const avatarRemoving = ref(false)
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 
 const profileFormRef = ref<any>(null)
 const form = reactive({ display_name: '', email: '' })
@@ -212,6 +232,53 @@ async function handleSave() {
     message.error(err.response?.data?.error || '保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+function selectAvatarFile() {
+  avatarInputRef.value?.click()
+}
+
+async function handleAvatarSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    message.warning('仅支持 JPG、PNG 或 WebP 格式的头像')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    message.warning('头像文件不能超过 2 MB')
+    return
+  }
+
+  avatarUploading.value = true
+  try {
+    const data = new FormData()
+    data.append('avatar', file)
+    await api.post('/api/users/me/avatar', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    await userStore.fetchMe()
+    message.success('头像已更新')
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '头像上传失败')
+  } finally {
+    avatarUploading.value = false
+  }
+}
+
+async function removeAvatar() {
+  avatarRemoving.value = true
+  try {
+    await api.delete('/api/users/me/avatar')
+    await userStore.fetchMe()
+    message.success('已恢复默认头像')
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '恢复默认头像失败')
+  } finally {
+    avatarRemoving.value = false
   }
 }
 
@@ -350,6 +417,46 @@ function finishSetup() {
 .settings-form { height: 100%; display: flex; flex-direction: column; }
 .settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
+.profile-avatar-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: var(--workspace-radius-lg);
+  background: color-mix(in srgb, var(--workspace-surface-soft) 78%, transparent);
+  box-shadow: inset 0 0 0 1px var(--workspace-border-soft);
+}
+
+.profile-avatar-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.profile-avatar-copy strong {
+  color: var(--workspace-text);
+  font-size: 14px;
+}
+
+.profile-avatar-copy > span {
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+  text-wrap: pretty;
+}
+
+.profile-avatar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.avatar-file-input {
+  display: none;
+}
+
 .card-actions {
   display: flex;
   justify-content: flex-end;
@@ -434,6 +541,10 @@ function finishSetup() {
 
   .security-card { grid-column: auto; }
   .settings-field-grid { grid-template-columns: 1fr; }
+
+  .profile-avatar-panel {
+    align-items: flex-start;
+  }
   .security-summary { align-items: stretch; flex-direction: column; }
 
   .card-actions {

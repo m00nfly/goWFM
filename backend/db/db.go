@@ -54,6 +54,7 @@ func migrate(d *sql.DB) error {
 			password_hash TEXT NOT NULL,
 			display_name TEXT DEFAULT '',
 			email TEXT DEFAULT '',
+			avatar_data TEXT DEFAULT '',
 			is_admin BOOLEAN DEFAULT 0,
 			permissions INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -156,6 +157,7 @@ func migrate(d *sql.DB) error {
 	d.Exec(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name, is_admin, permissions) VALUES (0, 'Guest', '', 'Guest', 0, 0)`)
 
 	// 迁移：TOTP 字段
+	d.Exec(`ALTER TABLE users ADD COLUMN avatar_data TEXT DEFAULT ''`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT ''`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_forced BOOLEAN DEFAULT 0`)

@@ -1,6 +1,8 @@
 package services
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -113,7 +115,7 @@ func ListDirectory(relativePath string, user *models.User) ([]FileEntry, error) 
 			entry.CreatedAt = info.ModTime().Format(time.RFC3339)
 		}
 
-		if (user.HasPermission(models.PermUpload) && entry.OwnerID == user.ID) || user.IsAdmin {
+		if (user.HasPermission(models.PermGlobalUpload) && entry.OwnerID == user.ID) || user.IsAdmin {
 			entry.CanChange = true
 		}
 
@@ -128,6 +130,42 @@ func ListDirectory(relativePath string, user *models.User) ([]FileEntry, error) 
 	})
 
 	return result, nil
+}
+
+// CanUploadToDirectory 判断用户能否向指定目录上传文件或创建子目录。
+// 全局上传权限允许写入任意目录；没有该权限的用户仍可写入自己的目录。
+func CanUploadToDirectory(relativePath string, user *models.User) (bool, error) {
+	if user == nil {
+		return false, nil
+	}
+
+	fullPath, err := SafePath(relativePath)
+	if err != nil {
+		return false, err
+	}
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, fmt.Errorf("directory not found")
+		}
+		return false, err
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("target path is not a directory")
+	}
+
+	if user.HasPermission(models.PermGlobalUpload) {
+		return true, nil
+	}
+
+	meta, err := GetFileMetadata(RelativePath(fullPath))
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return meta.OwnerID == user.ID, nil
 }
 
 func GetFileMetadata(relativePath string) (*models.FileMetadata, error) {
@@ -156,9 +194,34 @@ func DeleteFileMetadata(relativePath string) error {
 }
 
 func UpdateFileMetadataOwner(relativePath string, ownerID int64) error {
-	_, err := db.DB.Exec(
-		`UPDATE file_metadata SET owner_id = ?, updated_at = CURRENT_TIMESTAMP WHERE file_path = ?`,
-		ownerID, relativePath,
+	fullPath, err := SafePath(relativePath)
+	if err != nil {
+		return err
+	}
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("path not found")
+		}
+		return err
+	}
+
+	if _, err := GetUserByID(ownerID); err != nil {
+		return fmt.Errorf("owner not found")
+	}
+
+	// 数据目录中可能已有文件，但尚无 file_metadata 记录。单纯 UPDATE 会成功影响
+	// 0 行，导致接口返回成功而所有者没有变化；使用 upsert 可同时覆盖这两种情况。
+	canonicalPath := RelativePath(fullPath)
+	_, err = db.DB.Exec(
+		`INSERT INTO file_metadata (file_path, is_directory, owner_id, created_at)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(file_path) DO UPDATE SET
+			owner_id = excluded.owner_id,
+			is_directory = excluded.is_directory,
+			updated_at = CURRENT_TIMESTAMP`,
+		canonicalPath, info.IsDir(), ownerID, info.ModTime(),
 	)
 	return err
 }

@@ -55,11 +55,11 @@
             <template #icon><n-icon><RefreshOutline /></n-icon></template>
             刷新
           </n-button>
-          <n-button v-if="hasPermUpload" secondary @click="showMkdirModal = true">
+          <n-button v-if="canUploadToCurrentDirectory" secondary @click="showMkdirModal = true">
             <template #icon><n-icon><AddCircleOutline /></n-icon></template>
             新建目录
           </n-button>
-          <n-button v-if="hasPermUpload" type="primary" @click="showUploadModal = true">
+          <n-button v-if="canUploadToCurrentDirectory" type="primary" @click="showUploadModal = true">
             <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
             上传文件
           </n-button>
@@ -382,6 +382,7 @@ const moveDest = ref('')
 const ownerChangePath = ref('')
 const newOwnerId = ref<number | null>(null)
 const allUsers = ref<{ label: string; value: number }[]>([])
+const currentDirectoryAllowsUpload = ref(false)
 
 // === 新增状态 ===
 const searchKeyword = ref('')
@@ -395,7 +396,9 @@ const viewMode = ref<'list' | 'grid'>('list')
 const { isMobile } = useViewport()
 
 // === 计算属性 ===
-const hasPermUpload = computed(() => userStore.hasPermission(4))
+const canUploadToCurrentDirectory = computed(() =>
+  userStore.hasPermission(4) || currentDirectoryAllowsUpload.value,
+)
 const hasPermShare = computed(() => userStore.hasPermission(8))
 const isAdmin = computed(() => userStore.user?.is_admin)
 
@@ -762,15 +765,18 @@ onMounted(() => {
 // === 数据获取 ===
 async function fetchFiles() {
   loading.value = true
+  currentDirectoryAllowsUpload.value = false
   try {
     const res = await api.get('/api/files', { params: { path: currentPath.value } })
     entries.value = res.data.entries || []
+    currentDirectoryAllowsUpload.value = res.data.can_upload === true
     permissionDenied.value = false
     permissionDeniedMsg.value = ''
     applyHighlight()
   } catch (err: any) {
     console.error('fetchFiles failed:', err)
     entries.value = []
+    currentDirectoryAllowsUpload.value = false
     if (err.response?.status === 403) {
       permissionDenied.value = true
       permissionDeniedMsg.value = err.response?.data?.error || '您没有访问此目录的权限'

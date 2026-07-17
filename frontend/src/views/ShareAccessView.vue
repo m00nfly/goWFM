@@ -13,7 +13,12 @@
           <!-- 分享信息头部 -->
           <div class="share-header">
             <div class="share-header-left">
-              <n-icon size="52" color="var(--theme-color, #3b82f6)" class="share-avatar-icon"><PersonCircle /></n-icon>
+              <UserAvatar
+                :size="60"
+                :avatar="shareInfo.owner_avatar"
+                :name="shareInfo.owner_name || '匿名用户'"
+                class="share-owner-avatar"
+              />
               <div class="share-meta">
                 <h1 class="share-title">{{ shareInfo.name || '文件分享' }}</h1>
                 <div class="share-meta-items">
@@ -87,8 +92,8 @@ import api from '@/api'
 import { useThemeStore } from '@/stores/theme'
 import { formatSize } from '@/utils/format'
 import { copyToClipboard } from '@/utils/clipboard'
+import UserAvatar from '@/components/UserAvatar.vue'
 import {
-  PersonCircle,
   PersonOutline,
   CalendarOutline,
   DocumentsOutline,
@@ -114,6 +119,7 @@ const error = ref('')
 interface ShareInfo {
   name: string
   owner_name: string
+  owner_avatar: string
   expire_at: string | null
   created_at: string
   file_count: number
@@ -293,9 +299,8 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.share-avatar-icon {
+.share-owner-avatar {
   flex-shrink: 0;
-  filter: drop-shadow(0 8px 18px rgba(var(--workspace-accent-rgb), 0.18));
 }
 
 .share-meta {

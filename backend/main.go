@@ -52,6 +52,8 @@ func setupRouter() *gin.Engine {
 
 		auth.PUT("/users/me", handlers.UpdateMe)
 		auth.PUT("/users/me/password", handlers.ChangePassword)
+		auth.POST("/users/me/avatar", handlers.UploadMyAvatar)
+		auth.DELETE("/users/me/avatar", handlers.DeleteMyAvatar)
 
 		// TOTP 管理（用户自己）
 		auth.GET("/users/me/totp/status", handlers.GetMyTOTPStatus)

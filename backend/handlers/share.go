@@ -184,11 +184,13 @@ func GetShareInfo(c *gin.Context) {
 
 	// 查询分享者信息
 	ownerName := ""
+	ownerAvatar := ""
 	if owner, ownerErr := services.GetUserByID(share.OwnerID); ownerErr == nil && owner != nil {
 		ownerName = owner.DisplayName
 		if ownerName == "" {
 			ownerName = owner.Username
 		}
+		ownerAvatar = owner.AvatarData
 	}
 
 	type fileInfo struct {
@@ -219,13 +221,14 @@ func GetShareInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"name":       share.Name,
-		"owner_name": ownerName,
-		"expire_at":  share.ExpireAt,
-		"created_at": share.CreatedAt,
-		"file_count": len(files),
-		"total_size": totalSize,
-		"files":      files,
+		"name":         share.Name,
+		"owner_name":   ownerName,
+		"owner_avatar": ownerAvatar,
+		"expire_at":    share.ExpireAt,
+		"created_at":   share.CreatedAt,
+		"file_count":   len(files),
+		"total_size":   totalSize,
+		"files":        files,
 	})
 }
 
