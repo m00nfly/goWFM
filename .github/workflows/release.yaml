@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build and publish Gitea release
+    name: Build and publish GitHub release
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +35,7 @@ jobs:
       - name: 提取版本信息
         id: version
         env:
-          TAG_NAME: ${{ gitea.ref_name }}
+          TAG_NAME: ${{ github.ref_name }}
         run: |
           set -eu
           echo "tag_name=${TAG_NAME}" >> "${GITHUB_OUTPUT}"
@@ -70,17 +70,13 @@ jobs:
       - name: 编译并打包所有平台
         run: make build-all-platforms
 
-      - name: 发布 Gitea Release
-        uses: akkuman/gitea-release-action@v1
-        env:
-          # 该 Action 运行于 Node.js 16，需要显式启用内置 fetch。
-          NODE_OPTIONS: '--experimental-fetch'
+      - name: 发布 GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          server_url: ${{ gitea.server_url }}
-          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.version.outputs.tag_name }}
           name: Release v${{ steps.version.outputs.version }}
           body_path: release-notes.md
           files: |-
             dist/*.tar.gz
             dist/*.zip
+          fail_on_unmatched_files: true
