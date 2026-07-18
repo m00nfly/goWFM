@@ -5,15 +5,7 @@
       <div class="header-inner">
         <!-- Logo -->
         <div class="header-brand" @click="router.push('/')">
-          <template v-if="customLogo">
-            <img :src="customLogo" class="brand-logo-img" alt="Logo" />
-          </template>
-          <template v-else>
-            <div class="brand-icon">
-              <n-icon size="20"><FolderOpenOutline /></n-icon>
-            </div>
-          </template>
-          <span class="brand-text">{{ orgName || 'goWFM' }}</span>
+          <BrandIdentity :logo="customLogo" :name="orgName || 'goWFM'" variant="header" />
         </div>
 
         <!-- 右侧操作区 -->
@@ -164,6 +156,7 @@ import { useConfig } from '@/composables/useConfig'
 import { useViewport } from '@/composables/useViewport'
 import api from '@/api'
 import UserAvatar from '@/components/UserAvatar.vue'
+import BrandIdentity from '@/components/BrandIdentity.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -334,66 +327,25 @@ onUnmounted(() => {
 
 /* ---- Logo ---- */
 .header-brand {
+  min-width: 0;
+  max-width: min(360px, 40vw);
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 10px;
   cursor: pointer;
   user-select: none;
   height: 100%;
+  overflow: hidden;
 }
 
-/* 自定义 Logo：自适应 header 高度，无背景色，无容器约束 */
-.brand-logo-img {
-  height: 36px;
-  width: auto;
-  max-width: 140px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: var(--workspace-radius-sm);
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  outline-offset: -1px;
-}
-
-.dark .brand-logo-img {
-  outline-color: rgba(255, 255, 255, 0.1);
-}
-
-/* 默认图标容器（无 Logo 时） */
-.brand-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--workspace-on-accent);
-  background: var(--workspace-accent);
-  padding: 8px;
-  border-radius: var(--workspace-radius-md);
-  box-shadow: 0 8px 18px rgba(var(--workspace-accent-rgb), 0.2);
-  flex-shrink: 0;
-  transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease;
-}
-
-.header-brand:active .brand-icon {
+.header-brand:active :deep(.brand-identity__fallback) {
   transform: scale(0.96);
-}
-
-.brand-text {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--workspace-text);
-  letter-spacing: 0;
-  transition: color 0.2s ease;
-}
-
-@media (max-width: 640px) {
-  .brand-text {
-    display: none;
-  }
 }
 
 /* ---- 右侧操作区 ---- */
 .header-actions {
+  min-width: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 4px;

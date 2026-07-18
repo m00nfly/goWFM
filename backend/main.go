@@ -27,7 +27,6 @@ func setupRouter() *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	r.GET("/api/setup/status", handlers.GetSetupStatus)
 	r.POST("/api/setup", handlers.PostSetup)
 	r.GET("/api/config/info", handlers.GetConfigInfo)
 

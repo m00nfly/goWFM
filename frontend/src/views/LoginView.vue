@@ -1,19 +1,13 @@
 <template>
   <div class="login-page" :class="{ dark: themeStore.isDark, 'has-custom-bg': !!loginBgUrl }" :style="loginBgStyle">
     <main class="login-shell" aria-label="登录">
-      <section class="brand-panel" aria-label="goWFM">
-        <div class="brand-mark-row">
-          <div v-if="customLogo" class="brand-logo-custom">
-            <img :src="customLogo" class="brand-logo-img" alt="Logo" />
-          </div>
-          <div v-else class="brand-mark">
-            <FolderOutline />
-          </div>
-          <div>
-            <p class="brand-kicker">私有文件工作台</p>
-            <p class="brand-name">{{ orgName || 'goWFM' }}</p>
-          </div>
-        </div>
+      <section class="brand-panel" :aria-label="orgName || 'goWFM'">
+        <BrandIdentity
+          :logo="customLogo"
+          :name="orgName || 'goWFM'"
+          kicker="私有文件工作台"
+          variant="login"
+        />
 
         <div class="brand-copy">
           <h1>回到你的安全文件空间</h1>
@@ -380,12 +374,15 @@ import {
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import { useConfig } from '@/composables/useConfig'
+import BrandIdentity from '@/components/BrandIdentity.vue'
 import heroImage from '@/assets/hero.png'
 
 const router = useRouter()
 const message = useMessage()
 const userStore = useUserStore()
 const themeStore = useThemeStore()
+const { config, fetchConfig } = useConfig()
 const loading = ref(false)
 const showPassword = ref(false)
 const showResetPassword = ref(false)
@@ -485,13 +482,14 @@ onMounted(async () => {
   }
   // 获取配置信息
   try {
-    const res = await api.get('/api/config/info')
-    orgName.value = res.data.site_name || ''
-    orgLink.value = res.data.site_link || ''
-    version.value = res.data.version || ''
-    loginBgUrl.value = res.data.login_bg_url || ''
-    customLogo.value = res.data.custom_logo || ''
-    captchaEnabled.value = res.data.enable_captcha || false
+    await fetchConfig()
+    orgName.value = config.value?.site_name || ''
+    orgLink.value = config.value?.site_link || ''
+    version.value = config.value?.version || ''
+    loginBgUrl.value = config.value?.login_bg_url || ''
+    customLogo.value = config.value?.custom_logo || ''
+    captchaEnabled.value = config.value?.enable_captcha || false
+    trustDays.value = config.value?.totp_trust_days || 30
     // 如果启用验证码则自动获取
     if (captchaEnabled.value) {
       await refreshCaptcha()
@@ -636,11 +634,6 @@ async function handleLogin() {
       // 需要 TOTP 二次验证
       totpRequired.value = true
       loginToken.value = res.data.login_token
-      // 获取信任天数配置
-      try {
-        const configRes = await api.get('/api/config/info')
-        trustDays.value = configRes.data.totp_trust_days || 30
-      } catch { /* use default */ }
       // 自动聚焦 TOTP 输入框
       setTimeout(() => totpCodeRef.value?.focus(), 100)
       return
@@ -863,60 +856,6 @@ function resetTOTPFlow() {
   border: 1px solid var(--line);
   border-radius: 24px;
   pointer-events: none;
-}
-
-.brand-mark-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  position: relative;
-  z-index: 1;
-}
-
-.brand-mark,
-.brand-logo-custom {
-  width: 50px;
-  height: 50px;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-  background: var(--panel-strong);
-  color: var(--accent);
-  box-shadow: 0 0 0 1px var(--line), 0 14px 34px rgba(16, 32, 51, 0.12);
-}
-
-.brand-mark svg {
-  width: 25px;
-  height: 25px;
-}
-
-.brand-logo-img {
-  max-width: 40px;
-  max-height: 40px;
-  object-fit: contain;
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  outline-offset: -1px;
-  border-radius: 12px;
-}
-
-.dark .brand-logo-img {
-  outline-color: rgba(255, 255, 255, 0.1);
-}
-
-.brand-kicker {
-  margin: 0 0 3px;
-  font-size: 12px;
-  color: var(--soft-ink);
-}
-
-.brand-name {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 760;
-  letter-spacing: 0;
-  color: var(--page-ink);
 }
 
 .brand-copy {

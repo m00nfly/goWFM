@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"goWFM/config"
 	"goWFM/models"
@@ -13,27 +15,29 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type SetupStatusResponse struct {
-	NeedsSetup bool `json:"needs_setup"`
-}
-
-func GetSetupStatus(c *gin.Context) {
-	hasAdmin, err := services.HasAdminUser()
-	if err != nil {
-		c.JSON(http.StatusOK, SetupStatusResponse{NeedsSetup: true})
-		return
-	}
-	c.JSON(http.StatusOK, SetupStatusResponse{NeedsSetup: !hasAdmin})
-}
-
 type SetupRequest struct {
 	SiteName      string `json:"site_name"`
 	SiteLink      string `json:"site_link"`
 	DataRootPath  string `json:"data_root_path"`
 	ServerPort    int    `json:"server_port"`
+	AdminUsername string `json:"admin_username"`
 	AdminPassword string `json:"admin_password"`
 	AdminEmail    string `json:"admin_email"`
 	MaxUploadSize int64  `json:"max_upload_size"`
+}
+
+func normalizeAdminUsername(value string) (string, bool) {
+	username := strings.TrimSpace(value)
+	length := utf8.RuneCountInString(username)
+	if length == 0 || length > 64 || strings.EqualFold(username, "Guest") {
+		return "", false
+	}
+	for _, r := range username {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return "", false
+		}
+	}
+	return username, true
 }
 
 func PostSetup(c *gin.Context) {
@@ -53,6 +57,11 @@ func PostSetup(c *gin.Context) {
 		return
 	}
 
+	adminUsername, validUsername := normalizeAdminUsername(req.AdminUsername)
+	if !validUsername {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "管理员账号不能为空且不能超过 64 个字符，不能包含空格或使用保留账号 Guest"})
+		return
+	}
 	if req.AdminPassword == "" || len(req.AdminPassword) < 6 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "admin password must be at least 6 characters"})
 		return
@@ -108,7 +117,7 @@ func PostSetup(c *gin.Context) {
 	}
 
 	// 创建管理员用户
-	admin, err := services.CreateUser("admin", req.AdminPassword, "Administrator", req.AdminEmail, true, models.PermAll)
+	admin, err := services.CreateUser(adminUsername, req.AdminPassword, "Administrator", req.AdminEmail, true, models.PermAll)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "create admin user failed"})
 		return
@@ -116,5 +125,5 @@ func PostSetup(c *gin.Context) {
 
 	services.CreateLog(admin.ID, models.ActionLogin, "", c.ClientIP(), nil)
 
-	c.JSON(http.StatusOK, gin.H{"message": "setup completed", "admin_username": "admin"})
+	c.JSON(http.StatusOK, gin.H{"message": "setup completed", "admin_username": adminUsername})
 }

@@ -41,7 +41,7 @@
 
           <!-- 文件卡片网格 -->
           <div class="file-surface">
-            <div class="file-grid" :class="{ 'single-file': shareInfo.files.length === 1 }">
+            <div class="file-grid">
               <div v-for="file in shareInfo.files" :key="file.id" class="file-card">
                 <div class="file-icon-area" :style="{ color: getFileColor(file.file_name) }">
                   <n-icon :size="28"><component :is="getFileIconComp(file.file_name)" /></n-icon>
@@ -351,16 +351,12 @@ onMounted(async () => {
   height: 100%;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
-  align-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 296px));
+  justify-content: center;
+  align-content: center;
   gap: 10px;
   padding: 6px 2px 8px;
   scrollbar-gutter: stable;
-}
-
-.file-grid.single-file {
-  width: min(340px, 100%);
-  margin: 0 auto;
 }
 
 .file-card {

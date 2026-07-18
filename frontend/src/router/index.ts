@@ -75,7 +75,7 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
-  const { fetchSetupStatus, setupStatus } = useConfig()
+  const { fetchConfig, config } = useConfig()
 
   // Resolve meta from all matched route records (supports nested routes)
   const requiresAuth = to.matched.some(r => r.meta.requiresAuth)
@@ -90,8 +90,8 @@ router.beforeEach(async (to, _from, next) => {
     // 未登录时，检查是否需要跳转到初始化页面
     if (!userStore.user && to.name !== 'setup') {
       try {
-        await fetchSetupStatus()
-        if (setupStatus.value?.needs_setup) {
+        await fetchConfig()
+        if (config.value?.needs_setup) {
           return next('/setup')
         }
       } catch {

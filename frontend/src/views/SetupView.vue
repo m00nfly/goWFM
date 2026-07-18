@@ -8,8 +8,16 @@
       <n-form ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="auto">
         <div class="workspace-form-panel setup-section">
           <h2 class="workspace-form-title">管理员账户</h2>
-          <n-form-item label="admin密码" path="admin_password">
-            <n-input v-model:value="form.admin_password" type="password" placeholder="至少6位密码" />
+          <n-form-item label="管理员账号" path="admin_username">
+            <n-input
+              v-model:value="form.admin_username"
+              :maxlength="64"
+              autocomplete="username"
+              placeholder="用于登录，创建后不可修改"
+            />
+          </n-form-item>
+          <n-form-item label="管理员密码" path="admin_password">
+            <n-input v-model:value="form.admin_password" type="password" autocomplete="new-password" placeholder="至少 6 位密码" />
           </n-form-item>
 		  <n-form-item label="管理员邮箱" path="admin_email">
 			<n-input v-model:value="form.admin_email" placeholder="用于安全找回密码" />
@@ -65,7 +73,7 @@ import { useConfig } from '@/composables/useConfig'
 const router = useRouter()
 const message = useMessage()
 const themeStore = useThemeStore()
-const { fetchSetupStatus, setupStatus } = useConfig()
+const { fetchConfig, config } = useConfig()
 const formRef = ref<FormInst | null>(null)
 const loading = ref(false)
 
@@ -77,6 +85,7 @@ const logLevelOptions = [
 ]
 
 const form = reactive({
+  admin_username: '',
   admin_password: '',
 	admin_email: '',
   site_name: '',
@@ -90,6 +99,22 @@ const form = reactive({
 })
 
 const rules: FormRules = {
+  admin_username: [
+    { required: true, message: '请输入管理员登录账号', trigger: ['input', 'blur'] },
+    {
+      validator: (_rule, value: string) => {
+        const username = value?.trim() || ''
+        const usernameLength = Array.from(username).length
+        if (usernameLength > 64) {
+          return new Error('账号不能超过 64 个字符')
+        }
+        if (/\s/u.test(username)) return new Error('账号不能包含空格')
+        if (username.toLowerCase() === 'guest') return new Error('Guest 为系统保留账号')
+        return true
+      },
+      trigger: ['input', 'blur'],
+    },
+  ],
   admin_password: [
     { required: true, message: '请输入管理员密码', trigger: 'blur' },
     { min: 6, message: '密码至少6位', trigger: 'blur' },
@@ -104,8 +129,8 @@ const rules: FormRules = {
 }
 
 onMounted(async () => {
-  await fetchSetupStatus()
-  if (setupStatus.value && !setupStatus.value.needs_setup) {
+  await fetchConfig()
+  if (config.value && !config.value.needs_setup) {
     router.replace('/login')
   }
 })
@@ -120,8 +145,10 @@ async function handleSubmit() {
   try {
     await api.post('/api/setup', {
       ...form,
+      admin_username: form.admin_username.trim(),
       max_upload_size: form.max_upload_size_mb * 1024 * 1024,
     })
+    if (config.value) config.value.needs_setup = false
     message.success('初始化完成！请登录管理员账户')
     router.replace('/login')
   } catch (err: any) {
@@ -136,7 +163,7 @@ async function handleSubmit() {
 .setup-page {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   min-height: 100%;
   padding: 18px;
   overflow-y: auto;

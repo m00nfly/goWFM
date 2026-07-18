@@ -260,8 +260,11 @@ func GetConfigInfo(c *gin.Context) {
 	basicCfg := config.GetBasic()
 	appearanceCfg := config.GetAppearance()
 	securityCfg := config.GetSecurity()
+	hasAdmin, err := services.HasAdminUser()
+	needsSetup := err != nil || !hasAdmin
 
 	c.JSON(http.StatusOK, gin.H{
+		"needs_setup":     needsSetup,
 		"site_name":       basicCfg.SiteName,
 		"site_link":       basicCfg.SiteLink,
 		"version":         config.Version,
