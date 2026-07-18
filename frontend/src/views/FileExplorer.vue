@@ -282,15 +282,22 @@
     </n-modal>
 
     <!-- 创建分享模态框 -->
-    <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="showShareModal = false" :mask-closable="false">
+    <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="cancelShareCreation" :mask-closable="false">
       <n-form label-placement="left" label-width="80">
         <n-form-item label="文件">
-          <div v-if="shareFilePaths.length === 1">
-            <n-input :value="shareFilePaths[0]" readonly />
-          </div>
-          <div v-else class="share-file-list">
-            <n-tag v-for="p in shareFilePaths" :key="p" size="small" style="margin: 2px 4px;">{{ p.split('/').pop() }}</n-tag>
-            <p style="color: #999; font-size: 12px; margin-top: 4px;">共 {{ shareFilePaths.length }} 个文件</p>
+          <div class="share-file-list">
+            <n-tag
+              v-for="p in shareFilePaths"
+              :key="p"
+              class="share-file-tag"
+              size="small"
+              :closable="!shareLoading"
+              :title="p.split('/').pop()"
+              @close="removeShareFilePath(p)"
+            >
+              {{ p.split('/').pop() }}
+            </n-tag>
+            <p class="share-file-count">共 {{ shareFilePaths.length }} 个文件</p>
           </div>
         </n-form-item>
         <n-form-item label="分享名称">
@@ -676,11 +683,7 @@ function batchShare() {
     return
   }
 
-  shareFilePaths.value = filePaths
-  shareExpireDays.value = 3
-  const displayName = userStore.user?.display_name || userStore.user?.username || ''
-  shareName.value = `由${displayName}分享的${filePaths.length}个文件`
-  showShareModal.value = true
+  openShareModal(filePaths)
 }
 
 // === 网格视图选中（仅 checkbox 触发）===
@@ -874,10 +877,39 @@ function downloadFile(row: any) {
 }
 
 function shareFile(row: any) {
-  shareFilePaths.value = [row.path]
-  shareExpireDays.value = 7
-  shareName.value = row.name
+  openShareModal([row.path])
+}
+
+function openShareModal(filePaths: string[]) {
+  shareFilePaths.value = [...filePaths]
+  shareExpireDays.value = 3
+  shareName.value = buildDefaultShareName(filePaths.length)
   showShareModal.value = true
+}
+
+function buildDefaultShareName(fileCount: number) {
+  const sharerName = userStore.user?.display_name || userStore.user?.username || '用户'
+  return `由 ${sharerName} 分享的 ${fileCount} 个文件`
+}
+
+function removeShareFilePath(filePath: string) {
+  const previousDefaultName = buildDefaultShareName(shareFilePaths.value.length)
+  shareFilePaths.value = shareFilePaths.value.filter(path => path !== filePath)
+
+  if (shareFilePaths.value.length === 0) {
+    cancelShareCreation()
+    return
+  }
+
+  if (shareName.value === previousDefaultName) {
+    shareName.value = buildDefaultShareName(shareFilePaths.value.length)
+  }
+}
+
+function cancelShareCreation() {
+  showShareModal.value = false
+  shareFilePaths.value = []
+  shareName.value = ''
 }
 
 async function handleCreateShare() {
@@ -1739,9 +1771,32 @@ async function fetchAllUsers() {
 }
 
 .share-file-list {
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
+  gap: 4px 8px;
+}
+
+.share-file-tag {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.share-file-tag :deep(.n-tag__content) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-file-count {
+  flex: 0 0 100%;
+  margin: 0;
+  color: var(--fe-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 @media (hover: none) {

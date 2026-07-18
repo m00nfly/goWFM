@@ -74,15 +74,12 @@ func setupRouter() *gin.Engine {
 		auth.PUT("/files/move", handlers.MoveFile)
 
 		auth.POST("/shares", handlers.CreateShareLink)
-		auth.GET("/shares/my", handlers.ListMyShares)
+		auth.GET("/shares", handlers.ListShares)
 		auth.PUT("/shares/:id", handlers.UpdateShareLink)
 		auth.DELETE("/shares/:id", handlers.DeleteShareLink)
 
 		auth.GET("/logs", handlers.ListLogs)
 		auth.GET("/logs/users", handlers.ListUsersForLog)
-
-		auth.GET("/admin/shares", middleware.AdminRequired(), handlers.ListAllShares)
-		auth.GET("/admin/share-users", middleware.AdminRequired(), handlers.ListShareUsers)
 
 		// 配置管理 API
 		auth.GET("/admin/config/:category", middleware.AdminRequired(), handlers.GetConfig)

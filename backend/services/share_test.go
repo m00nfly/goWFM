@@ -170,6 +170,78 @@ func TestDefaultFileLinkTimeoutIsFiveMinutes(t *testing.T) {
 	}
 }
 
+func TestListSharesScopesResultsAndIncludesManagementDetails(t *testing.T) {
+	setupShareTestDB(t)
+	if _, err := db.DB.Exec(`INSERT INTO users (id, username, password_hash, display_name, avatar_data)
+		VALUES (1, 'alice', 'x', 'Alice', 'data:image/png;base64,YQ=='),
+		       (2, 'bob', 'x', 'Bob', '')`); err != nil {
+		t.Fatalf("insert users: %v", err)
+	}
+	if _, err := CreateShare([]string{"/alice/report.txt"}, 1, 0, "季度报告"); err != nil {
+		t.Fatalf("create alice share: %v", err)
+	}
+	if _, err := CreateShare([]string{"/bob/one.txt", "/bob/two.txt"}, 2, 0, ""); err != nil {
+		t.Fatalf("create bob share: %v", err)
+	}
+
+	aliceID := int64(1)
+	aliceShares, err := ListShares(&aliceID)
+	if err != nil {
+		t.Fatalf("list alice shares: %v", err)
+	}
+	if len(aliceShares) != 1 || aliceShares[0].Owner.Username != "alice" {
+		t.Fatalf("unexpected scoped shares: %#v", aliceShares)
+	}
+	if len(aliceShares[0].Files) != 1 || aliceShares[0].Files[0].FilePath != "/alice/report.txt" {
+		t.Fatalf("management file details missing: %#v", aliceShares[0].Files)
+	}
+	if aliceShares[0].Owner.Avatar == "" {
+		t.Fatal("owner avatar was not included")
+	}
+
+	allShares, err := ListShares(nil)
+	if err != nil {
+		t.Fatalf("list all shares: %v", err)
+	}
+	if len(allShares) != 2 {
+		t.Fatalf("admin result count = %d, want 2", len(allShares))
+	}
+	var bobShare *ShareManagementItem
+	for index := range allShares {
+		if allShares[index].Owner.Username == "bob" {
+			bobShare = &allShares[index]
+			break
+		}
+	}
+	if bobShare == nil || bobShare.FileCount != 2 || bobShare.FileName != "分享2个文件" {
+		t.Fatalf("multi-file summary incorrect: %#v", bobShare)
+	}
+}
+
+func TestShareMutationsRequireOwnershipUnlessAdministrator(t *testing.T) {
+	setupShareTestDB(t)
+	if _, err := db.DB.Exec(`INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'x'), (2, 'bob', 'x')`); err != nil {
+		t.Fatalf("insert users: %v", err)
+	}
+	share, err := CreateShare([]string{"/alice/private.txt"}, 1, 0, "original")
+	if err != nil {
+		t.Fatalf("create share: %v", err)
+	}
+
+	if err := UpdateShare(share.ID, 2, false, "stolen", nil); !errors.Is(err, ErrShareNotFound) {
+		t.Fatalf("foreign update should be hidden, got %v", err)
+	}
+	if err := DeleteShare(share.ID, 2, false); !errors.Is(err, ErrShareNotFound) {
+		t.Fatalf("foreign delete should be hidden, got %v", err)
+	}
+	if err := UpdateShare(share.ID, 2, true, "admin edit", nil); err != nil {
+		t.Fatalf("admin update: %v", err)
+	}
+	if err := DeleteShare(share.ID, 2, true); err != nil {
+		t.Fatalf("admin delete: %v", err)
+	}
+}
+
 func containsRune(value string, target rune) bool {
 	for _, character := range value {
 		if character == target {

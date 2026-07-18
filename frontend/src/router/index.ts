@@ -36,7 +36,7 @@ const router = createRouter({
         {
           path: 'shares',
           name: 'shares',
-          component: () => import('@/views/MySharesView.vue'),
+          component: () => import('@/views/ShareManagementView.vue'),
           meta: { permission: 8 },
         },
         {
@@ -44,12 +44,6 @@ const router = createRouter({
           name: 'logs',
           component: () => import('@/views/LogsView.vue'),
           meta: { permission: 16 },
-        },
-        {
-          path: 'admin/shares',
-          name: 'admin-shares',
-          component: () => import('@/views/ShareManagementView.vue'),
-          meta: { admin: true },
         },
         {
           path: 'admin/users',

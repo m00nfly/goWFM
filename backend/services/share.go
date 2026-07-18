@@ -27,6 +27,7 @@ const (
 var (
 	ErrShareFileNotFound   = errors.New("file does not belong to this share")
 	ErrDownloadLinkInvalid = errors.New("download link is invalid, used, or expired")
+	ErrShareNotFound       = errors.New("share not found")
 )
 
 type IssuedShareDownloadLink struct {
@@ -400,199 +401,171 @@ func IncrementFileDownload(fileID int64) error {
 	return err
 }
 
-func ListMyShares(ownerID int64) ([]map[string]interface{}, error) {
-	rows, err := db.DB.Query(
-		`SELECT s.id, s.token, COALESCE(s.name,''), s.deleted, s.expire_at, s.created_at, s.access_count,
-			(SELECT COUNT(*) FROM share_files WHERE share_id = s.id) as file_count,
-			COALESCE((SELECT file_path FROM share_files WHERE share_id = s.id LIMIT 1), '') as first_file_path
-		FROM shares s WHERE s.owner_id = ? ORDER BY s.created_at DESC`,
-		ownerID,
-	)
+type ShareManagementFile struct {
+	ID            int64  `json:"id"`
+	FileName      string `json:"file_name"`
+	FilePath      string `json:"file_path"`
+	DownloadCount int    `json:"download_count"`
+}
+
+type ShareManagementOwner struct {
+	ID          int64  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Avatar      string `json:"avatar"`
+}
+
+type ShareManagementItem struct {
+	ID          int64                 `json:"id"`
+	Token       string                `json:"token"`
+	Name        string                `json:"name"`
+	FileName    string                `json:"file_name"`
+	FileCount   int                   `json:"file_count"`
+	Files       []ShareManagementFile `json:"files"`
+	Owner       ShareManagementOwner  `json:"owner"`
+	Status      string                `json:"status"`
+	ExpireAt    interface{}           `json:"expire_at"`
+	CreatedAt   string                `json:"created_at"`
+	AccessCount int                   `json:"access_count"`
+}
+
+// ListShares is the single share-management query for both account types.
+// Administrators pass nil to receive every share; regular users pass their ID.
+func ListShares(ownerID *int64) ([]ShareManagementItem, error) {
+	query := `SELECT s.id, s.token, COALESCE(s.name,''), s.deleted, s.expire_at, s.created_at, s.access_count,
+			s.owner_id, u.username, COALESCE(u.display_name,''), COALESCE(u.avatar_data,'')
+		FROM shares s JOIN users u ON u.id = s.owner_id`
+	var args []interface{}
+	if ownerID != nil {
+		query += ` WHERE s.owner_id = ?`
+		args = append(args, *ownerID)
+	}
+	query += ` ORDER BY s.created_at DESC`
+
+	rows, err := db.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	result := make([]map[string]interface{}, 0)
+	result := make([]ShareManagementItem, 0)
 	for rows.Next() {
-		var id int64
-		var token string
-		var shareName string
+		var item ShareManagementItem
 		var deleted int
 		var expireAtStr sqlNullString
-		var createdAt string
-		var accessCount int
-		var fileCount int
-		var firstFilePath string
-		rows.Scan(&id, &token, &shareName, &deleted, &expireAtStr, &createdAt, &accessCount, &fileCount, &firstFilePath)
-
-		// Format created_at
-		formattedCreatedAt := createdAt
-		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
-			formattedCreatedAt = t.Format("2006-01-02 15:04:05")
+		if err := rows.Scan(
+			&item.ID, &item.Token, &item.Name, &deleted, &expireAtStr, &item.CreatedAt, &item.AccessCount,
+			&item.Owner.ID, &item.Owner.Username, &item.Owner.DisplayName, &item.Owner.Avatar,
+		); err != nil {
+			return nil, err
 		}
 
-		// Compute status and format expire_at
-		var status string
-		var formattedExpireAt interface{}
+		if t, err := time.Parse(time.RFC3339, item.CreatedAt); err == nil {
+			item.CreatedAt = t.Format("2006-01-02 15:04:05")
+		}
+
 		var expireAt *time.Time
 		if expireAtStr.Valid {
 			if t, err := time.Parse(time.RFC3339, expireAtStr.String); err == nil {
-				formattedExpireAt = t.Format("2006-01-02 15:04:05")
+				item.ExpireAt = t.Format("2006-01-02 15:04:05")
 				expireAt = &t
 			} else {
-				formattedExpireAt = expireAtStr.String
+				item.ExpireAt = expireAtStr.String
 			}
 		}
 		if deleted == 1 {
-			status = "deleted"
+			item.Status = "deleted"
 		} else if expireAt != nil && expireAt.Before(time.Now()) {
-			status = "expired"
+			item.Status = "expired"
 		} else {
-			status = "valid"
+			item.Status = "valid"
 		}
 
-		// 文件名展示逻辑：优先使用 name，为空时退回原有逻辑
-		var fileName string
-		if shareName != "" {
-			fileName = shareName
-		} else if fileCount > 1 {
-			fileName = fmt.Sprintf("分享%d个文件", fileCount)
-		} else {
-			fileName = path.Base(firstFilePath)
-		}
-
-		entry := map[string]interface{}{
-			"id":           id,
-			"token":        token,
-			"name":         shareName,
-			"file_path":    firstFilePath,
-			"file_name":    fileName,
-			"file_count":   fileCount,
-			"status":       status,
-			"created_at":   formattedCreatedAt,
-			"expire_at":    formattedExpireAt,
-			"access_count": accessCount,
-		}
-		result = append(result, entry)
+		result = append(result, item)
 	}
-	return result, nil
-}
-
-func ListAllShares() ([]map[string]interface{}, error) {
-	rows, err := db.DB.Query(
-		`SELECT s.id, s.token, COALESCE(s.name,''), s.owner_id, s.deleted, s.expire_at, s.created_at, s.access_count,
-			(SELECT COUNT(*) FROM share_files WHERE share_id = s.id) as file_count,
-			COALESCE((SELECT file_path FROM share_files WHERE share_id = s.id LIMIT 1), '') as first_file_path
-		FROM shares s ORDER BY s.created_at DESC`,
-	)
-	if err != nil {
+	if err := rows.Err(); err != nil {
+		rows.Close()
 		return nil, err
 	}
-	defer rows.Close()
-
-	result := make([]map[string]interface{}, 0)
-	for rows.Next() {
-		var id, ownerID int64
-		var token string
-		var shareName string
-		var deleted int
-		var expireAtStr sqlNullString
-		var createdAt string
-		var accessCount int
-		var fileCount int
-		var firstFilePath string
-		rows.Scan(&id, &token, &shareName, &ownerID, &deleted, &expireAtStr, &createdAt, &accessCount, &fileCount, &firstFilePath)
-
-		formattedCreatedAt := createdAt
-		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
-			formattedCreatedAt = t.Format("2006-01-02 15:04:05")
-		}
-
-		var status string
-		var formattedExpireAt interface{}
-		var expireAt *time.Time
-		if expireAtStr.Valid {
-			if t, err := time.Parse(time.RFC3339, expireAtStr.String); err == nil {
-				formattedExpireAt = t.Format("2006-01-02 15:04:05")
-				expireAt = &t
-			} else {
-				formattedExpireAt = expireAtStr.String
-			}
-		}
-		if deleted == 1 {
-			status = "deleted"
-		} else if expireAt != nil && expireAt.Before(time.Now()) {
-			status = "expired"
-		} else {
-			status = "valid"
-		}
-
-		// 文件名展示逻辑：优先使用 name，为空时退回原有逻辑
-		var fileName string
-		if shareName != "" {
-			fileName = shareName
-		} else if fileCount > 1 {
-			fileName = fmt.Sprintf("分享%d个文件", fileCount)
-		} else {
-			fileName = path.Base(firstFilePath)
-		}
-
-		entry := map[string]interface{}{
-			"id":           id,
-			"token":        token,
-			"name":         shareName,
-			"file_name":    fileName,
-			"file_path":    firstFilePath,
-			"file_count":   fileCount,
-			"owner_id":     ownerID,
-			"status":       status,
-			"expire_at":    formattedExpireAt,
-			"created_at":   formattedCreatedAt,
-			"access_count": accessCount,
-		}
-		result = append(result, entry)
-	}
-	return result, nil
-}
-
-func ListShareUsers() ([]map[string]interface{}, error) {
-	rows, err := db.DB.Query(`SELECT id, username FROM users WHERE is_admin = 1 OR (permissions & 8) != 0 ORDER BY id`)
-	if err != nil {
+	// The database intentionally uses one connection. Close the share cursor
+	// before loading child files so nested queries cannot wait on themselves.
+	if err := rows.Close(); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	result := make([]map[string]interface{}, 0)
-	for rows.Next() {
-		var id int64
-		var username string
-		rows.Scan(&id, &username)
-		result = append(result, map[string]interface{}{
-			"id":       id,
-			"username": username,
-		})
+	for index := range result {
+		item := &result[index]
+		shareFiles, err := GetShareFiles(item.ID)
+		if err != nil {
+			return nil, err
+		}
+		item.Files = make([]ShareManagementFile, 0, len(shareFiles))
+		for _, file := range shareFiles {
+			item.Files = append(item.Files, ShareManagementFile{
+				ID: file.ID, FileName: path.Base(file.FilePath), FilePath: file.FilePath, DownloadCount: file.DownloadCount,
+			})
+		}
+		item.FileCount = len(item.Files)
+		if item.Name != "" {
+			item.FileName = item.Name
+		} else if item.FileCount > 1 {
+			item.FileName = fmt.Sprintf("分享%d个文件", item.FileCount)
+		} else if item.FileCount == 1 {
+			item.FileName = item.Files[0].FileName
+		}
 	}
 	return result, nil
 }
 
-func UpdateShare(id int64, name string, expireDays *int) error {
+func UpdateShare(id, actorID int64, isAdmin bool, name string, expireDays *int) error {
+	query := `UPDATE shares SET name = ?`
+	args := []interface{}{name}
 	if expireDays != nil {
 		var expireAtStr interface{}
 		if *expireDays > 0 {
 			t := time.Now().Add(time.Duration(*expireDays) * 24 * time.Hour)
 			expireAtStr = t.Format(time.RFC3339)
 		}
-		_, err := db.DB.Exec(`UPDATE shares SET name = ?, expire_at = ? WHERE id = ?`, name, expireAtStr, id)
+		query += `, expire_at = ?`
+		args = append(args, expireAtStr)
+	}
+	query += ` WHERE id = ?`
+	args = append(args, id)
+	if !isAdmin {
+		query += ` AND owner_id = ?`
+		args = append(args, actorID)
+	}
+	result, err := db.DB.Exec(query, args...)
+	if err != nil {
 		return err
 	}
-	_, err := db.DB.Exec(`UPDATE shares SET name = ? WHERE id = ?`, name, id)
-	return err
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrShareNotFound
+	}
+	return nil
 }
 
-func DeleteShare(id int64) error {
-	_, err := db.DB.Exec(`DELETE FROM shares WHERE id = ?`, id)
-	return err
+func DeleteShare(id, actorID int64, isAdmin bool) error {
+	query := `DELETE FROM shares WHERE id = ?`
+	args := []interface{}{id}
+	if !isAdmin {
+		query += ` AND owner_id = ?`
+		args = append(args, actorID)
+	}
+	result, err := db.DB.Exec(query, args...)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrShareNotFound
+	}
+	return nil
 }
 
 func ValidateShareAccess(token string) (*models.Share, error) {

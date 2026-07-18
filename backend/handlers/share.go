@@ -99,9 +99,23 @@ func CreateShareLink(c *gin.Context) {
 	})
 }
 
-func ListMyShares(c *gin.Context) {
+func ListShares(c *gin.Context) {
 	userID := c.GetInt64("userID")
-	shares, err := services.ListMyShares(userID)
+	user, err := services.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "get user failed"})
+		return
+	}
+	if !user.HasPermission(models.PermShare) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "share permission denied"})
+		return
+	}
+
+	var ownerID *int64
+	if !user.IsAdmin {
+		ownerID = &userID
+	}
+	shares, err := services.ListShares(ownerID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "list shares failed"})
 		return
@@ -116,7 +130,17 @@ func DeleteShareLink(c *gin.Context) {
 		return
 	}
 
-	if err := services.DeleteShare(id); err != nil {
+	userID := c.GetInt64("userID")
+	user, err := services.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "get user failed"})
+		return
+	}
+	if err := services.DeleteShare(id, userID, user.IsAdmin); err != nil {
+		if errors.Is(err, services.ErrShareNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "share not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "delete share failed"})
 		return
 	}
@@ -141,30 +165,22 @@ func UpdateShareLink(c *gin.Context) {
 		return
 	}
 
-	if err := services.UpdateShare(id, req.Name, req.ExpireDays); err != nil {
+	userID := c.GetInt64("userID")
+	user, err := services.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "get user failed"})
+		return
+	}
+	if err := services.UpdateShare(id, userID, user.IsAdmin, req.Name, req.ExpireDays); err != nil {
+		if errors.Is(err, services.ErrShareNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "share not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update share failed"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "share updated"})
-}
-
-func ListAllShares(c *gin.Context) {
-	shares, err := services.ListAllShares()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, shares)
-}
-
-func ListShareUsers(c *gin.Context) {
-	users, err := services.ListShareUsers()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, users)
 }
 
 func GetShareInfo(c *gin.Context) {

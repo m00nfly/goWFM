@@ -196,14 +196,11 @@ const displayName = computed(() =>
 
 // ---------- 导航配置 ----------
 
-const shareMenuKey = computed(() =>
-  userStore.user?.is_admin ? '/admin/shares' : '/shares'
-)
+const shareMenuKey = computed(() => '/shares')
 
 // 高亮的导航 key
 const activeMenuKey = computed(() => {
   const p = route.path
-  if (p.startsWith('/admin/shares')) return '/admin/shares'
   if (p.startsWith('/admin/users')) return '/admin/users'
   if (p.startsWith('/admin/settings')) return '/admin/settings'
   if (p === '/shares') return '/shares'
