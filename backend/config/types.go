@@ -10,20 +10,21 @@ type BasicSettings struct {
 
 // SecuritySettings 安全设置
 type SecuritySettings struct {
-	SessionSecret        string   `json:"session_secret"`
-	SessionTimeout       int      `json:"session_timeout"` // 分钟
-	EnableCaptcha        bool     `json:"enable_captcha"`
-	CaptchaCodeLength    int      `json:"captcha_code_length"`
-	IPBlockEnabled       bool     `json:"ip_block_enabled"`
-	IPBlockMaxFailures   int      `json:"ip_block_max_failures"`
-	IPBlockWindow        int      `json:"ip_block_window"`   // 秒
-	IPBlockDuration      int      `json:"ip_block_duration"` // 秒
-	AccountBlockEnabled  bool     `json:"account_block_enabled"`
-	AccountBlockMaxFails int      `json:"account_block_max_failures"`
-	AccountBlockWindow   int      `json:"account_block_window"`   // 秒
-	AccountBlockDuration int      `json:"account_block_duration"` // 秒
-	WhitelistIPs         []string `json:"whitelist_ips"`
-	TotpTrustDays        int      `json:"totp_trust_days"` // TOTP 信任设备天数，0 表示不信任设备
+	SessionSecret           string   `json:"session_secret"`
+	SessionTimeout          int      `json:"session_timeout"` // 分钟
+	EnableCaptcha           bool     `json:"enable_captcha"`
+	CaptchaCodeLength       int      `json:"captcha_code_length"`
+	IPBlockEnabled          bool     `json:"ip_block_enabled"`
+	IPBlockMaxFailures      int      `json:"ip_block_max_failures"`
+	IPBlockWindow           int      `json:"ip_block_window"`   // 秒
+	IPBlockDuration         int      `json:"ip_block_duration"` // 秒
+	AccountBlockEnabled     bool     `json:"account_block_enabled"`
+	AccountBlockMaxFails    int      `json:"account_block_max_failures"`
+	AccountBlockWindow      int      `json:"account_block_window"`   // 秒
+	AccountBlockDuration    int      `json:"account_block_duration"` // 秒
+	WhitelistIPs            []string `json:"whitelist_ips"`
+	TotpTrustDays           int      `json:"totp_trust_days"` // TOTP 信任设备天数，0 表示不信任设备
+	AllowEmailPasswordReset bool     `json:"allow_email_password_reset"`
 }
 
 // LogSettings 日志设置
@@ -34,6 +35,7 @@ type LogSettings struct {
 
 // EmailSettings 邮件设置
 type EmailSettings struct {
+	Active        bool   `json:"active"`
 	SMTPHost      string `json:"smtp_host"`
 	SMTPPort      int    `json:"smtp_port"`
 	SMTPUsername  string `json:"smtp_username"`
@@ -72,6 +74,7 @@ type ShareSettings struct {
 	MaxSharesPerUser       int  `json:"max_shares_per_user"` // 0 表示无限制
 	AllowAnonymousDownload bool `json:"allow_anonymous_download"`
 	FileLinkTimeoutMinutes int  `json:"file_link_timeout_minutes"` // 一次性文件下载链接有效期（分钟）
+	AllowEmailShare        bool `json:"allow_email_share"`
 }
 
 // ScanSettings 控制共享目录的后台完整扫描策略。

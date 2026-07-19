@@ -515,6 +515,24 @@ func ListShares(ownerID *int64) ([]ShareManagementItem, error) {
 	return result, nil
 }
 
+// GetShareForActor 返回当前用户在分享管理中有权操作的指定记录。
+func GetShareForActor(id, actorID int64, isAdmin bool) (*ShareManagementItem, error) {
+	var ownerID *int64
+	if !isAdmin {
+		ownerID = &actorID
+	}
+	items, err := ListShares(ownerID)
+	if err != nil {
+		return nil, err
+	}
+	for index := range items {
+		if items[index].ID == id {
+			return &items[index], nil
+		}
+	}
+	return nil, ErrShareNotFound
+}
+
 func UpdateShare(id, actorID int64, isAdmin bool, name string, expireDays *int) error {
 	query := `UPDATE shares SET name = ?`
 	args := []interface{}{name}

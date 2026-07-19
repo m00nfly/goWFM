@@ -183,6 +183,64 @@ func UpdateShareLink(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "share updated"})
 }
 
+// EmailShareLink 使用已保存的 SMTP 参数主动发送一条分享通知。
+// 此入口仅在 SMTP 邮件服务已经测试并激活时开放。
+func EmailShareLink(c *gin.Context) {
+	if !config.GetShare().AllowEmailShare {
+		c.JSON(http.StatusForbidden, gin.H{"error": "系统未启用邮件发送分享功能"})
+		return
+	}
+	if !config.GetEmail().Active {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "SMTP 服务未激活，无法发送分享邮件"})
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid share id"})
+		return
+	}
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入有效的收件人 Email 地址"})
+		return
+	}
+	userID := c.GetInt64("userID")
+	user, err := services.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "get user failed"})
+		return
+	}
+	if !user.HasPermission(models.PermShare) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "share permission denied"})
+		return
+	}
+	share, err := services.GetShareForActor(id, userID, user.IsAdmin)
+	if err != nil {
+		if errors.Is(err, services.ErrShareNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "share not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "get share failed"})
+		return
+	}
+	sharer := share.Owner.DisplayName
+	if strings.TrimSpace(sharer) == "" {
+		sharer = share.Owner.Username
+	}
+	if err := services.SendShareNotificationEmail(req.Email, sharer, share.FileName, share.FileCount, share.Token); err != nil {
+		result := gin.H{"error": err.Error()}
+		if code, message, ok := services.SMTPErrorDetails(err); ok {
+			result["smtp_code"] = code
+			result["smtp_message"] = message
+		}
+		c.JSON(http.StatusBadGateway, result)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "分享邮件已发送", "recipient": req.Email})
+}
+
 func GetShareInfo(c *gin.Context) {
 	token := c.Param("token")
 

@@ -12,6 +12,9 @@ export interface PublicConfig {
   custom_logo: string
   enable_captcha: boolean
   totp_trust_days: number
+	email_active: boolean
+	allow_email_password_reset: boolean
+	allow_email_share: boolean
 }
 
 // 模块级缓存：整个应用生命周期内只请求一次
@@ -20,7 +23,8 @@ let configPromise: Promise<void> | null = null
 
 export function useConfig() {
   /** 获取站点配置（仅首次调用发起请求） */
-  async function fetchConfig() {
+	async function fetchConfig(force = false) {
+		if (force) configPromise = null
     if (configPromise) return configPromise
     configPromise = (async () => {
       try {

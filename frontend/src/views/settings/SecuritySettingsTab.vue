@@ -15,6 +15,12 @@
           <n-form-item label="登录页启用验证码">
             <n-switch v-model:value="form.enable_captcha" />
           </n-form-item>
+		  <n-form-item label="允许邮件重置密码">
+			<n-switch :value="form.allow_email_password_reset" @update:value="handlePasswordResetToggle" />
+			<span class="workspace-inline-note" :class="{ 'dependency-warning': !smtpActive }">
+			  {{ smtpActive ? '启用后登录页显示“忘记密码”入口' : '需先在邮件设置中配置并激活 SMTP 服务' }}
+			</span>
+		  </n-form-item>
           <template v-if="form.enable_captcha">
             <n-form-item label="验证码长度">
               <n-input-number v-model:value="form.captcha_code_length" :min="4" :max="10" style="width: 120px" />
@@ -134,7 +140,9 @@ const form = ref({
   account_block_duration: 1800,
   whitelist_ips: [] as string[],
   totp_trust_days: 30,
+	allow_email_password_reset: false,
 })
+const smtpActive = ref(false)
 
 const timeoutDisplay = computed(() => {
   const m = form.value.session_timeout
@@ -146,13 +154,26 @@ const timeoutDisplay = computed(() => {
 onMounted(async () => {
   loading.value = true
   try {
-    const res = await api.get('/api/admin/config/security')
+	const [res, emailRes] = await Promise.all([
+		api.get('/api/admin/config/security'),
+		api.get('/api/admin/config/email'),
+	])
     Object.assign(form.value, res.data)
+	smtpActive.value = emailRes.data?.active === true
+	if (!smtpActive.value) form.value.allow_email_password_reset = false
     if (!form.value.whitelist_ips) form.value.whitelist_ips = []
   } catch { /* ignore */ } finally {
     loading.value = false
   }
 })
+
+function handlePasswordResetToggle(next: boolean) {
+	if (next && !smtpActive.value) {
+		message.warning('请先配置并激活 SMTP 服务，再启用邮件重置密码')
+		return
+	}
+	form.value.allow_email_password_reset = next
+}
 
 async function handleSave() {
   saving.value = true
@@ -170,5 +191,9 @@ async function handleSave() {
 <style scoped>
 .settings-alert {
   margin-bottom: 12px;
+}
+
+.dependency-warning {
+	color: #d97706;
 }
 </style>

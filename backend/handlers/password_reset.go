@@ -18,6 +18,7 @@ import (
 )
 
 const passwordResetGenericMessage = "如果该邮箱对应有效账户，重置邮件将在稍后送达"
+const passwordResetDisabledMessage = "系统未开放自主密码找回功能，请联系管理员处理！"
 
 type resetRateLimiter struct {
 	mu       sync.Mutex
@@ -72,6 +73,14 @@ func resetIdentifierKey(email string) string {
 }
 
 func RequestPasswordReset(c *gin.Context) {
+	if !config.GetSecurity().AllowEmailPasswordReset {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": passwordResetDisabledMessage})
+		return
+	}
+	if !config.GetEmail().Active {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "SMTP 服务未激活，无法使用邮件重置密码"})
+		return
+	}
 	var req struct {
 		Email       string `json:"email" binding:"required,email"`
 		CaptchaID   string `json:"captcha_id"`

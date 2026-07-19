@@ -22,7 +22,10 @@ import (
 	"goWFM/config"
 )
 
-const ResetPasswordTemplateKey = "reset_password"
+const (
+	ResetPasswordTemplateKey     = "reset_password"
+	ShareNotificationTemplateKey = "share_notification"
+)
 
 // SMTPErrorDetails 从被多层包装的 SMTP 错误中提取服务器返回的状态码与原始信息。
 func SMTPErrorDetails(err error) (code int, message string, ok bool) {
@@ -35,9 +38,27 @@ func SMTPErrorDetails(err error) (code int, message string, ok bool) {
 
 type ResetPasswordTemplateData struct {
 	SiteName       string
+	PoweredBy      string
 	Username       string
 	ResetURL       string
 	ExpiresMinutes int
+}
+
+type ShareNotificationTemplateData struct {
+	SiteName  string
+	PoweredBy string
+	Sharer    string
+	ShareName string
+	FileCount int
+	ShareURL  string
+}
+
+func emailGlobalTemplateData() (string, string) {
+	siteName := strings.TrimSpace(config.GetBasic().SiteName)
+	if siteName == "" {
+		siteName = "goWFM"
+	}
+	return siteName, "goWFM"
 }
 
 // EffectiveSenderName 返回实际使用的发件人名称：显式配置、站点名称、goWFM。
@@ -69,10 +90,32 @@ func ValidateEmailSettings(cfg config.EmailSettings) error {
 	if !ok {
 		return fmt.Errorf("缺少重置密码邮件模板")
 	}
-	_, _, err := RenderResetPasswordEmail(tpl, ResetPasswordTemplateData{
-		SiteName: "goWFM", Username: "example", ResetURL: "https://example.com/login?reset_token=preview", ExpiresMinutes: 15,
-	})
-	return err
+	if err := ValidateEmailTemplate(ResetPasswordTemplateKey, tpl); err != nil {
+		return err
+	}
+	shareTpl, ok := cfg.Templates[ShareNotificationTemplateKey]
+	if !ok {
+		return fmt.Errorf("缺少分享通知邮件模板")
+	}
+	return ValidateEmailTemplate(ShareNotificationTemplateKey, shareTpl)
+}
+
+// ValidateEmailTemplate 独立校验指定内置邮件模板，不依赖 SMTP 参数。
+func ValidateEmailTemplate(key string, tpl config.EmailTemplate) error {
+	switch key {
+	case ResetPasswordTemplateKey:
+		_, _, err := RenderResetPasswordEmail(tpl, ResetPasswordTemplateData{
+			SiteName: "goWFM", PoweredBy: "goWFM", Username: "example", ResetURL: "https://example.com/login?reset_token=preview", ExpiresMinutes: 15,
+		})
+		return err
+	case ShareNotificationTemplateKey:
+		_, _, err := RenderShareNotificationEmail(tpl, ShareNotificationTemplateData{
+			SiteName: "goWFM", PoweredBy: "goWFM", Sharer: "alice", ShareName: "示例分享", FileCount: 2, ShareURL: "https://example.com/share/example",
+		})
+		return err
+	default:
+		return fmt.Errorf("不支持的邮件模板类型")
+	}
 }
 
 func validateMailbox(value string) error {
@@ -88,7 +131,17 @@ func validateMailbox(value string) error {
 }
 
 func RenderResetPasswordEmail(tpl config.EmailTemplate, data ResetPasswordTemplateData) (string, string, error) {
-	if err := validateResetTemplateVariables(tpl.Subject + "\n" + tpl.HTML); err != nil {
+	allowed := map[string]bool{".SiteName": true, ".PoweredBy": true, ".Username": true, ".ResetURL": true, ".ExpiresMinutes": true}
+	return renderEmailTemplate(tpl, data, allowed)
+}
+
+func RenderShareNotificationEmail(tpl config.EmailTemplate, data ShareNotificationTemplateData) (string, string, error) {
+	allowed := map[string]bool{".SiteName": true, ".PoweredBy": true, ".Sharer": true, ".ShareName": true, ".FileCount": true, ".ShareURL": true}
+	return renderEmailTemplate(tpl, data, allowed)
+}
+
+func renderEmailTemplate(tpl config.EmailTemplate, data interface{}, allowed map[string]bool) (string, string, error) {
+	if err := validateTemplateVariables(tpl.Subject+"\n"+tpl.HTML, allowed); err != nil {
 		return "", "", err
 	}
 	subjectTpl, err := texttemplate.New("subject").Option("missingkey=error").Parse(tpl.Subject)
@@ -119,8 +172,7 @@ func RenderResetPasswordEmail(tpl config.EmailTemplate, data ResetPasswordTempla
 
 var templateActionPattern = regexp.MustCompile(`(?s)\{\{(.*?)\}\}`)
 
-func validateResetTemplateVariables(value string) error {
-	allowed := map[string]bool{".SiteName": true, ".Username": true, ".ResetURL": true, ".ExpiresMinutes": true}
+func validateTemplateVariables(value string, allowed map[string]bool) error {
 	for _, match := range templateActionPattern.FindAllStringSubmatch(value, -1) {
 		action := strings.TrimSpace(match[1])
 		if !allowed[action] {
@@ -131,7 +183,13 @@ func validateResetTemplateVariables(value string) error {
 }
 
 func SendResetPasswordEmail(to, username, token string, expiresMinutes int) error {
+	if !config.GetSecurity().AllowEmailPasswordReset {
+		return fmt.Errorf("系统未开放自主密码找回功能")
+	}
 	cfg := config.GetEmail()
+	if !cfg.Active {
+		return fmt.Errorf("SMTP 服务未激活")
+	}
 	tpl, ok := cfg.Templates[ResetPasswordTemplateKey]
 	if !ok {
 		tpl = config.DefaultResetPasswordTemplate()
@@ -142,13 +200,39 @@ func SendResetPasswordEmail(to, username, token string, expiresMinutes int) erro
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 		return fmt.Errorf("系统设置中的站点链接必须是完整的 HTTP(S) 地址")
 	}
-	siteName := strings.TrimSpace(basic.SiteName)
-	if siteName == "" {
-		siteName = "goWFM"
-	}
+	siteName, poweredBy := emailGlobalTemplateData()
 	resetURL := baseURL + "/login?reset_token=" + url.QueryEscape(token)
 	subject, body, err := RenderResetPasswordEmail(tpl, ResetPasswordTemplateData{
-		SiteName: siteName, Username: username, ResetURL: resetURL, ExpiresMinutes: expiresMinutes,
+		SiteName: siteName, PoweredBy: poweredBy, Username: username, ResetURL: resetURL, ExpiresMinutes: expiresMinutes,
+	})
+	if err != nil {
+		return err
+	}
+	return SendHTMLMail(cfg, to, subject, body)
+}
+
+// SendShareNotificationEmail 是管理员或分享者主动触发的分享邮件发送通道。
+func SendShareNotificationEmail(to, sharer, shareName string, fileCount int, shareToken string) error {
+	if !config.GetShare().AllowEmailShare {
+		return fmt.Errorf("系统未启用邮件发送分享功能")
+	}
+	cfg := config.GetEmail()
+	if !cfg.Active {
+		return fmt.Errorf("SMTP 服务未激活，无法发送分享邮件")
+	}
+	tpl, ok := cfg.Templates[ShareNotificationTemplateKey]
+	if !ok {
+		tpl = config.DefaultShareNotificationTemplate()
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(config.GetBasic().SiteLink), "/")
+	parsed, err := url.Parse(baseURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return fmt.Errorf("系统设置中的站点链接必须是完整的 HTTP(S) 地址")
+	}
+	shareURL := baseURL + "/share/" + url.PathEscape(shareToken)
+	siteName, poweredBy := emailGlobalTemplateData()
+	subject, body, err := RenderShareNotificationEmail(tpl, ShareNotificationTemplateData{
+		SiteName: siteName, PoweredBy: poweredBy, Sharer: sharer, ShareName: shareName, FileCount: fileCount, ShareURL: shareURL,
 	})
 	if err != nil {
 		return err

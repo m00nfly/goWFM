@@ -686,7 +686,7 @@ func dashboardSecurityChecks(summary DashboardSummary) []DashboardSecurityCheck 
 		{Key: "ip_block", Label: "IP 登录防护", Description: "连续登录失败时临时封锁来源 IP", OK: security.IPBlockEnabled},
 		{Key: "account_block", Label: "账户登录防护", Description: "连续登录失败时临时封锁账户", OK: security.AccountBlockEnabled},
 		{Key: "captcha", Label: "登录验证码", Description: "降低自动化登录尝试风险", OK: security.EnableCaptcha},
-		{Key: "email", Label: "邮件服务", Description: "用于密码重置和安全通知", OK: strings.TrimSpace(email.SMTPHost) != "" && strings.TrimSpace(email.SenderEmail) != ""},
+		{Key: "email", Label: "邮件服务", Description: "用于密码重置和安全通知", OK: email.Active},
 		{Key: "storage_scan", Label: "后台磁盘扫描", Description: scanDescription, OK: scan.AutoScanEnabled, Optional: true, Status: scanStatus},
 	}
 }

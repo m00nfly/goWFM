@@ -241,7 +241,7 @@
 					<input type="checkbox" v-model="rememberMe" class="checkbox" />
 					<span>保持登录状态</span>
 				  </label>
-				  <button type="button" class="forgot-link" @click="openForgotPassword">忘记密码？</button>
+				  <button v-if="passwordResetEnabled" type="button" class="forgot-link" @click="openForgotPassword">忘记密码？</button>
 				</div>
 
                 <button type="submit" class="login-btn" :disabled="loading">
@@ -400,6 +400,7 @@ const resetLoading = ref(false)
 const resetTOTPRequired = ref(false)
 const resetError = ref('')
 const resetForm = reactive({ new_password: '', confirm_password: '', totp_code: '' })
+const passwordResetEnabled = computed(() => config.value?.allow_email_password_reset === true && config.value?.email_active === true)
 
 const orgName = ref('')
 const orgLink = ref('')
@@ -482,7 +483,7 @@ onMounted(async () => {
   }
   // 获取配置信息
   try {
-    await fetchConfig()
+	await fetchConfig(true)
     orgName.value = config.value?.site_name || ''
     orgLink.value = config.value?.site_link || ''
     version.value = config.value?.version || ''
@@ -501,6 +502,10 @@ onMounted(async () => {
 })
 
 function openForgotPassword() {
+	if (!passwordResetEnabled.value) {
+		message.warning('系统未开放自主密码找回功能，请联系管理员处理！')
+		return
+	}
 	passwordFlow.value = 'forgot'
 	forgotSent.value = false
 	resetError.value = ''

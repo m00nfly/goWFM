@@ -84,6 +84,7 @@ func GetConfig(c *gin.Context) {
 			"account_block_duration":     cfg.AccountBlockDuration,
 			"whitelist_ips":              cfg.WhitelistIPs,
 			"totp_trust_days":            cfg.TotpTrustDays,
+			"allow_email_password_reset": cfg.AllowEmailPasswordReset,
 		}
 	case "log":
 		data = config.GetLog()
@@ -92,6 +93,7 @@ func GetConfig(c *gin.Context) {
 		senderName := services.EffectiveSenderName(cfg.SenderName)
 		// 密码不返回明文，只告知是否已配置
 		data = gin.H{
+			"active":          cfg.Active,
 			"smtp_host":       cfg.SMTPHost,
 			"smtp_port":       cfg.SMTPPort,
 			"smtp_username":   cfg.SMTPUsername,
@@ -101,6 +103,10 @@ func GetConfig(c *gin.Context) {
 			"sender_name":     senderName,
 			"sender_email":    cfg.SenderEmail,
 			"templates":       cfg.Templates,
+			"default_templates": map[string]config.EmailTemplate{
+				services.ResetPasswordTemplateKey:     config.DefaultResetPasswordTemplate(),
+				services.ShareNotificationTemplateKey: config.DefaultShareNotificationTemplate(),
+			},
 		}
 	case "appearance":
 		cfg := config.GetAppearance()
@@ -178,6 +184,10 @@ func UpdateConfig(c *gin.Context) {
 		if s.WhitelistIPs == nil {
 			s.WhitelistIPs = []string{}
 		}
+		if s.AllowEmailPasswordReset && !config.GetEmail().Active {
+			c.JSON(http.StatusConflict, gin.H{"error": "请先配置并激活 SMTP 服务，再启用邮件重置密码"})
+			return
+		}
 		newData, _ = json.Marshal(s)
 		err = services.UpdateSecuritySettings(s)
 	case "log":
@@ -205,6 +215,12 @@ func UpdateConfig(c *gin.Context) {
 		if s.Templates == nil {
 			s.Templates = current.Templates
 		}
+		if _, ok := s.Templates[services.ResetPasswordTemplateKey]; !ok {
+			s.Templates[services.ResetPasswordTemplateKey] = config.DefaultResetPasswordTemplate()
+		}
+		if _, ok := s.Templates[services.ShareNotificationTemplateKey]; !ok {
+			s.Templates[services.ShareNotificationTemplateKey] = config.DefaultShareNotificationTemplate()
+		}
 		if s.SenderEmail == "" {
 			s.SenderEmail = s.SenderAddress
 		}
@@ -212,8 +228,20 @@ func UpdateConfig(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		// 激活只能由邮件测试成功完成。关闭可直接保存；SMTP 投递参数发生
+		// 变化时必须重新测试，不能沿用之前的激活状态。
+		if s.Active && !current.Active {
+			c.JSON(http.StatusConflict, gin.H{"error": "激活 SMTP 服务前必须先通过邮件测试"})
+			return
+		}
+		if emailDeliverySettingsChanged(current, s) {
+			s.Active = false
+		}
 		newData, _ = json.Marshal(s)
 		err = services.UpdateEmailSettings(s)
+		if err == nil && !s.Active {
+			err = services.DisableEmailDependentFeatures()
+		}
 	case "share":
 		var s config.ShareSettings
 		if err := c.ShouldBindJSON(&s); err != nil {
@@ -222,6 +250,10 @@ func UpdateConfig(c *gin.Context) {
 		}
 		if err := services.ValidateShareSettings(s); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if s.AllowEmailShare && !config.GetEmail().Active {
+			c.JSON(http.StatusConflict, gin.H{"error": "请先配置并激活 SMTP 服务，再启用邮件发送分享"})
 			return
 		}
 		newData, _ = json.Marshal(s)
@@ -250,16 +282,31 @@ func UpdateConfig(c *gin.Context) {
 	services.CreateLog(userID, models.ActionConfigChange, category, c.ClientIP(), nil)
 
 	restart := needsRestart(category, oldValue, string(newData))
-	c.JSON(http.StatusOK, gin.H{
+	result := gin.H{
 		"message":          "配置已更新",
 		"restart_required": restart,
-	})
+	}
+	if category == "email" {
+		result["active"] = config.GetEmail().Active
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 // TestEmailSettings 使用已保存的 SMTP 配置向指定邮箱发送测试邮件。
 func TestEmailSettings(c *gin.Context) {
-	recipient := config.GetEmail().SenderEmail
+	cfg := config.GetEmail()
+	// 测试期间及测试失败后均保持未激活状态。
+	cfg.Active = false
+	if err := services.UpdateEmailSettings(cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新 SMTP 状态失败"})
+		return
+	}
+	recipient := cfg.SenderEmail
 	if err := services.SendTestEmail(recipient); err != nil {
+		if disableErr := services.DisableEmailDependentFeatures(); disableErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "邮件测试失败，且依赖功能状态更新失败"})
+			return
+		}
 		result := gin.H{"error": err.Error()}
 		if code, message, ok := services.SMTPErrorDetails(err); ok {
 			result["smtp_code"] = code
@@ -268,7 +315,46 @@ func TestEmailSettings(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, result)
 		return
 	}
+	cfg.Active = true
+	if err := services.UpdateEmailSettings(cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "测试成功，但激活状态保存失败"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "测试邮件已发送", "recipient": recipient})
+}
+
+// UpdateEmailTemplate 独立保存一个邮件模板，不修改 SMTP 参数与激活状态。
+func UpdateEmailTemplate(c *gin.Context) {
+	key := c.Param("key")
+	var tpl config.EmailTemplate
+	if err := c.ShouldBindJSON(&tpl); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if err := services.ValidateEmailTemplate(key, tpl); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	cfg := config.GetEmail()
+	templates := make(map[string]config.EmailTemplate, len(cfg.Templates)+1)
+	for existingKey, existingTemplate := range cfg.Templates {
+		templates[existingKey] = existingTemplate
+	}
+	templates[key] = tpl
+	cfg.Templates = templates
+	if err := services.UpdateEmailSettings(cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存邮件模板失败"})
+		return
+	}
+	services.CreateLog(c.GetInt64("userID"), models.ActionConfigChange, "email_template:"+key, c.ClientIP(), nil)
+	c.JSON(http.StatusOK, gin.H{"message": "邮件模板已保存"})
+}
+
+func emailDeliverySettingsChanged(a, b config.EmailSettings) bool {
+	return a.SMTPHost != b.SMTPHost || a.SMTPPort != b.SMTPPort ||
+		a.SMTPUsername != b.SMTPUsername || a.SMTPPassword != b.SMTPPassword ||
+		a.EnableTLS != b.EnableTLS || a.SkipTLSVerify != b.SkipTLSVerify ||
+		a.SenderName != b.SenderName || a.SenderEmail != b.SenderEmail
 }
 
 // GetConfigInfo 返回公开配置信息（无需登录）
@@ -276,19 +362,24 @@ func GetConfigInfo(c *gin.Context) {
 	basicCfg := config.GetBasic()
 	appearanceCfg := config.GetAppearance()
 	securityCfg := config.GetSecurity()
+	shareCfg := config.GetShare()
+	emailActive := config.GetEmail().Active
 	hasAdmin, err := services.HasAdminUser()
 	needsSetup := err != nil || !hasAdmin
 
 	c.JSON(http.StatusOK, gin.H{
-		"needs_setup":     needsSetup,
-		"site_name":       basicCfg.SiteName,
-		"site_link":       basicCfg.SiteLink,
-		"version":         config.Version,
-		"login_bg_url":    appearanceCfg.LoginBgURL,
-		"default_theme":   appearanceCfg.DefaultTheme,
-		"theme_color":     appearanceCfg.ThemeColor,
-		"custom_logo":     appearanceCfg.CustomLogo,
-		"enable_captcha":  securityCfg.EnableCaptcha,
-		"totp_trust_days": securityCfg.TotpTrustDays,
+		"needs_setup":                needsSetup,
+		"site_name":                  basicCfg.SiteName,
+		"site_link":                  basicCfg.SiteLink,
+		"version":                    config.Version,
+		"login_bg_url":               appearanceCfg.LoginBgURL,
+		"default_theme":              appearanceCfg.DefaultTheme,
+		"theme_color":                appearanceCfg.ThemeColor,
+		"custom_logo":                appearanceCfg.CustomLogo,
+		"enable_captcha":             securityCfg.EnableCaptcha,
+		"totp_trust_days":            securityCfg.TotpTrustDays,
+		"email_active":               emailActive,
+		"allow_email_password_reset": emailActive && securityCfg.AllowEmailPasswordReset,
+		"allow_email_share":          emailActive && shareCfg.AllowEmailShare,
 	})
 }

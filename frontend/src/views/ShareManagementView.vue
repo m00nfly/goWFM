@@ -156,6 +156,14 @@
           </div>
 
           <div class="share-actions" aria-label="分享操作">
+			<n-tooltip v-if="emailShareEnabled" trigger="hover" placement="top">
+			  <template #trigger>
+				<n-button class="share-action-button email" quaternary circle @click="openEmailModal(share)">
+				  <template #icon><n-icon :size="19"><MailOutline /></n-icon></template>
+				</n-button>
+			  </template>
+			  邮件发送该分享
+			</n-tooltip>
             <n-tooltip trigger="hover" placement="top">
               <template #trigger>
                 <n-button class="share-action-button copy" quaternary circle @click="copyLink(share)">
@@ -222,6 +230,30 @@
   </n-modal>
 
   <n-modal
+	v-model:show="showEmailModal"
+	preset="dialog"
+	title="邮件发送该分享"
+	positive-text="确定发送"
+	negative-text="取消"
+	:positive-button-props="{ loading: emailSending }"
+	:mask-closable="false"
+	@positive-click="handleEmailShare"
+	@negative-click="showEmailModal = false"
+  >
+	<n-form label-placement="top">
+	  <n-form-item :label="`收件人 Email · ${emailShare?.file_name || ''}`">
+		<n-input
+		  v-model:value="recipientEmail"
+		  placeholder="name@example.com"
+		  type="text"
+		  autocomplete="email"
+		  @keydown.enter.prevent="handleEmailShare"
+		/>
+	  </n-form-item>
+	</n-form>
+  </n-modal>
+
+  <n-modal
     v-model:show="showEditModal"
     preset="dialog"
     title="编辑分享"
@@ -273,12 +305,14 @@ import {
   DocumentOutline,
   DocumentsOutline,
   LinkOutline,
+	MailOutline,
   ShareSocialOutline,
   TrashOutline,
 } from '@vicons/ionicons5'
 import api from '@/api'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useUserStore } from '@/stores/user'
+import { useConfig } from '@/composables/useConfig'
 import { copyToClipboard } from '@/utils/clipboard'
 
 interface ShareFile {
@@ -314,6 +348,8 @@ const route = useRoute()
 const message = useMessage()
 const userStore = useUserStore()
 const isAdmin = computed(() => userStore.user?.is_admin === true)
+const { config: publicConfig, fetchConfig } = useConfig()
+const emailShareEnabled = computed(() => publicConfig.value?.email_active === true && publicConfig.value?.allow_email_share === true)
 
 const shares = ref<ShareItem[]>([])
 const loading = ref(false)
@@ -367,6 +403,10 @@ const editLoading = ref(false)
 const editId = ref(0)
 const editName = ref('')
 const editExpireDays = ref(7)
+const showEmailModal = ref(false)
+const emailSending = ref(false)
+const emailShare = ref<ShareItem | null>(null)
+const recipientEmail = ref('')
 
 function statusLabel(status: ShareItem['status']) {
   return status === 'expired' ? '已过期' : status === 'deleted' ? '无效' : '有效'
@@ -449,6 +489,34 @@ async function copyLink(share: ShareItem) {
   ok ? message.success('链接已复制') : message.error('复制失败，请手动复制')
 }
 
+function openEmailModal(share: ShareItem) {
+	emailShare.value = share
+	recipientEmail.value = ''
+	showEmailModal.value = true
+}
+
+async function handleEmailShare() {
+	const share = emailShare.value
+	const email = recipientEmail.value.trim()
+	if (!share) return false
+	if (!/^\S+@\S+\.\S+$/.test(email)) {
+		message.warning('请输入有效的收件人 Email 地址')
+		return false
+	}
+	emailSending.value = true
+	try {
+		await api.post(`/api/shares/${share.id}/email`, { email })
+		message.success(`分享邮件已发送至 ${email}`)
+		showEmailModal.value = false
+		return true
+	} catch (error: any) {
+		message.error(error.response?.data?.error || '分享邮件发送失败')
+		return false
+	} finally {
+		emailSending.value = false
+	}
+}
+
 async function handleDelete(share: ShareItem) {
   try {
     await api.delete(`/api/shares/${share.id}`)
@@ -486,7 +554,9 @@ async function handleEditSave() {
   }
 }
 
-onMounted(fetchShares)
+onMounted(async () => {
+	await Promise.all([fetchShares(), fetchConfig(true)])
+})
 watch(() => route.query.highlightId, applyHighlight)
 onUnmounted(() => {
   if (highlightTimer) clearTimeout(highlightTimer)
@@ -765,6 +835,10 @@ onUnmounted(() => {
 
 .share-action-button.edit {
   color: #d68b12;
+}
+
+.share-action-button.email {
+	color: #0f8b8d;
 }
 
 .share-action-button.delete {

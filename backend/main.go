@@ -80,6 +80,7 @@ func setupRouter() *gin.Engine {
 		auth.POST("/shares", handlers.CreateShareLink)
 		auth.GET("/shares", handlers.ListShares)
 		auth.PUT("/shares/:id", handlers.UpdateShareLink)
+		auth.POST("/shares/:id/email", handlers.EmailShareLink)
 		auth.DELETE("/shares/:id", handlers.DeleteShareLink)
 
 		auth.GET("/logs", handlers.ListLogs)
@@ -89,6 +90,7 @@ func setupRouter() *gin.Engine {
 		auth.GET("/admin/config/:category", middleware.AdminRequired(), handlers.GetConfig)
 		auth.PUT("/admin/config/:category", middleware.AdminRequired(), handlers.UpdateConfig)
 		auth.POST("/admin/email/test", middleware.AdminRequired(), handlers.TestEmailSettings)
+		auth.PUT("/admin/email/templates/:key", middleware.AdminRequired(), handlers.UpdateEmailTemplate)
 	}
 
 	sharePublic := r.Group("/share")

@@ -109,6 +109,10 @@ func LoadFromDB(getter func(key string) (string, error)) error {
 		if _, ok := email.Templates["reset_password"]; !ok {
 			email.Templates["reset_password"] = DefaultResetPasswordTemplate()
 		}
+		if _, ok := email.Templates["share_notification"]; !ok {
+			email.Templates["share_notification"] = DefaultShareNotificationTemplate()
+		}
+		UpgradeBuiltinEmailTemplates(email.Templates)
 	}
 	if val, err := getter(KeyAppearance); err == nil && val != "" {
 		json.Unmarshal([]byte(val), &appearance)
