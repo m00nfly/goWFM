@@ -12,9 +12,18 @@
         <div class="header-actions">
           <!-- 导航图标 - 宽屏（仅登录后显示） -->
           <div v-show="!isNarrow && userStore.user" class="nav-icons">
+            <n-tooltip v-if="userStore.user?.is_admin" trigger="hover" placement="bottom">
+              <template #trigger>
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/dashboard' }" @click="router.push('/dashboard')">
+                  <n-icon size="22"><SpeedometerOutline /></n-icon>
+                </button>
+              </template>
+              仪表盘
+            </n-tooltip>
+
             <n-tooltip trigger="hover" placement="bottom">
               <template #trigger>
-                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/' }" @click="router.push('/')">
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/files' }" @click="router.push('/files')">
                   <n-icon size="22"><FolderOpenOutline /></n-icon>
                 </button>
               </template>
@@ -149,6 +158,7 @@ import {
   SunnyOutline,
   MoonOutline,
   MenuOutline,
+  SpeedometerOutline,
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
@@ -201,12 +211,13 @@ const shareMenuKey = computed(() => '/shares')
 // 高亮的导航 key
 const activeMenuKey = computed(() => {
   const p = route.path
+  if (p.startsWith('/dashboard')) return '/dashboard'
   if (p.startsWith('/admin/users')) return '/admin/users'
   if (p.startsWith('/admin/settings')) return '/admin/settings'
   if (p === '/shares') return '/shares'
   if (p === '/logs') return '/logs'
   if (p === '/settings') return '/settings'
-  return '/'
+  return '/files'
 })
 
 // ---------- 窄屏折叠导航 ----------
@@ -214,9 +225,11 @@ const activeMenuKey = computed(() => {
 const popNavValue = ref<string | null>(null)
 
 const popNavOptions = computed(() => {
-  const opts: Array<{ label: string; value: string }> = [
-    { label: '文件管理', value: '/' },
-  ]
+  const opts: Array<{ label: string; value: string }> = []
+  if (userStore.user?.is_admin) {
+    opts.push({ label: '仪表盘', value: '/dashboard' })
+  }
+  opts.push({ label: '文件管理', value: '/files' })
   if (userStore.user?.is_admin || userStore.hasPermission(8)) {
     const label = userStore.user?.is_admin ? '分享管理' : '我的分享'
     const badgeText = shareBadgeCount.value > 0

@@ -26,6 +26,8 @@ func categoryToKey(category string) string {
 		return config.KeyAppearance
 	case "share":
 		return config.KeyShare
+	case "scan":
+		return config.KeyScan
 	default:
 		return ""
 	}
@@ -115,6 +117,8 @@ func GetConfig(c *gin.Context) {
 		}
 	case "share":
 		data = config.GetShare()
+	case "scan":
+		data = config.GetScan()
 	}
 
 	c.JSON(http.StatusOK, data)
@@ -222,6 +226,18 @@ func UpdateConfig(c *gin.Context) {
 		}
 		newData, _ = json.Marshal(s)
 		err = services.UpdateShareSettings(s)
+	case "scan":
+		var s config.ScanSettings
+		if err := c.ShouldBindJSON(&s); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			return
+		}
+		if err := services.ValidateScanSettings(s); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		newData, _ = json.Marshal(s)
+		err = services.UpdateScanSettings(s)
 	}
 
 	if err != nil {

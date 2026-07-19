@@ -17,6 +17,18 @@ const router = createRouter({
       children: [
         {
           path: '',
+          name: 'home',
+          component: () => import('@/views/HomeView.vue'),
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/DashboardView.vue'),
+          meta: { admin: true },
+        },
+        {
+          path: 'files',
           name: 'files',
           component: () => import('@/views/FileExplorer.vue'),
           meta: { requiresAuth: true },
@@ -105,6 +117,10 @@ router.beforeEach(async (to, _from, next) => {
   // 需要登录但未登录
   if (!userStore.user) {
     return next('/login')
+  }
+
+  if (to.name === 'home') {
+    return next(userStore.user.is_admin ? '/dashboard' : '/files')
   }
 
   // 管理员强制启用但尚未绑定时，只允许进入个人设置完成绑定。

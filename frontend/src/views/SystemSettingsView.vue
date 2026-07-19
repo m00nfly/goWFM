@@ -4,7 +4,7 @@
       <header class="workspace-header">
         <div class="workspace-title-block">
           <h1 class="workspace-title">系统设置</h1>
-          <p class="workspace-subtitle">集中维护基础、外观、安全、日志、邮件与分享策略</p>
+          <p class="workspace-subtitle">集中维护基础、外观、安全、日志、邮件、分享与磁盘扫描策略</p>
         </div>
       </header>
 
@@ -27,6 +27,9 @@
         <n-tab-pane name="share" tab="分享设置">
           <ShareSettingsTab />
         </n-tab-pane>
+        <n-tab-pane name="scan" tab="磁盘扫描">
+          <ScanSettingsTab />
+        </n-tab-pane>
       </n-tabs>
     </section>
   </div>
@@ -40,6 +43,7 @@ import LogSettingsTab from './settings/LogSettingsTab.vue'
 import EmailSettingsTab from './settings/EmailSettingsTab.vue'
 import AppearanceSettingsTab from './settings/AppearanceSettingsTab.vue'
 import ShareSettingsTab from './settings/ShareSettingsTab.vue'
+import ScanSettingsTab from './settings/ScanSettingsTab.vue'
 </script>
 
 <style scoped>

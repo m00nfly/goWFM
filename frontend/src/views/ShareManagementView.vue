@@ -415,7 +415,7 @@ function navigateToFile(filePath: string) {
   const dirPath = separatorIndex > 0 ? filePath.slice(0, separatorIndex) : '/'
   const fileName = filePath.slice(separatorIndex + 1)
   showFilesModal.value = false
-  router.push({ path: '/', query: { path: dirPath, highlight: fileName } })
+  router.push({ path: '/files', query: { path: dirPath, highlight: fileName } })
 }
 
 async function applyHighlight() {

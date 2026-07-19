@@ -59,6 +59,7 @@ func InitDefaultConfigs() error {
 		config.KeyEmail:      config.DefaultEmail(),
 		config.KeyAppearance: config.DefaultAppearance(),
 		config.KeyShare:      config.DefaultShare(),
+		config.KeyScan:       config.DefaultScan(),
 	}
 
 	for key, val := range defaults {
@@ -157,6 +158,28 @@ func UpdateShareSettings(s config.ShareSettings) error {
 func ValidateShareSettings(s config.ShareSettings) error {
 	if s.FileLinkTimeoutMinutes < 1 || s.FileLinkTimeoutMinutes > 1440 {
 		return errors.New("file link timeout must be between 1 and 1440 minutes")
+	}
+	return nil
+}
+
+func UpdateScanSettings(s config.ScanSettings) error {
+	if err := ValidateScanSettings(s); err != nil {
+		return err
+	}
+	data, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+	if err := SetConfigValue(config.KeyScan, string(data)); err != nil {
+		return err
+	}
+	config.SetScan(s)
+	return nil
+}
+
+func ValidateScanSettings(s config.ScanSettings) error {
+	if s.IntervalHours < 1 || s.IntervalHours > 720 {
+		return errors.New("scan interval must be between 1 and 720 hours")
 	}
 	return nil
 }

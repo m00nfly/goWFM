@@ -108,6 +108,7 @@ func UploadFile(c *gin.Context) {
 
 	relativePath := services.RelativePath(fullPath)
 	services.CreateFileMetadata(relativePath, false, user.ID)
+	services.RecordDashboardStorageCreated(relativePath)
 	services.CreateLog(user.ID, models.ActionUpload, relativePath, c.ClientIP(), map[string]interface{}{"size": file.Size})
 
 	c.JSON(http.StatusOK, gin.H{"message": "upload successful", "path": relativePath})
@@ -144,6 +145,7 @@ func CreateDir(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	services.RecordDashboardStorageCreated(relativePath)
 
 	services.CreateLog(user.ID, models.ActionCreateDir, relativePath, c.ClientIP(), nil)
 	c.JSON(http.StatusOK, gin.H{"message": "directory created", "path": relativePath})
@@ -165,14 +167,17 @@ func DeleteFile(c *gin.Context) {
 		return
 	}
 
+	storageState, storageStateErr := services.CaptureDashboardStoragePath(req.Path)
 	if err := services.DeleteFileOrDir(req.Path, user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if storageStateErr == nil {
+		services.RecordDashboardStorageDeleted(storageState)
+	}
 
 	action := models.ActionDeleteFile
-	dataRoot := config.GetBasic().DataRootPath
-	if info, e := os.Stat(dataRoot + req.Path); e == nil && info.IsDir() {
+	if storageState.IsDirectory {
 		action = models.ActionDeleteDir
 	}
 	services.CreateLog(user.ID, action, req.Path, c.ClientIP(), nil)
@@ -259,6 +264,7 @@ func MoveFile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	storageState, storageStateErr := services.CaptureDashboardStoragePath(req.Source)
 
 	dstFullPath, err := services.SafePath(req.Destination)
 	if err != nil {
@@ -273,7 +279,11 @@ func MoveFile(c *gin.Context) {
 		return
 	}
 
-	services.UpdateFileMetadataPath(req.Source, services.RelativePath(dstFullPath))
+	newRelativePath := services.RelativePath(dstFullPath)
+	services.UpdateFileMetadataPath(req.Source, newRelativePath)
+	if storageStateErr == nil {
+		services.RecordDashboardStorageMoved(storageState, newRelativePath)
+	}
 	services.CreateLog(user.ID, models.ActionMove, req.Source, c.ClientIP(), map[string]interface{}{"destination": services.RelativePath(dstFullPath)})
 	c.JSON(http.StatusOK, gin.H{"message": "moved", "new_path": services.RelativePath(dstFullPath)})
 }

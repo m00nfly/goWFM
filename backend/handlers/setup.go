@@ -124,6 +124,7 @@ func PostSetup(c *gin.Context) {
 	}
 
 	services.CreateLog(admin.ID, models.ActionLogin, "", c.ClientIP(), nil)
+	services.TriggerDashboardStorageScan("setup")
 
 	c.JSON(http.StatusOK, gin.H{"message": "setup completed", "admin_username": adminUsername})
 }

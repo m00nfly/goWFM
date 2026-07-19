@@ -106,3 +106,8 @@ func DefaultShare() ShareSettings {
 		FileLinkTimeoutMinutes: 5,
 	}
 }
+
+// DefaultScan 返回磁盘扫描默认设置。默认不启用后台定时扫描。
+func DefaultScan() ScanSettings {
+	return ScanSettings{AutoScanEnabled: false, IntervalHours: 1}
+}

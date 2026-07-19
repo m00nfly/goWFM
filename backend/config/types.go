@@ -73,3 +73,9 @@ type ShareSettings struct {
 	AllowAnonymousDownload bool `json:"allow_anonymous_download"`
 	FileLinkTimeoutMinutes int  `json:"file_link_timeout_minutes"` // 一次性文件下载链接有效期（分钟）
 }
+
+// ScanSettings 控制共享目录的后台完整扫描策略。
+type ScanSettings struct {
+	AutoScanEnabled bool `json:"auto_scan_enabled"`
+	IntervalHours   int  `json:"interval_hours"`
+}

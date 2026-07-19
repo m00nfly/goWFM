@@ -43,6 +43,10 @@ func setupRouter() *gin.Engine {
 	auth.Use(middleware.AuthRequired())
 	{
 		auth.GET("/auth/me", handlers.GetMe)
+		auth.GET("/dashboard", middleware.AdminRequired(), handlers.GetDashboard)
+		auth.GET("/dashboard/activity", middleware.AdminRequired(), handlers.GetDashboardActivity)
+		auth.GET("/admin/storage-scan/status", middleware.AdminRequired(), handlers.GetStorageScanStatus)
+		auth.POST("/admin/storage-scan/run", middleware.AdminRequired(), handlers.TriggerStorageScan)
 
 		auth.GET("/users", middleware.AdminRequired(), handlers.ListUsers)
 		auth.POST("/users", middleware.AdminRequired(), handlers.CreateUser)
@@ -140,11 +144,17 @@ func main() {
 		}
 	}
 
-	// 4. 设置路由
+	// 4. 启动前完整扫描共享目录，Dashboard 后续只读取内存快照。
+	if err := services.InitializeDashboardStorage(); err != nil {
+		log.Printf("Failed to initialize dashboard storage statistics: %v", err)
+	}
+
+	// 5. 设置路由
 	r := setupRouter()
 	r.MaxMultipartMemory = basicCfg.MaxUploadSize
 
-	// 5. 后台定时任务
+	// 6. 后台定时任务
+	go services.RunDashboardScanScheduler()
 	go func() {
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
@@ -181,10 +191,10 @@ func main() {
 		}
 	}()
 
-	// 6. 启动封锁引擎后台清理
+	// 7. 启动封锁引擎后台清理
 	go services.StartBlockerCleanup()
 
-	// 7. 启动 HTTP/HTTPS 服务器
+	// 8. 启动 HTTP/HTTPS 服务器
 	appCfg := config.GetAppearance()
 	addr := fmt.Sprintf(":%d", appCfg.ServerPort)
 	log.Printf("goWFM server starting on %s (HTTPS: %v)", addr, appCfg.EnableHTTPS)
