@@ -10,6 +10,8 @@ export interface PublicConfig {
   default_theme: string
   theme_color: string
   custom_logo: string
+  custom_brand_panel_enabled: boolean
+  custom_brand_panel_content: string
   enable_captcha: boolean
   totp_trust_days: number
 	email_active: boolean

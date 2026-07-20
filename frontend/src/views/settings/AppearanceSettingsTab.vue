@@ -71,6 +71,41 @@
 
         <section class="settings-section">
           <header class="settings-section-header">
+            <h2>登录页品牌面板</h2>
+            <p>使用 Markdown 或安全 HTML 自定义 Logo 下方的品牌内容</p>
+          </header>
+          <div class="settings-section-body brand-panel-settings">
+            <n-form-item label="启用自定义内容">
+              <n-switch v-model:value="form.custom_brand_panel_enabled" />
+              <span class="workspace-inline-note">关闭时显示系统默认品牌介绍，已填写内容会保留</span>
+            </n-form-item>
+            <n-form-item label="面板内容" class="brand-content-form-item">
+              <div class="brand-content-workspace">
+                <div class="brand-content-editor">
+                  <n-input
+                    v-model:value="form.custom_brand_panel_content"
+                    type="textarea"
+                    :disabled="!form.custom_brand_panel_enabled"
+                    :autosize="{ minRows: 10, maxRows: 20 }"
+                    :maxlength="102400"
+                    show-count
+                    placeholder="# 团队文件中心&#10;&#10;在这里写入 Markdown，或直接粘贴安全 HTML。"
+                    spellcheck="false"
+                  />
+                  <p>支持标题、段落、列表、链接、图片、引用和代码。脚本、表单、内联样式及危险属性会被自动移除。</p>
+                </div>
+                <div class="brand-content-preview" :class="{ 'is-disabled': !form.custom_brand_panel_enabled }">
+                  <span class="brand-content-preview-label">登录页预览</span>
+                  <div v-if="brandPanelPreview" class="brand-content-prose" v-html="brandPanelPreview"></div>
+                  <div v-else class="brand-content-empty">输入内容后在此处预览</div>
+                </div>
+              </div>
+            </n-form-item>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <header class="settings-section-header">
             <h2>Web 服务</h2>
             <p>配置服务端口、HTTPS 与 TLS 证书</p>
           </header>
@@ -104,11 +139,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { NForm, NFormItem, NInput, NInputNumber, NButton, NIcon, NSwitch, NUpload, NRadioGroup, NRadioButton, NColorPicker, NAlert, NSpin, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 import { CloudUploadOutline, FolderOpenOutline, RefreshOutline } from '@vicons/ionicons5'
 import api from '@/api'
+import { renderBrandPanelContent } from '@/utils/brandPanel'
 
 const message = useMessage()
 const loading = ref(false)
@@ -119,6 +155,8 @@ const form = ref({
   default_theme: 'light',
   theme_color: '#3B82F6',
   custom_logo: '',
+  custom_brand_panel_enabled: false,
+  custom_brand_panel_content: '',
   server_port: 8080,
   enable_https: false,
   ssl_cert: '',
@@ -129,6 +167,8 @@ const presetColors = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
   '#EC4899', '#06B6D4', '#6366F1', '#14B8A6', '#F97316',
 ]
+
+const brandPanelPreview = computed(() => renderBrandPanelContent(form.value.custom_brand_panel_content))
 
 function handleLogoChange({ file }: { file: UploadFileInfo }) {
   if (!file.file) return
@@ -168,6 +208,8 @@ onMounted(async () => {
     form.value.default_theme = res.data.default_theme || 'light'
     form.value.theme_color = res.data.theme_color || '#3B82F6'
     form.value.custom_logo = res.data.custom_logo || ''
+    form.value.custom_brand_panel_enabled = res.data.custom_brand_panel_enabled === true
+    form.value.custom_brand_panel_content = res.data.custom_brand_panel_content || ''
     form.value.server_port = res.data.server_port || 8080
     form.value.enable_https = res.data.enable_https || false
     // ssl_cert/key 不从服务端回显
@@ -286,6 +328,121 @@ async function handleSave() {
   margin-bottom: 12px;
 }
 
+.brand-content-form-item {
+  grid-column: 1 / -1;
+}
+
+.brand-content-form-item :deep(.n-form-item-blank) {
+  justify-content: stretch;
+}
+
+.brand-content-workspace {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  gap: 14px;
+}
+
+.brand-content-editor {
+  min-width: 0;
+}
+
+.brand-content-editor > p {
+  margin: 8px 0 0;
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.brand-content-preview {
+  min-height: 248px;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--workspace-border-soft);
+  border-radius: var(--workspace-radius-md);
+  background: var(--workspace-surface-soft);
+  transition-property: opacity, border-color;
+  transition-duration: 180ms;
+}
+
+.brand-content-preview.is-disabled {
+  opacity: 0.58;
+}
+
+.brand-content-preview-label {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--workspace-text-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.brand-content-empty {
+  min-height: 170px;
+  display: grid;
+  place-items: center;
+  color: var(--workspace-text-soft);
+  font-size: 12px;
+}
+
+.brand-content-prose {
+  color: var(--workspace-text);
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.brand-content-prose :deep(h1),
+.brand-content-prose :deep(h2),
+.brand-content-prose :deep(h3) {
+  margin: 0 0 10px;
+  color: var(--workspace-text);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.brand-content-prose :deep(h1) { font-size: 22px; }
+.brand-content-prose :deep(h2) { font-size: 18px; }
+.brand-content-prose :deep(h3) { font-size: 15px; }
+
+.brand-content-prose :deep(p),
+.brand-content-prose :deep(ul),
+.brand-content-prose :deep(ol),
+.brand-content-prose :deep(blockquote) {
+  margin: 0 0 10px;
+}
+
+.brand-content-prose :deep(ul),
+.brand-content-prose :deep(ol) {
+  padding-left: 20px;
+}
+
+.brand-content-prose :deep(a) {
+  color: var(--workspace-accent);
+}
+
+.brand-content-prose :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--workspace-radius-sm);
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
+
+:global(html.dark) .brand-content-prose :deep(img) {
+  outline-color: rgba(255, 255, 255, 0.1);
+}
+
+.brand-content-prose :deep(code) {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--workspace-surface-strong);
+  font-size: 0.92em;
+}
+
 @media (max-width: 640px) {
   .logo-preview-panel {
     grid-template-columns: 1fr;
@@ -293,6 +450,10 @@ async function handleSave() {
 
   .logo-preview-stage {
     max-width: none;
+  }
+
+  .brand-content-workspace {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"goWFM/config"
 	"goWFM/models"
@@ -112,14 +113,16 @@ func GetConfig(c *gin.Context) {
 		cfg := config.GetAppearance()
 		// 不返回 SSL 证书和私钥完整内容
 		data = gin.H{
-			"login_bg_url":  cfg.LoginBgURL,
-			"default_theme": cfg.DefaultTheme,
-			"theme_color":   cfg.ThemeColor,
-			"custom_logo":   cfg.CustomLogo,
-			"server_port":   cfg.ServerPort,
-			"enable_https":  cfg.EnableHTTPS,
-			"has_ssl_cert":  cfg.SSLCert != "",
-			"has_ssl_key":   cfg.SSLKey != "",
+			"login_bg_url":               cfg.LoginBgURL,
+			"default_theme":              cfg.DefaultTheme,
+			"theme_color":                cfg.ThemeColor,
+			"custom_logo":                cfg.CustomLogo,
+			"custom_brand_panel_enabled": cfg.CustomBrandPanelEnabled,
+			"custom_brand_panel_content": cfg.CustomBrandPanelContent,
+			"server_port":                cfg.ServerPort,
+			"enable_https":               cfg.EnableHTTPS,
+			"has_ssl_cert":               cfg.SSLCert != "",
+			"has_ssl_key":                cfg.SSLKey != "",
 		}
 	case "share":
 		data = config.GetShare()
@@ -160,6 +163,11 @@ func UpdateConfig(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 			return
 		}
+		if len([]byte(s.CustomBrandPanelContent)) > 100*1024 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "品牌面板内容不能超过 100 KB"})
+			return
+		}
+		s.CustomBrandPanelContent = strings.TrimSpace(s.CustomBrandPanelContent)
 		// 如果前端没有提交 ssl_cert/ssl_key 则保留原值
 		current := config.GetAppearance()
 		if s.SSLCert == "" {
@@ -376,6 +384,8 @@ func GetConfigInfo(c *gin.Context) {
 		"default_theme":              appearanceCfg.DefaultTheme,
 		"theme_color":                appearanceCfg.ThemeColor,
 		"custom_logo":                appearanceCfg.CustomLogo,
+		"custom_brand_panel_enabled": appearanceCfg.CustomBrandPanelEnabled,
+		"custom_brand_panel_content": appearanceCfg.CustomBrandPanelContent,
 		"enable_captcha":             securityCfg.EnableCaptcha,
 		"totp_trust_days":            securityCfg.TotpTrustDays,
 		"email_active":               emailActive,

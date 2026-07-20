@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"goWFM/config"
 	"goWFM/db"
 	"goWFM/services"
 
@@ -22,6 +23,30 @@ func initSetupTestDB(t *testing.T) {
 	t.Cleanup(db.Close)
 	if err := services.LoadAllConfigs(); err != nil {
 		t.Fatalf("load configs: %v", err)
+	}
+}
+
+func TestConfigInfoPublishesCustomBrandPanel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	initSetupTestDB(t)
+
+	appearance := config.GetAppearance()
+	appearance.CustomBrandPanelEnabled = true
+	appearance.CustomBrandPanelContent = "## Team files"
+	if err := services.UpdateAppearanceSettings(appearance); err != nil {
+		t.Fatalf("update appearance settings: %v", err)
+	}
+
+	recorder := performJSONRequest(t, http.MethodGet, "/api/config/info", nil, GetConfigInfo)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("config info status = %d", recorder.Code)
+	}
+	response := decodeJSONResponse(t, recorder)
+	if enabled, _ := response["custom_brand_panel_enabled"].(bool); !enabled {
+		t.Fatal("expected custom brand panel to be enabled")
+	}
+	if content, _ := response["custom_brand_panel_content"].(string); content != "## Team files" {
+		t.Fatalf("custom brand panel content = %q", content)
 	}
 }
 

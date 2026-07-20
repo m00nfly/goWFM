@@ -1,7 +1,11 @@
 <template>
   <div class="login-page" :class="{ dark: themeStore.isDark, 'has-custom-bg': !!loginBgUrl }" :style="loginBgStyle">
     <main class="login-shell" aria-label="登录">
-      <section class="brand-panel" :aria-label="orgName || 'goWFM'">
+      <section
+        class="brand-panel"
+        :class="{ 'has-custom-content': customBrandPanelEnabled }"
+        :aria-label="orgName || 'goWFM'"
+      >
         <BrandIdentity
           :logo="customLogo"
           :name="orgName || 'goWFM'"
@@ -9,39 +13,47 @@
           variant="login"
         />
 
-        <div class="brand-copy">
-          <h1>回到你的安全文件空间</h1>
-          <p>集中管理文件、分享链接和团队权限，继续处理今天的工作。</p>
-        </div>
+        <div
+          v-if="customBrandPanelEnabled"
+          class="brand-custom-content"
+          v-html="customBrandPanelHTML"
+        ></div>
 
-        <div class="visual-stage" aria-hidden="true">
-          <div class="visual-card">
-            <img :src="heroImage" class="hero-art" alt="" />
+        <template v-else>
+          <div class="brand-copy">
+            <h1>回到你的安全文件空间</h1>
+            <p>集中管理文件、分享链接和团队权限，继续处理今天的工作。</p>
           </div>
-          <div class="signal-card signal-primary">
-            <ShieldCheckmarkOutline />
-            <span>权限检查</span>
-          </div>
-          <div class="signal-card signal-secondary">
-            <KeyOutline />
-            <span>安全会话</span>
-          </div>
-        </div>
 
-        <div class="brand-points" aria-label="平台能力">
-          <div class="brand-point">
-            <ShieldCheckmarkOutline />
-            <span>自托管部署</span>
+          <div class="visual-stage" aria-hidden="true">
+            <div class="visual-card">
+              <img :src="heroImage" class="hero-art" alt="" />
+            </div>
+            <div class="signal-card signal-primary">
+              <ShieldCheckmarkOutline />
+              <span>权限检查</span>
+            </div>
+            <div class="signal-card signal-secondary">
+              <KeyOutline />
+              <span>安全会话</span>
+            </div>
           </div>
-          <div class="brand-point">
-            <KeyOutline />
-            <span>双重验证</span>
+
+          <div class="brand-points" aria-label="平台能力">
+            <div class="brand-point">
+              <ShieldCheckmarkOutline />
+              <span>自托管部署</span>
+            </div>
+            <div class="brand-point">
+              <KeyOutline />
+              <span>双重验证</span>
+            </div>
+            <div class="brand-point">
+              <FolderOutline />
+              <span>文件与分享</span>
+            </div>
           </div>
-          <div class="brand-point">
-            <FolderOutline />
-            <span>文件与分享</span>
-          </div>
-        </div>
+        </template>
       </section>
 
       <section class="auth-panel" aria-label="账号登录">
@@ -377,6 +389,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useConfig } from '@/composables/useConfig'
 import BrandIdentity from '@/components/BrandIdentity.vue'
 import heroImage from '@/assets/hero.png'
+import { renderBrandPanelContent } from '@/utils/brandPanel'
 
 const router = useRouter()
 const message = useMessage()
@@ -407,6 +420,8 @@ const orgLink = ref('')
 const version = ref('')
 const loginBgUrl = ref('')
 const customLogo = ref('')
+const customBrandPanelEnabled = ref(false)
+const customBrandPanelContent = ref('')
 const captchaEnabled = ref(false)
 const captchaImage = ref('')
 
@@ -431,6 +446,7 @@ const trustDevice = ref(false)
 const trustDays = ref(30)
 const loginToken = ref('')
 const totpCodeRef = ref<HTMLInputElement | null>(null)
+const customBrandPanelHTML = computed(() => renderBrandPanelContent(customBrandPanelContent.value))
 
 const authHeading = computed(() => {
   if (passwordFlow.value === 'forgot') {
@@ -489,6 +505,8 @@ onMounted(async () => {
     version.value = config.value?.version || ''
     loginBgUrl.value = config.value?.login_bg_url || ''
     customLogo.value = config.value?.custom_logo || ''
+    customBrandPanelEnabled.value = config.value?.custom_brand_panel_enabled === true
+    customBrandPanelContent.value = config.value?.custom_brand_panel_content || ''
     captchaEnabled.value = config.value?.enable_captcha || false
     trustDays.value = config.value?.totp_trust_days || 30
     // 如果启用验证码则自动获取
@@ -752,12 +770,14 @@ function resetTOTPFlow() {
   --shadow-soft:
     0 1px 2px rgba(16, 32, 51, 0.05),
     0 24px 70px rgba(16, 32, 51, 0.12);
-  min-height: 100dvh;
+  width: 100%;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: clamp(16px, 2.2vw, 24px);
   color: var(--page-ink);
   background:
@@ -841,6 +861,92 @@ function resetTOTPFlow() {
   background:
     linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), transparent 36%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0));
+}
+
+.brand-panel.has-custom-content {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.brand-custom-content {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 4px 6px 0;
+  color: var(--page-ink);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.brand-custom-content :deep(h1),
+.brand-custom-content :deep(h2),
+.brand-custom-content :deep(h3) {
+  margin: 0 0 12px;
+  color: var(--page-ink);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.brand-custom-content :deep(h1) { font-size: 30px; }
+.brand-custom-content :deep(h2) { font-size: 24px; }
+.brand-custom-content :deep(h3) { font-size: 18px; }
+
+.brand-custom-content :deep(p),
+.brand-custom-content :deep(ul),
+.brand-custom-content :deep(ol),
+.brand-custom-content :deep(blockquote),
+.brand-custom-content :deep(pre) {
+  margin: 0 0 14px;
+}
+
+.brand-custom-content :deep(ul),
+.brand-custom-content :deep(ol) {
+  padding-left: 22px;
+}
+
+.brand-custom-content :deep(a) {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.brand-custom-content :deep(blockquote) {
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  color: var(--muted-ink);
+  background: rgba(var(--accent-rgb), 0.07);
+}
+
+.brand-custom-content :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
+
+.dark .brand-custom-content :deep(img) {
+  outline-color: rgba(255, 255, 255, 0.1);
+}
+
+.brand-custom-content :deep(code) {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--field-bg);
+  font-size: 0.92em;
+}
+
+.brand-custom-content :deep(pre) {
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--field-bg);
+}
+
+.brand-custom-content :deep(pre code) {
+  padding: 0;
+  background: transparent;
 }
 
 .brand-panel::before {
@@ -1271,7 +1377,7 @@ function resetTOTPFlow() {
 .captcha-image img {
   height: 48px;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   outline: 1px solid rgba(0, 0, 0, 0.1);
   outline-offset: -1px;
@@ -1557,19 +1663,23 @@ function resetTOTPFlow() {
 
 @media (max-width: 920px) {
   .login-page {
-    padding: 20px;
-    align-items: stretch;
+    align-items: flex-start;
+    padding: 16px;
   }
 
   .login-shell {
+    width: min(720px, 100%);
     min-height: auto;
+    margin: auto;
     grid-template-columns: 1fr;
+    border-radius: 22px;
   }
 
   .brand-panel {
     min-height: auto;
-    gap: 24px;
-    padding: 34px;
+    grid-template-rows: auto auto;
+    gap: 14px;
+    padding: 20px 24px;
   }
 
   .brand-panel::before,
@@ -1579,45 +1689,121 @@ function resetTOTPFlow() {
   }
 
   .brand-copy h1 {
-    font-size: clamp(32px, 8vw, 44px);
+    font-size: 26px;
+  }
+
+  .brand-copy p {
+    margin-top: 7px;
+    font-size: 13px;
+  }
+
+  .brand-custom-content {
+    max-height: 180px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .brand-custom-content :deep(h1) { font-size: 24px; }
+  .brand-custom-content :deep(h2) { font-size: 20px; }
+  .brand-custom-content :deep(h3) { font-size: 16px; }
+
+  .auth-card {
+    max-width: 340px;
+  }
+
+  .auth-header {
+    margin-bottom: 18px;
+  }
+
+  .auth-header h2 {
+    font-size: 26px;
+  }
+
+  .auth-header p {
+    line-height: 1.5;
+  }
+
+  .form-panel {
+    gap: 13px;
+  }
+
+  .input-field {
+    min-height: 44px;
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+
+  .login-btn {
+    min-height: 46px;
   }
 
   .auth-panel {
     border-left: 0;
     border-top: 1px solid var(--line);
-    padding: 34px;
+    padding: 27px;
   }
 }
 
 @media (max-width: 560px) {
   .login-page {
-    padding: 12px;
+    display: block;
+    padding: 8px;
   }
 
   .login-shell {
-    border-radius: 24px;
+    border-radius: 18px;
   }
 
-  .brand-panel,
+  .brand-panel {
+    gap: 10px;
+    padding: 14px 16px;
+  }
+
+  .brand-panel:not(.has-custom-content) .brand-copy {
+    display: none;
+  }
+
+  .brand-custom-content {
+    max-height: 112px;
+    padding-top: 2px;
+    font-size: 12px;
+  }
+
+  .brand-custom-content :deep(p),
+  .brand-custom-content :deep(ul),
+  .brand-custom-content :deep(ol),
+  .brand-custom-content :deep(blockquote),
+  .brand-custom-content :deep(pre) {
+    margin-bottom: 8px;
+  }
+
   .auth-panel {
-    padding: 24px;
+    padding: 20px 16px 18px;
   }
 
   .theme-toggle {
-    top: 18px;
-    right: 18px;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .auth-header {
+    padding-right: 40px;
   }
 
   .auth-header h2 {
-    font-size: 28px;
+    font-size: 24px;
   }
 
   .captcha-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    gap: 8px;
   }
 
   .captcha-image {
-    width: 100%;
+    width: 104px;
   }
 
   .label-row {
@@ -1628,6 +1814,27 @@ function resetTOTPFlow() {
 
   .field-hint {
     white-space: normal;
+  }
+
+  .bottom-links {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .captcha-row {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+
+  .captcha-image {
+    width: 96px;
+  }
+}
+
+@media (max-height: 680px) {
+  .login-page {
+    align-items: flex-start;
   }
 }
 </style>

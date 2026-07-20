@@ -5,6 +5,16 @@ import (
 	"testing"
 )
 
+func TestDefaultAppearanceDisablesCustomBrandPanel(t *testing.T) {
+	appearance := DefaultAppearance()
+	if appearance.CustomBrandPanelEnabled {
+		t.Fatal("custom brand panel must be disabled by default")
+	}
+	if appearance.CustomBrandPanelContent != "" {
+		t.Fatal("custom brand panel content must be empty by default")
+	}
+}
+
 func TestUpgradeBuiltinEmailTemplatesPreservesCustomTemplates(t *testing.T) {
 	latest := DefaultResetPasswordTemplate()
 	legacy := latest

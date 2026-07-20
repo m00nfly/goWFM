@@ -162,8 +162,8 @@ func CleanExpiredCaptchas() int {
 // 返回 base64 字符串
 func generateCaptchaPng(text string) string {
 	const (
-		imgWidth  = 145
-		imgHeight = 50
+		imgWidth  = 114
+		imgHeight = 48
 	)
 	// 1. 創建文字暫存畫布（先將文字繪製到這裡，再進行扭曲）
 	textImg := image.NewRGBA(image.Rect(0, 0, imgWidth, imgHeight))

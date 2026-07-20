@@ -1410,7 +1410,9 @@ async function fetchAllUsers() {
 
 .header-tools-actions {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   min-width: 0;
   flex-wrap: wrap;
@@ -1499,11 +1501,6 @@ async function fetchAllUsers() {
 .card-action-btn:active,
 .batch-info-clickable:active {
   transform: translateY(1px);
-}
-
-.header-tools-actions {
-  flex: 0 1 auto;
-  justify-content: flex-start;
 }
 
 .header-tools-actions :deep(.n-button) {

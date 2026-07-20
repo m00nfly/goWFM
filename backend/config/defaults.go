@@ -149,14 +149,16 @@ func UpgradeBuiltinEmailTemplates(templates map[string]EmailTemplate) {
 // DefaultAppearance 返回外观设置默认值
 func DefaultAppearance() AppearanceSettings {
 	return AppearanceSettings{
-		LoginBgURL:   "",
-		DefaultTheme: "light",
-		ThemeColor:   "#3B82F6",
-		CustomLogo:   "",
-		ServerPort:   8080,
-		EnableHTTPS:  false,
-		SSLCert:      "",
-		SSLKey:       "",
+		LoginBgURL:              "",
+		DefaultTheme:            "light",
+		ThemeColor:              "#3B82F6",
+		CustomLogo:              "",
+		CustomBrandPanelEnabled: false,
+		CustomBrandPanelContent: "",
+		ServerPort:              8080,
+		EnableHTTPS:             false,
+		SSLCert:                 "",
+		SSLKey:                  "",
 	}
 }
 

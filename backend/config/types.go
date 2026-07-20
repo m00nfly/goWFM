@@ -58,14 +58,16 @@ type EmailTemplate struct {
 
 // AppearanceSettings 外观设置（含原 Web 设置字段）
 type AppearanceSettings struct {
-	LoginBgURL   string `json:"login_bg_url"`
-	DefaultTheme string `json:"default_theme"` // "light" 或 "dark"
-	ThemeColor   string `json:"theme_color"`   // 主题色，如 "#3B82F6"
-	CustomLogo   string `json:"custom_logo"`   // base64 格式图片
-	ServerPort   int    `json:"server_port"`
-	EnableHTTPS  bool   `json:"enable_https"`
-	SSLCert      string `json:"ssl_cert"` // PEM 格式证书内容
-	SSLKey       string `json:"ssl_key"`  // PEM 格式私钥内容
+	LoginBgURL              string `json:"login_bg_url"`
+	DefaultTheme            string `json:"default_theme"` // "light" 或 "dark"
+	ThemeColor              string `json:"theme_color"`   // 主题色，如 "#3B82F6"
+	CustomLogo              string `json:"custom_logo"`   // base64 格式图片
+	CustomBrandPanelEnabled bool   `json:"custom_brand_panel_enabled"`
+	CustomBrandPanelContent string `json:"custom_brand_panel_content"`
+	ServerPort              int    `json:"server_port"`
+	EnableHTTPS             bool   `json:"enable_https"`
+	SSLCert                 string `json:"ssl_cert"` // PEM 格式证书内容
+	SSLKey                  string `json:"ssl_key"`  // PEM 格式私钥内容
 }
 
 // ShareSettings 分享设置
