@@ -107,8 +107,8 @@ function handleLogoError() {
 
 .brand-identity__logo {
   display: block;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -141,8 +141,10 @@ function handleLogoError() {
 }
 
 .brand-identity--header .brand-identity__logo-frame {
+  width: min(160px, 28vw);
   height: 36px;
   max-width: min(160px, 28vw);
+  flex: 0 1 160px;
 }
 
 .brand-identity--header:not(.brand-identity--wordmark) .brand-identity__logo-frame {
@@ -192,10 +194,10 @@ function handleLogoError() {
 }
 
 .brand-identity--login.brand-identity--wordmark .brand-identity__logo-frame {
-  width: auto;
+  width: min(280px, 100%);
   height: 64px;
   max-width: min(280px, 100%);
-  flex: 0 1 auto;
+  flex: 0 1 280px;
 }
 
 .brand-identity--login .brand-identity__fallback {
@@ -206,9 +208,10 @@ function handleLogoError() {
   align-items: center;
   justify-content: center;
   border-radius: 16px;
+  border: 1px solid var(--line);
   color: var(--accent);
   background: var(--panel-strong);
-  box-shadow: 0 0 0 1px var(--line), 0 14px 34px rgba(16, 32, 51, 0.12);
+  box-shadow: none;
 }
 
 .brand-identity--login .brand-identity__copy {
@@ -240,8 +243,10 @@ function handleLogoError() {
 
 @media (max-width: 560px) {
   .brand-identity--login.brand-identity--wordmark .brand-identity__logo-frame {
+    width: min(240px, 100%);
     height: 56px;
     max-width: min(240px, 100%);
+    flex-basis: 240px;
   }
 }
 

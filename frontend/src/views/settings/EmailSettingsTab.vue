@@ -593,7 +593,7 @@ async function saveActiveTemplate() {
 		0 2px 4px rgba(217, 119, 6, 0.06);
 }
 
-:global(.dark) .smtp-status-control {
+:global(.dark .smtp-status-control) {
 	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
@@ -636,11 +636,11 @@ async function saveActiveTemplate() {
 	background: rgba(208, 48, 80, 0.1);
 }
 
-html.dark .test-result.is-success {
+:global(html.dark .test-result.is-success) {
 	color: #86efac;
 }
 
-html.dark .test-result.is-error {
+:global(html.dark .test-result.is-error) {
 	color: #fda4af;
 }
 

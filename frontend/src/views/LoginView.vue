@@ -782,14 +782,9 @@ function resetTOTPFlow() {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 84%);
 }
 
+.login-page.has-custom-bg::before,
 .login-page.has-custom-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(238, 243, 247, 0.92), rgba(238, 243, 247, 0.58)),
-    radial-gradient(circle at 70% 50%, transparent, rgba(16, 32, 51, 0.18));
+  content: none;
 }
 
 .login-page.dark {
@@ -819,19 +814,13 @@ function resetTOTPFlow() {
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
 }
 
-.login-page.dark.has-custom-bg::after {
-  background:
-    linear-gradient(90deg, rgba(7, 17, 31, 0.93), rgba(7, 17, 31, 0.64)),
-    radial-gradient(circle at 70% 50%, transparent, rgba(0, 0, 0, 0.28));
-}
-
 .login-shell {
-  width: min(1016px, 100%);
-  min-height: min(640px, calc(100dvh - 32px));
+  width: min(900px, 100%);
+  min-height: min(576px, calc(100dvh - 32px));
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 0.72fr);
+  grid-template-columns: minmax(0, 1fr) minmax(350px, 0.82fr);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 28px;
@@ -843,11 +832,11 @@ function resetTOTPFlow() {
 
 .brand-panel {
   position: relative;
-  min-height: 608px;
+  min-height: 544px;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  gap: 24px;
-  padding: 36px;
+  gap: 16px;
+  padding: 26px;
   overflow: hidden;
   background:
     linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), transparent 36%),
@@ -871,7 +860,7 @@ function resetTOTPFlow() {
 
 .brand-copy h1 {
   margin: 0;
-  font-size: clamp(32px, 4.2vw, 54px);
+  font-size: clamp(29px, 3.6vw, 42px);
   line-height: 1.04;
   letter-spacing: 0;
   text-wrap: balance;
@@ -879,8 +868,8 @@ function resetTOTPFlow() {
 
 .brand-copy p {
   max-width: 46ch;
-  margin: 14px 0 0;
-  font-size: 15px;
+  margin: 12px 0 0;
+  font-size: 14px;
   line-height: 1.62;
   color: var(--muted-ink);
   text-wrap: pretty;
@@ -889,12 +878,12 @@ function resetTOTPFlow() {
 .visual-stage {
   position: relative;
   align-self: center;
-  min-height: 242px;
+  min-height: 190px;
   z-index: 1;
 }
 
 .visual-card {
-  width: min(286px, 68%);
+  width: min(220px, 64%);
   aspect-ratio: 1 / 1;
   margin: 2px auto 0;
   display: grid;
@@ -915,7 +904,7 @@ function resetTOTPFlow() {
 }
 
 .hero-art {
-  width: min(248px, 84%);
+  width: min(190px, 84%);
   height: auto;
   filter: drop-shadow(0 24px 34px rgba(var(--accent-rgb), 0.2));
 }
@@ -980,13 +969,13 @@ function resetTOTPFlow() {
 }
 
 .signal-primary {
-  top: 26px;
-  right: 24px;
+  top: 16px;
+  right: 14px;
 }
 
 .signal-secondary {
-  left: 22px;
-  bottom: 26px;
+  left: 14px;
+  bottom: 16px;
 }
 
 .brand-points {
@@ -998,11 +987,11 @@ function resetTOTPFlow() {
 }
 
 .brand-point {
-  min-height: 62px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px;
+  padding: 9px;
   border: 1px solid var(--line);
   border-radius: 16px;
   color: var(--muted-ink);
@@ -1018,7 +1007,7 @@ function resetTOTPFlow() {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: 34px;
   border-left: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
 }

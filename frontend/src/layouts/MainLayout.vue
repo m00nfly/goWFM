@@ -325,6 +325,19 @@ onUnmounted(() => {
     box-shadow 0.2s ease;
 }
 
+.main-layout.dark .top-header {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--workspace-surface-strong) 92%, var(--workspace-accent) 8%),
+      color-mix(in srgb, var(--workspace-surface) 95%, var(--workspace-accent) 5%)
+    );
+  border-bottom-color: rgba(var(--workspace-accent-rgb), 0.20);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 12px 30px rgba(2, 6, 23, 0.34);
+}
+
 .header-inner {
   max-width: 1280px;
   margin: 0 auto;

@@ -72,8 +72,8 @@ const initials = computed(() => {
   user-select: none;
 }
 
-:global(.dark) .app-user-avatar {
+:global(.dark .app-user-avatar) {
   outline-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.24);
 }
 </style>

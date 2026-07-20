@@ -331,7 +331,7 @@ html.dark .workspace-surface {
 }
 
 html.dark .settings-section {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.05);
 }
 
 .settings-section-header {

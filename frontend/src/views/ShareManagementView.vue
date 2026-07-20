@@ -628,11 +628,11 @@ onUnmounted(() => {
     0 12px 28px rgba(var(--workspace-accent-rgb), 0.12);
 }
 
-:global(.dark) .share-card {
+:global(.dark .share-card) {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-:global(.dark) .share-card:hover {
+:global(.dark .share-card:hover) {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.13);
 }
 
