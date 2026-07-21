@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>goWFM — Go Web File Manager</title>
-  <meta name="description" content="goWFM 一键让本地文件夹秒变安全私有网盘，单一二进制部署、保持原始目录结构、多用户权限控制、分享链接、完整操作审计、轻量高效。" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <title>goWFM - 简单轻量的 Web 文件管理器</title>
+  <meta name="description" content="goWFM 直接管理服务器上的现有目录，单文件运行，支持多用户权限、多文件分享、TOTP、操作日志、管理员仪表盘和自定义品牌。" />
+  <link rel="icon" type="image/png" href="icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
@@ -37,8 +37,8 @@
       --accent-purple: #3B82F6;
       --accent-cyan: #3B82F6;
       --brand: #3B82F6;
-      --gradient-main: #3B82F6;
-      --gradient-text: #3B82F6;
+      --gradient-main: #2563EB;
+      --gradient-text: #2563EB;
       --nav-bg: rgba(15, 23, 42, 0.8);
       --nav-mobile-bg: rgba(15, 23, 42, 0.96);
       --grid-line: rgba(148, 163, 184, 0.04);
@@ -60,6 +60,9 @@
       --btn-primary-shadow: rgba(59, 130, 246, 0.3);
       --btn-primary-shadow-hover: rgba(59, 130, 246, 0.4);
       --logo-shadow: rgba(59, 130, 246, 0.3);
+      --screenshot-outline: rgba(255, 255, 255, 0.1);
+      --screenshot-shadow: rgba(0, 0, 0, 0.42);
+      --lightbox-bg: rgba(2, 6, 23, 0.86);
       --radius: 14px;
       --max-w: 1200px;
       --font: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -92,9 +95,15 @@
       --btn-primary-shadow: rgba(59, 130, 246, 0.25);
       --btn-primary-shadow-hover: rgba(59, 130, 246, 0.35);
       --logo-shadow: rgba(59, 130, 246, 0.22);
+      --screenshot-outline: rgba(0, 0, 0, 0.1);
+      --screenshot-shadow: rgba(15, 23, 42, 0.18);
+      --lightbox-bg: rgba(15, 23, 42, 0.78);
       color-scheme: light;
     }
-    html { scroll-behavior: smooth; }
+    html {
+      scroll-behavior: smooth;
+      -moz-osx-font-smoothing: grayscale;
+    }
     body {
       font-family: var(--font);
       background: var(--bg-primary);
@@ -106,6 +115,11 @@
     }
     a { color: inherit; text-decoration: none; }
     img { max-width: 100%; }
+    button { font: inherit; }
+    :focus-visible {
+      outline: 3px solid var(--accent-blue);
+      outline-offset: 3px;
+    }
 
     /* ===== Utility ===== */
     .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
@@ -120,12 +134,14 @@
       font-weight: 800;
       margin-bottom: 16px;
       letter-spacing: -0.02em;
+      text-wrap: balance;
     }
     .section-subtitle {
       font-size: 1.1rem;
       color: var(--text-secondary);
       max-width: 640px;
       margin: 0 auto 56px;
+      text-wrap: pretty;
     }
     section {
       padding: 100px 0;
@@ -280,7 +296,9 @@
       border: none;
       color: var(--text-primary);
       cursor: pointer;
-      padding: 4px;
+      width: 40px;
+      height: 40px;
+      padding: 8px;
       line-height: 0;
     }
     .nav-mobile-toggle svg {
@@ -290,8 +308,8 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       border-radius: 10px;
       background: transparent;
       border: 1px solid var(--border-card);
@@ -299,6 +317,7 @@
       cursor: pointer;
       padding: 0;
       transition: color 0.2s, border-color 0.2s, transform 0.2s, background 0.2s;
+      position: relative;
     }
     .theme-toggle:hover {
       color: var(--text-primary);
@@ -306,14 +325,20 @@
       background: var(--accent-tint-med);
       transform: translateY(-1px);
     }
-    .theme-toggle svg { width: 18px; height: 18px; }
-    .theme-toggle .icon-sun { display: none; }
-    [data-theme="light"] .theme-toggle .icon-sun { display: block; }
-    [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+    .theme-toggle svg {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      transition: opacity 0.2s cubic-bezier(0.2, 0, 0, 1), transform 0.2s cubic-bezier(0.2, 0, 0, 1), filter 0.2s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .theme-toggle .icon-sun { opacity: 0; transform: scale(0.25); filter: blur(4px); }
+    .theme-toggle .icon-moon { opacity: 1; transform: scale(1); filter: blur(0); }
+    [data-theme="light"] .theme-toggle .icon-sun { opacity: 1; transform: scale(1); filter: blur(0); }
+    [data-theme="light"] .theme-toggle .icon-moon { opacity: 0; transform: scale(0.25); filter: blur(4px); }
 
     /* ===== Hero ===== */
     .hero {
-      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -414,6 +439,7 @@
       border: none;
     }
     .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: scale(0.96); }
     .btn-primary {
       background: var(--gradient-main);
       color: #fff;
@@ -427,6 +453,297 @@
       backdrop-filter: blur(4px);
     }
     .btn-outline:hover { border-color: var(--icon-wrapper-border); background: var(--accent-tint-med); }
+
+    /* ===== Product Screenshots ===== */
+    .preview {
+      height: 100dvh;
+      min-height: 600px;
+      padding: 88px 0 24px;
+      display: flex;
+      background: var(--bg-secondary);
+    }
+    .preview > .container {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      width: 100%;
+      min-height: 0;
+    }
+    .preview .section-title { margin-bottom: 8px; }
+    .preview .section-subtitle { margin-bottom: 18px; }
+    .screenshot-carousel {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      flex: 1;
+      width: 100%;
+      max-width: 1000px;
+      min-height: 0;
+      margin: 0 auto;
+      gap: 14px;
+    }
+    .screenshot-carousel figure {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      min-height: 0;
+    }
+    .screenshot-shell {
+      position: relative;
+      justify-self: center;
+      height: 100%;
+      max-width: 100%;
+      min-height: 0;
+      aspect-ratio: 16 / 10;
+      padding: 6px;
+      border-radius: 16px;
+      background: var(--bg-card);
+      box-shadow: 0 24px 70px var(--screenshot-shadow), 0 2px 8px var(--shadow-card);
+      transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.35s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .screenshot-shell:hover {
+      transform: translateY(-3px) scale(1.003);
+      box-shadow: 0 30px 82px var(--screenshot-shadow), 0 4px 12px var(--shadow-card);
+    }
+    .shot-button {
+      position: relative;
+      display: block;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+      border-radius: 10px;
+      background: var(--bg-secondary);
+      cursor: zoom-in;
+      line-height: 0;
+    }
+    .shot-button:active { transform: scale(0.995); }
+    .shot-button img {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      outline: 1px solid var(--screenshot-outline);
+      outline-offset: -1px;
+    }
+    .carousel-main-image {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 1;
+      transform: scale(1);
+      filter: blur(0);
+      transition: opacity 0.18s cubic-bezier(0.2, 0, 0, 1), transform 0.18s cubic-bezier(0.2, 0, 0, 1), filter 0.18s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .carousel-main-image.switching {
+      opacity: 0.3;
+      transform: scale(0.99);
+      filter: blur(3px);
+    }
+    .shot-hint {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 9px;
+      color: #fff;
+      background: rgba(15, 23, 42, 0.76);
+      backdrop-filter: blur(10px);
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .shot-hint svg { width: 15px; height: 15px; }
+    .shot-button:hover .shot-hint,
+    .shot-button:focus-visible .shot-hint { opacity: 1; transform: translateY(0); }
+    .carousel-caption {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 10px;
+      text-align: left;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      line-height: 1.4;
+      text-wrap: pretty;
+    }
+    .carousel-caption strong {
+      display: inline;
+      margin-right: 8px;
+      color: var(--text-primary);
+      font-size: 1.02rem;
+    }
+    .carousel-counter {
+      flex: 0 0 auto;
+      color: var(--text-muted);
+      font-size: 0.84rem;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .carousel-nav {
+      min-width: 0;
+    }
+    .carousel-arrow {
+      position: absolute;
+      top: 50%;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border: 0;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.74);
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 18px rgba(15, 23, 42, 0.28);
+      transform: translateY(-50%);
+      transition: color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+    .carousel-arrow-prev { left: 14px; }
+    .carousel-arrow-next { right: 14px; }
+    .carousel-arrow:hover {
+      color: #fff;
+      background: rgba(37, 99, 235, 0.9);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24), 0 8px 22px rgba(15, 23, 42, 0.34);
+      transform: translateY(-50%) scale(1.04);
+    }
+    .carousel-arrow:active { transform: translateY(-50%) scale(0.96); }
+    .carousel-arrow svg { width: 20px; height: 20px; }
+    .thumbnail-track {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(120px, 140px);
+      gap: 10px;
+      padding: 3px 3px 8px;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      scroll-snap-type: inline mandatory;
+      scrollbar-width: thin;
+      scrollbar-color: var(--text-muted) transparent;
+    }
+    .screenshot-thumb {
+      scroll-snap-align: start;
+      min-width: 0;
+      padding: 5px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      cursor: pointer;
+      text-align: left;
+      box-shadow: 0 0 0 1px var(--border-card), 0 3px 10px var(--shadow-card);
+      transition: color 0.2s, box-shadow 0.2s, transform 0.2s, background 0.2s;
+    }
+    .screenshot-thumb:hover {
+      color: var(--text-primary);
+      transform: translateY(-2px);
+      box-shadow: 0 0 0 1px var(--icon-wrapper-border), 0 7px 18px var(--shadow-card);
+    }
+    .screenshot-thumb:active { transform: scale(0.96); }
+    .screenshot-thumb[aria-selected="true"] {
+      color: var(--text-primary);
+      background: var(--accent-tint-med);
+      box-shadow: 0 0 0 2px var(--accent-blue), 0 7px 18px var(--shadow-card);
+    }
+    .screenshot-thumb img {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 10;
+      object-fit: contain;
+      border-radius: 9px;
+      outline: 1px solid var(--screenshot-outline);
+      outline-offset: -1px;
+      pointer-events: none;
+    }
+    .screenshot-thumb span {
+      display: block;
+      padding: 6px 4px 2px;
+      overflow: hidden;
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.25;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* ===== Screenshot Lightbox ===== */
+    body.lightbox-open { overflow: hidden; }
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.22s cubic-bezier(0.2, 0, 0, 1), visibility 0.22s;
+    }
+    .lightbox.open { visibility: visible; opacity: 1; }
+    .lightbox-backdrop {
+      position: absolute;
+      inset: 0;
+      border: 0;
+      background: var(--lightbox-bg);
+      backdrop-filter: blur(14px);
+      cursor: zoom-out;
+    }
+    .lightbox-panel {
+      position: relative;
+      width: min(1440px, 94vw);
+      max-height: 92vh;
+      padding: 8px;
+      border-radius: 18px;
+      background: var(--bg-card);
+      box-shadow: 0 32px 100px rgba(0, 0, 0, 0.5);
+      transform: translateY(12px) scale(0.98);
+      transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .lightbox.open .lightbox-panel { transform: translateY(0) scale(1); }
+    .lightbox-image {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: calc(92vh - 72px);
+      object-fit: contain;
+      border-radius: 10px;
+      outline: 1px solid var(--screenshot-outline);
+      outline-offset: -1px;
+    }
+    .lightbox-caption {
+      padding: 10px 52px 4px 8px;
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    .lightbox-close {
+      position: absolute;
+      right: 16px;
+      bottom: 10px;
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s, transform 0.2s;
+    }
+    .lightbox-close:hover { background: var(--accent-tint-med); }
+    .lightbox-close:active { transform: scale(0.96); }
+    .lightbox-close svg { width: 20px; height: 20px; }
 
     /* ===== Why / Pain Points ===== */
     .why { background: var(--bg-primary); }
@@ -676,6 +993,31 @@
       .pain-grid, .feature-grid, .scenario-grid, .tech-grid, .steps {
         grid-template-columns: 1fr;
       }
+      .preview { height: auto; min-height: 0; padding: 82px 0 24px; }
+      .preview .section-subtitle { margin-bottom: 16px; }
+      .screenshot-carousel { display: block; }
+      .screenshot-carousel figure { display: block; }
+      .screenshot-shell { width: 100%; height: auto; padding: 5px; border-radius: 15px; }
+      .shot-button, .shot-button img, .lightbox-image { border-radius: 10px; }
+      .shot-hint { display: none; }
+      .carousel-caption { gap: 12px; margin-top: 10px; }
+      .carousel-caption strong { display: block; margin: 0 0 2px; }
+      .carousel-nav { margin-top: 14px; }
+      .carousel-arrow { width: 40px; height: 40px; border-radius: 10px; }
+      .carousel-arrow-prev { left: 10px; }
+      .carousel-arrow-next { right: 10px; }
+      .thumbnail-track { grid-auto-columns: 124px; gap: 9px; }
+      .screenshot-thumb { border-radius: 12px; }
+      .screenshot-thumb img { border-radius: 7px; }
+      .lightbox { padding: 10px; }
+      .lightbox-panel { width: 100%; padding: 5px; border-radius: 15px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .hero-logo img, .hero-badge .dot { animation: none; }
+      *, *::before, *::after { transition-duration: 0.01ms !important; }
+      .screenshot-shell:hover, .shot-button:active, .lightbox-panel { transform: none; }
     }
   </style>
 </head>
@@ -690,6 +1032,7 @@
       goWFM
     </a>
     <div class="nav-links" id="navLinks">
+      <a href="#preview">界面预览</a>
       <a href="#why">为什么选择</a>
       <a href="#features">核心特性</a>
       <a href="#scenarios">使用场景</a>
@@ -715,9 +1058,9 @@
     </div>
     <h1><span class="gradient-text">goWFM</span></h1>
     <p class="hero-sub">Go Web File Manager</p>
-    <div class="hero-badge"><span class="dot"></span> 开源 · Go 驱动 · 零依赖</div>
-    <p class="hero-tagline">简单 · 轻量 · 易用 — 一键让本地文件夹秒变安全私有网盘</p>
-    <div class="hero-diff">无需改变原有目录结构。像传统 HTTP 文件服务器一样直接访问本地目录<br>却拥有现代网盘的用户体系、权限控制、分享链接与操作审计能力。</div>
+    <div class="hero-badge"><span class="dot"></span> 开源 · Go 驱动 · 单文件运行</div>
+    <p class="hero-tagline">简单、轻量、易用，把现有文件夹直接搬到浏览器里</p>
+    <div class="hero-diff">不用迁移文件，也不用改变目录结构<br>登录、权限、多文件分享、TOTP 和操作日志都已经内置。</div>
     <div class="hero-buttons">
       <a href="#quickstart" class="btn btn-primary"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 3 0 3 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-3 0-3"/></svg> 立即开始</a>
       <a href="https://github.com/m00nfly/goWFM" target="_blank" rel="noopener" class="btn btn-outline">
@@ -728,11 +1071,65 @@
   </div>
 </section>
 
+<!-- ===== Product Preview ===== -->
+<section class="preview" id="preview">
+  <div class="container text-center">
+    <h2 class="section-title reveal"><span class="gradient-text">界面展示</span></h2>
+    <p class="section-subtitle reveal">从文件管理到分享和账号设置，常用页面都在这里</p>
+    <div class="screenshot-carousel reveal">
+      <figure>
+        <div class="screenshot-shell">
+          <button class="shot-button" id="screenshotMainButton" type="button" data-shot="screenshots/file-explorer-card.webp" data-alt="goWFM 文件管理器卡片模式" data-caption="支持搜索、跨目录多选、批量下载、分享和删除。" aria-label="放大查看 goWFM 文件管理器卡片模式截图">
+            <img class="carousel-main-image" id="screenshotMainImage" src="screenshots/file-explorer-card.webp" width="1920" height="1200" alt="goWFM 文件管理器卡片模式" fetchpriority="high" />
+            <span class="shot-hint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>点击放大</span>
+          </button>
+          <button class="carousel-arrow carousel-arrow-prev" id="screenshotPrev" type="button" aria-label="上一张产品截图" title="上一张">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <button class="carousel-arrow carousel-arrow-next" id="screenshotNext" type="button" aria-label="下一张产品截图" title="下一张">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+        <figcaption class="carousel-caption" aria-live="polite">
+          <span><strong id="screenshotTitle">文件管理 · 卡片模式</strong><span id="screenshotDescription">支持搜索、跨目录多选、批量下载、分享和删除。</span></span>
+          <span class="carousel-counter"><span id="screenshotIndex">1</span> / 7</span>
+        </figcaption>
+      </figure>
+
+      <div class="carousel-nav">
+        <div class="thumbnail-track" id="screenshotTrack" role="tablist" aria-label="选择产品截图">
+          <button class="screenshot-thumb" type="button" role="tab" aria-selected="true" data-index="0" data-shot="screenshots/file-explorer-card.webp" data-alt="goWFM 文件管理器卡片模式" data-title="文件管理 · 卡片模式" data-description="支持搜索、跨目录多选、批量下载、分享和删除。">
+            <img src="screenshots/file-explorer-card.webp" width="320" height="200" alt="" aria-hidden="true" /><span>文件管理 · 卡片</span>
+          </button>
+          <button class="screenshot-thumb" type="button" role="tab" aria-selected="false" data-index="1" data-shot="screenshots/file-explorer-list.webp" data-alt="goWFM 文件管理器列表模式" data-title="文件管理 · 列表模式" data-description="列表和卡片视图随手切换，大目录也能快速浏览。">
+            <img src="screenshots/file-explorer-list.webp" width="320" height="200" alt="" aria-hidden="true" loading="lazy" /><span>文件管理 · 列表</span>
+          </button>
+          <button class="screenshot-thumb" type="button" role="tab" aria-selected="false" data-index="2" data-shot="screenshots/dashboard.webp" data-alt="goWFM 管理员仪表盘" data-title="管理员仪表盘" data-description="存储、文件、用户、分享、操作趋势和安全状态集中查看。">
+            <img src="screenshots/dashboard.webp" width="320" height="200" alt="" aria-hidden="true" loading="lazy" /><span>管理员仪表盘</span>
+          </button>
+          <button class="screenshot-thumb" type="button" role="tab" aria-selected="false" data-index="3" data-shot="screenshots/share-manager.webp" data-alt="goWFM 分享管理页面" data-title="分享链接统一管理" data-description="查看链接状态、有效期和下载次数，也能随时停用或删除。">
+            <img src="screenshots/share-manager.webp" width="320" height="200" alt="" aria-hidden="true" loading="lazy" /><span>分享管理</span>
+          </button>
+          <button class="screenshot-thumb" type="button" role="tab" aria-selected="false" data-index="4" data-shot="screenshots/share-access.webp" data-alt="goWFM 公开分享访问页面" data-title="打开链接即可下载" data-description="接收方无需注册，一个分享页面可以包含多个文件。">
+            <img src="screenshots/share-access.webp" width="320" height="200" alt="" aria-hidden="true" loading="lazy" /><span>公开分享</span>
+          </button>
+          <button class="screenshot-thumb" type="button" role="tab" aria-selected="false" data-index="5" data-shot="screenshots/user-manager.webp" data-alt="goWFM 用户管理页面" data-title="用户、权限与 TOTP" data-description="为每位成员分配权限，登录安全策略也能统一管理。">
+            <img src="screenshots/user-manager.webp" width="320" height="200" alt="" aria-hidden="true" loading="lazy" /><span>用户与权限</span>
+          </button>
+          <button class="screenshot-thumb" type="button" role="tab" aria-selected="false" data-index="6" data-shot="screenshots/login.webp" data-alt="goWFM 登录页面" data-title="自己的登录入口" data-description="站点名称、Logo、主题色和登录背景都可以自定义。">
+            <img src="screenshots/login.webp" width="320" height="200" alt="" aria-hidden="true" loading="lazy" /><span>登录页面</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ===== Why / Pain Points ===== -->
 <section class="why" id="why">
   <div class="container text-center">
     <h2 class="section-title reveal"><span class="gradient-text">为什么你需要 goWFM？</span></h2>
-    <p class="section-subtitle reveal">如果你遇到过以下场景，goWFM 就是为你准备的</p>
+    <p class="section-subtitle reveal">如果这些小麻烦你也遇到过，goWFM 也许正合适</p>
     <div class="pain-grid">
       <div class="pain-card reveal">
         <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div>
@@ -752,7 +1149,7 @@
       <div class="pain-card reveal">
         <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
         <h3>分享文件不想给全部权限</h3>
-        <p>需要把某个文件分享给别人下载，但不想给他你所有文件的访问权限，只需一个临时链接。</p>
+        <p>需要把几个文件发给别人，又不想重新上传到公共网盘，更不想开放整个目录。</p>
       </div>
     </div>
   </div>
@@ -768,21 +1165,21 @@
         <thead>
           <tr>
             <th>功能维度</th>
-            <th>传统 HTTP Dir Listing</th>
-            <th>常见网盘</th>
+            <th>传统 HTTP 目录列表</th>
+            <th>常见私有云盘</th>
             <th><span class="th-highlight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> goWFM</span></th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>存储结构</td><td>原始目录</td><td><span class="status-icon bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 私有格式/对象存储</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 保留原始目录结构</td></tr>
-          <tr><td>用户认证</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 无</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 有</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 内置用户系统</td></tr>
-          <tr><td>权限控制</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 无</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 基础</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 细粒度多维权限</td></tr>
-          <tr><td>文件分享链接</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 无</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 有</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 有时效分享链接</td></tr>
-          <tr><td>部署复杂度</td><td><span class="status-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 简单</td><td><span class="status-icon bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 复杂(数据库/存储)</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 单文件，零依赖</td></tr>
-          <tr><td>资源占用</td><td><span class="status-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 低</td><td><span class="status-icon bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 高</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 极低(Go + SQLite)</td></tr>
-          <tr><td>操作审计</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 无</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 部分</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 完整操作日志</td></tr>
-          <tr><td>文件所有权</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 无</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span> 有限</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 所有权追踪与管理</td></tr>
-          <tr><td>移动端适配</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 差</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 好</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> 响应式现代 UI</td></tr>
+          <tr><td>现有目录</td><td>直接读取</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></span> 通常需要独立数据目录</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 直接管理，不迁移</td></tr>
+          <tr><td>账号与权限</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 通常没有</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 功能完整</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 多用户，五类权限</td></tr>
+          <tr><td>登录安全</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 无</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></span> 视方案而定</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 验证码、封锁与 TOTP</td></tr>
+          <tr><td>对外分享</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 需要额外工具</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 支持</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 多文件、限时、一次性链接</td></tr>
+          <tr><td>批量操作</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 无</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 支持</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 支持跨目录多选</td></tr>
+          <tr><td>部署与依赖</td><td><span class="status-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></span> 简单</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></span> 通常需要多个组件</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 单二进制 + SQLite</td></tr>
+          <tr><td>操作审计</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></span> 主要是访问日志</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 视方案而定</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 文件、分享和配置日志</td></tr>
+          <tr><td>文件所有权</td><td><span class="status-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></span> 依赖系统 UID/GID</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 通常支持</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 记录创建者，可调整</td></tr>
+          <tr><td>管理体验</td><td><span class="status-icon cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span> 基础目录页面</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 完整</td><td><span class="status-icon check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span> 仪表盘、响应式与品牌设置</td></tr>
         </tbody>
       </table>
     </div>
@@ -793,47 +1190,68 @@
 <section class="features" id="features">
   <div class="container text-center">
     <h2 class="section-title reveal"><span class="gradient-text">核心特性</span></h2>
-    <p class="section-subtitle reveal">精心打造的每一个功能，都为简化你的文件管理体验</p>
+    <p class="section-subtitle reveal">从最初的目录浏览，到现在该有的小工具基本都配齐了</p>
+    <!-- Feature icons use the Ionicons 5 family already included by the project through @vicons/ionicons5. -->
     <div class="feature-grid">
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg></div>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M402 168c-2.93 40.67-33.1 72-66 72s-63.12-31.32-66-72c-3-42.31 26.37-72 66-72s69 30.46 66 72zM336 304c-65.17 0-127.84 32.37-143.54 95.41c-2.08 8.34 3.15 16.59 11.72 16.59h263.65c8.57 0 13.77-8.25 11.72-16.59C463.85 335.36 401.18 304 336 304zM200 185.94c-2.34 32.48-26.72 58.06-53 58.06s-50.7-25.57-53-58.06C91.61 152.15 115.34 128 147 128s55.39 24.77 53 57.94zM206 306c-18.05-8.27-37.93-11.45-59-11.45c-52 0-102.1 25.85-114.65 76.2c-1.65 6.66 2.53 13.25 9.37 13.25H154" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg></div>
         <h3>多用户与权限</h3>
-        <p>内置 admin 超级管理员，细粒度权限控制：浏览、下载、上传、分享、日志查看，按需分配。</p>
+        <p>管理员账号可自定义，浏览、下载、全局上传、分享和日志权限可以分别分配。</p>
       </div>
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="9" y1="14" x2="15" y2="14"/></svg></div>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M64 192v-72a40 40 0 0 1 40-40h75.89a40 40 0 0 1 22.19 6.72l27.84 18.56a40 40 0 0 0 22.19 6.72H408a40 40 0 0 1 40 40v40M479.9 226.55L463.68 392a40 40 0 0 1-39.93 40H88.25a40 40 0 0 1-39.93-40L32.1 226.55A32 32 0 0 1 64 192h384.1a32 32 0 0 1 31.8 34.55z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg></div>
         <h3>保留原始目录结构</h3>
         <p>文件在磁盘上什么样，Web 上看到就什么样。不迁移、不拷贝，直接管理你的现有文件。</p>
       </div>
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
-        <h3>文件分享链接</h3>
-        <p>生成有时效性的公开下载链接，无需登录即可访问。安全分享，到期自动失效。</p>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M208 352h-64a96 96 0 0 1 0-192h64M304 160h64a96 96 0 0 1 0 192h-64M163.29 256h187.42" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="36"/></svg></div>
+        <h3>多文件分享</h3>
+        <p>一个链接可以包含多个文件，支持名称、有效期、下载统计、短 ID 和一次性下载链接。</p>
       </div>
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
-        <h3>操作日志审计</h3>
-        <p>谁在什么时候做了什么？所有文件操作有迹可循，满足团队合规与安全审计需求。</p>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M464 128L240 384l-96-96M144 384l-96-96M368 128L232 284" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg></div>
+        <h3>跨目录批量操作</h3>
+        <p>切换目录时保留已选文件，可一次完成批量下载、分享或删除。</p>
       </div>
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg></div>
-        <h3>所有权管理</h3>
-        <p>文件和文件夹自动记录创建者，admin 可随时变更所有者，权责清晰可追溯。</p>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M336 176L225.2 304L176 255.8M463.1 112.37C373.68 96.33 336.71 84.45 256 48c-80.71 36.45-117.68 48.33-207.1 64.37C32.7 369.13 240.58 457.79 256 464c15.42-6.21 223.3-94.87 207.1-351.63z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg></div>
+        <h3>TOTP 与登录防护</h3>
+        <p>支持验证码、登录封锁、TOTP、恢复码、受信任设备和管理员强制策略。</p>
       </div>
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><rect x="2" y="4" width="6" height="10" rx="1" style="display:none"/><path d="M2 8h3"/><path d="M19 8h3"/><rect x="9" y="2" width="13" height="16" rx="2" ry="2" style="display:none"/></svg></div>
-        <h3>现代响应式界面</h3>
-        <p>基于 Vue 3 + TypeScript 构建的现代 Web UI，完美适配桌面、平板和手机等各种设备。</p>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><rect x="48" y="96" width="416" height="320" rx="40" ry="40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M112 160l144 112l144-112" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg></div>
+        <h3>邮件通知与密码找回</h3>
+        <p>SMTP 测试通过后，可发送分享通知和一次性密码重置邮件。</p>
       </div>
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg></div>
-        <h3>极致轻量</h3>
-        <p>Go + SQLite 纯编译，单一二进制文件，无需安装数据库、无需 Docker，最低资源消耗。</p>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><rect x="64" y="320" width="48" height="160" rx="8" fill="none" stroke="currentColor" stroke-width="32"/><rect x="176" y="32" width="48" height="448" rx="8" fill="none" stroke="currentColor" stroke-width="32"/><rect x="288" y="224" width="48" height="256" rx="8" fill="none" stroke="currentColor" stroke-width="32"/><rect x="400" y="112" width="48" height="368" rx="8" fill="none" stroke="currentColor" stroke-width="32"/></svg></div>
+        <h3>管理员仪表盘</h3>
+        <p>存储空间、文件类型、用户、分享、操作趋势和安全检查都能一页查看。</p>
       </div>
       <div class="feature-card reveal">
-        <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
-        <h3>开箱即用</h3>
-        <p>下载 → 运行 → 浏览器打开 → 完成。零配置启动，三步搞定，没有比这更简单的了。</p>
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M416 221.25V416a48 48 0 0 1-48 48H144a48 48 0 0 1-48-48V96a48 48 0 0 1 48-48h98.75a32 32 0 0 1 22.62 9.37l141.26 141.26a32 32 0 0 1 9.37 22.62zM256 56v120a32 32 0 0 0 32 32h120M176 288h160M176 368h160" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg></div>
+        <h3>完整操作日志</h3>
+        <p>登录、文件、分享和配置修改都能筛选查看，匿名访问也会记录。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M258.9 48C141.92 46.42 46.42 141.92 48 258.9c1.56 112.19 92.91 203.54 205.1 205.1c117 1.6 212.48-93.9 210.88-210.88C462.44 140.91 371.09 49.56 258.9 48zm126.42 327.25a4 4 0 0 1-6.14-.32a124.27 124.27 0 0 0-32.35-29.59C321.37 329 289.11 320 256 320s-65.37 9-90.83 25.34a124.24 124.24 0 0 0-32.35 29.58a4 4 0 0 1-6.14.32A175.32 175.32 0 0 1 80 259c-1.63-97.31 78.22-178.76 175.57-179S432 158.81 432 256a175.32 175.32 0 0 1-46.68 119.25zM256 144c-19.72 0-37.55 7.39-50.22 20.82s-19 32-17.57 51.93C191.11 256 221.52 288 256 288s64.83-32 67.79-71.24c1.48-19.74-4.8-38.14-17.68-51.82C293.39 151.44 275.59 144 256 144z" fill="currentColor"/></svg></div>
+        <h3>所有权与个人头像</h3>
+        <p>记录文件创建者，管理员可调整所有者，用户也能设置头像和个人信息。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M430.11 347.9c-6.6-6.1-16.3-7.6-24.6-9c-11.5-1.9-15.9-4-22.6-10c-14.3-12.7-14.3-31.1 0-43.8l30.3-26.9c46.4-41 46.4-108.2 0-149.2c-34.2-30.1-80.1-45-127.8-45c-55.7 0-113.9 20.3-158.8 60.1c-83.5 73.8-83.5 194.7 0 268.5c41.5 36.7 97.5 55 152.9 55.4h1.7c55.4 0 110-17.9 148.8-52.4c14.4-12.7 11.99-36.6.1-47.7z" fill="none" stroke="currentColor" stroke-width="32"/><circle cx="144" cy="208" r="32" fill="currentColor"/><circle cx="152" cy="311" r="32" fill="currentColor"/><circle cx="224" cy="144" r="32" fill="currentColor"/><circle cx="328" cy="144" r="32" fill="currentColor"/></svg></div>
+        <h3>明暗主题与品牌设置</h3>
+        <p>自定义站点名称、Logo、主题色、登录背景和 Markdown/HTML 品牌面板。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="icon-wrapper"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="6" x2="15" y2="6"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
+        <h3>响应式界面</h3>
+        <p>桌面、平板和手机都能用，文件列表、分享页面和设置页面会自动适配。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="icon-wrapper"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M461.81 53.81a4.4 4.4 0 0 0-3.3-3.39c-54.38-13.3-180 34.09-248.13 102.17a294.9 294.9 0 0 0-33.09 39.08c-21-1.9-42-.3-59.88 7.5c-50.49 22.2-65.18 80.18-69.28 105.07a9 9 0 0 0 9.8 10.4l81.07-8.9a180.29 180.29 0 0 0 1.1 18.3a18.15 18.15 0 0 0 5.3 11.09l31.39 31.39a18.15 18.15 0 0 0 11.1 5.3a179.91 179.91 0 0 0 18.19 1.1l-8.89 81a9 9 0 0 0 10.39 9.79c24.9-4 83-18.69 105.07-69.17c7.8-17.9 9.4-38.79 7.6-59.69a293.91 293.91 0 0 0 39.19-33.09c68.38-68 115.47-190.86 102.37-247.95zM298.66 213.67a42.7 42.7 0 1 1 60.38 0a42.65 42.65 0 0 1-60.38 0zM109.64 352a45.06 45.06 0 0 0-26.35 12.84C65.67 382.52 64 448 64 448s65.52-1.67 83.15-19.31A44.73 44.73 0 0 0 160 402.32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg></div>
+        <h3>单文件运行</h3>
+        <p>Go + SQLite，前端资源直接嵌入程序，不需要额外安装数据库服务。</p>
       </div>
     </div>
   </div>
@@ -843,17 +1261,17 @@
 <section class="scenarios" id="scenarios">
   <div class="container text-center">
     <h2 class="section-title reveal"><span class="gradient-text">使用场景</span></h2>
-    <p class="section-subtitle reveal">无论是个人还是团队，goWFM 都能帮到你</p>
+    <p class="section-subtitle reveal">个人服务器、NAS 和几个人的小团队都能用</p>
     <div class="scenario-grid">
       <div class="scenario-card reveal">
         <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-        <h3>团队共享项目文档</h3>
-        <p>为团队搭建一个安全的文件共享中心，按角色分配权限，随时随地协作。</p>
+        <h3>小团队共享文件</h3>
+        <p>给每个人分配合适的权限，构建产物、文档和素材放在一个地方。</p>
       </div>
       <div class="scenario-card reveal">
         <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
         <h3>给客户发送大文件</h3>
-        <p>生成一个有时效的下载链接，发给客户即可下载，无需注册，无大小限制。</p>
+        <p>把多个文件放进一个限时链接，对方无需注册就能在浏览器里下载。</p>
       </div>
       <div class="scenario-card reveal">
         <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg></div>
@@ -863,7 +1281,7 @@
       <div class="scenario-card reveal">
         <div class="icon-wrapper"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
         <h3>临时收集上传材料</h3>
-        <p>创建一个上传入口，让多人同时上传文件到指定目录，汇总材料轻松高效。</p>
+        <p>给参与者创建上传账号，谁传了什么都能在所有权和日志里查到。</p>
       </div>
     </div>
   </div>
@@ -873,7 +1291,7 @@
 <section class="quickstart" id="quickstart">
   <div class="container text-center">
     <h2 class="section-title reveal"><span class="gradient-text">三步开始使用</span></h2>
-    <p class="section-subtitle reveal">无需复杂配置，几秒钟即可启动你的私有网盘</p>
+    <p class="section-subtitle reveal">下载一个文件，按页面提示初始化，很快就能用起来</p>
     <div class="steps">
       <div class="step reveal">
         <div class="step-num">1</div>
@@ -890,7 +1308,7 @@
       <div class="step reveal">
         <div class="step-num">3</div>
         <h3>访问</h3>
-        <p>打开浏览器访问，完成初始化设置，开始使用</p>
+        <p>创建管理员并选择要管理的本地目录</p>
         <code>http://your-ip:8080</code>
       </div>
     </div>
@@ -902,7 +1320,7 @@
   <div class="bg-glow" style="width:500px;height:500px;background:var(--glow-color);top:50%;left:50%;transform:translate(-50%,-50%);opacity:var(--glow-opacity);position:absolute;"></div>
   <div class="container text-center" style="position:relative;z-index:1;">
     <h2 class="section-title reveal"><span class="gradient-text">准备好了吗？</span></h2>
-    <p class="section-subtitle reveal">用一个文件，开启你的私有网盘之旅</p>
+    <p class="section-subtitle reveal">保留原来的目录，给它加上一个更好用的 Web 入口</p>
     <div class="hero-buttons reveal">
       <a href="https://github.com/m00nfly/goWFM" target="_blank" rel="noopener" class="btn btn-primary"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 3 0 3 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-3 0-3"/></svg> 前往 GitHub</a>
       <a href="#quickstart" class="btn btn-outline"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> 查看快速开始</a>
@@ -914,7 +1332,7 @@
 <footer class="footer">
   <div class="container">
     <div class="footer-logo"><span class="gradient-text">goWFM</span></div>
-    <p>Go Web File Manager — 轻量、安全、易用的私有文件管理系统</p>
+    <p>Go Web File Manager - 简单、轻量、好用的文件分享工具</p>
     <div class="footer-links">
       <a href="https://github.com/m00nfly/goWFM" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/m00nfly/goWFM/releases" target="_blank" rel="noopener">下载</a>
@@ -923,6 +1341,18 @@
     <p style="margin-top:24px;font-size:0.8rem;">Released under the MIT License · © 2026 goWFM</p>
   </div>
 </footer>
+
+<!-- ===== Screenshot Lightbox ===== -->
+<div class="lightbox" id="shotLightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-label="产品截图预览">
+  <button class="lightbox-backdrop" type="button" tabindex="-1" aria-label="关闭截图预览" data-lightbox-close></button>
+  <div class="lightbox-panel" role="document">
+    <img class="lightbox-image" id="lightboxImage" src="screenshots/file-explorer-card.webp" alt="" width="1920" height="1200" />
+    <p class="lightbox-caption" id="lightboxCaption"></p>
+    <button class="lightbox-close" type="button" aria-label="关闭截图预览" title="关闭" data-lightbox-close>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+</div>
 
 <!-- ===== Scripts ===== -->
 <script>
@@ -963,16 +1393,123 @@
       });
     });
 
+    // One large product view controlled by a compact thumbnail carousel
+    const mainShotButton = document.getElementById('screenshotMainButton');
+    const mainShotImage = document.getElementById('screenshotMainImage');
+    const mainShotTitle = document.getElementById('screenshotTitle');
+    const mainShotDescription = document.getElementById('screenshotDescription');
+    const mainShotIndex = document.getElementById('screenshotIndex');
+    const screenshotTrack = document.getElementById('screenshotTrack');
+    const screenshotThumbs = Array.from(document.querySelectorAll('.screenshot-thumb'));
+    const screenshotPrev = document.getElementById('screenshotPrev');
+    const screenshotNext = document.getElementById('screenshotNext');
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let currentScreenshotIndex = 0;
+    let screenshotSwapTimer = null;
+
+    function selectScreenshot(index, moveFocus) {
+      if (!screenshotThumbs.length || !mainShotButton || !mainShotImage) return;
+      const nextIndex = (index + screenshotThumbs.length) % screenshotThumbs.length;
+      const next = screenshotThumbs[nextIndex];
+      currentScreenshotIndex = nextIndex;
+      screenshotThumbs.forEach((thumb, thumbIndex) => {
+        thumb.setAttribute('aria-selected', String(thumbIndex === nextIndex));
+        thumb.setAttribute('tabindex', thumbIndex === nextIndex ? '0' : '-1');
+      });
+      if (moveFocus) next.focus();
+      if (screenshotTrack) {
+        const targetLeft = next.offsetLeft - (screenshotTrack.clientWidth - next.offsetWidth) / 2;
+        screenshotTrack.scrollTo({ left: targetLeft, behavior: reduceMotion ? 'auto' : 'smooth' });
+      }
+
+      window.clearTimeout(screenshotSwapTimer);
+      mainShotImage.classList.add('switching');
+      screenshotSwapTimer = window.setTimeout(() => {
+        mainShotImage.src = next.dataset.shot;
+        mainShotImage.alt = next.dataset.alt;
+        mainShotButton.dataset.shot = next.dataset.shot;
+        mainShotButton.dataset.alt = next.dataset.alt;
+        mainShotButton.dataset.caption = next.dataset.description;
+        mainShotButton.setAttribute('aria-label', '放大查看 ' + next.dataset.alt + '截图');
+        if (mainShotTitle) mainShotTitle.textContent = next.dataset.title;
+        if (mainShotDescription) mainShotDescription.textContent = next.dataset.description;
+        if (mainShotIndex) mainShotIndex.textContent = String(nextIndex + 1);
+        requestAnimationFrame(() => mainShotImage.classList.remove('switching'));
+      }, reduceMotion ? 0 : 140);
+    }
+
+    screenshotThumbs.forEach((thumb, index) => {
+      thumb.setAttribute('tabindex', index === 0 ? '0' : '-1');
+      thumb.addEventListener('click', () => selectScreenshot(index, false));
+    });
+    if (screenshotPrev) screenshotPrev.addEventListener('click', () => selectScreenshot(currentScreenshotIndex - 1, false));
+    if (screenshotNext) screenshotNext.addEventListener('click', () => selectScreenshot(currentScreenshotIndex + 1, false));
+    if (screenshotTrack) {
+      screenshotTrack.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        selectScreenshot(currentScreenshotIndex + (event.key === 'ArrowRight' ? 1 : -1), true);
+      });
+    }
+
+    // Click any screenshot to inspect the full interface
+    const lightbox = document.getElementById('shotLightbox');
+    const lightboxImage = document.getElementById('lightboxImage');
+    const lightboxCaption = document.getElementById('lightboxCaption');
+    const lightboxClose = lightbox ? lightbox.querySelector('.lightbox-close') : null;
+    let lastShotTrigger = null;
+    function openLightbox(trigger) {
+      if (!lightbox || !lightboxImage || !lightboxCaption) return;
+      lastShotTrigger = trigger;
+      lightboxImage.src = trigger.dataset.shot;
+      lightboxImage.alt = trigger.dataset.alt || '';
+      lightboxCaption.textContent = trigger.dataset.caption || '';
+      lightbox.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('lightbox-open');
+      requestAnimationFrame(() => {
+        lightbox.classList.add('open');
+        if (lightboxClose) lightboxClose.focus();
+      });
+    }
+    function closeLightbox() {
+      if (!lightbox || !lightbox.classList.contains('open')) return;
+      lightbox.classList.remove('open');
+      lightbox.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('lightbox-open');
+      if (lastShotTrigger) lastShotTrigger.focus();
+    }
+    document.querySelectorAll('.shot-button').forEach(button => {
+      button.addEventListener('click', () => openLightbox(button));
+    });
+    if (lightbox) {
+      lightbox.querySelectorAll('[data-lightbox-close]').forEach(button => {
+        button.addEventListener('click', closeLightbox);
+      });
+      lightbox.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeLightbox();
+        if (event.key === 'Tab' && lightboxClose) {
+          event.preventDefault();
+          lightboxClose.focus();
+        }
+      });
+    }
+
     // Theme toggle + system preference sync
     const themeBtn = document.getElementById('themeToggle');
     const mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
     function applyTheme(theme, persist) {
       document.documentElement.setAttribute('data-theme', theme);
+      if (themeBtn) {
+        const nextThemeName = theme === 'light' ? '深色' : '浅色';
+        themeBtn.setAttribute('aria-label', '切换到' + nextThemeName + '模式');
+        themeBtn.setAttribute('title', '切换到' + nextThemeName + '模式');
+      }
       if (persist) {
         try { localStorage.setItem('gowfm-theme', theme); } catch (e) {}
       }
     }
     if (themeBtn) {
+      applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark', false);
       themeBtn.addEventListener('click', () => {
         const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
         applyTheme(current === 'light' ? 'dark' : 'light', true);
