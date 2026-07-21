@@ -28,17 +28,34 @@
                 </div>
               </div>
             </div>
-            <n-form ref="profileFormRef" :model="form" :rules="profileRules" label-placement="top" class="settings-form">
+            <n-form
+              ref="profileFormRef"
+              :model="form"
+              :rules="profileRules"
+              label-placement="top"
+              class="settings-form"
+              @submit.prevent="handleSave"
+            >
               <div class="settings-field-grid">
-                <n-form-item label="显示名称">
-                  <n-input v-model:value="form.display_name" placeholder="请输入显示名称" />
+                <n-form-item label="显示名称" path="display_name">
+                  <n-input v-model:value="form.display_name" :disabled="saving" placeholder="请输入显示名称" />
                 </n-form-item>
                 <n-form-item label="邮箱" path="email">
-                  <n-input v-model:value="form.email" placeholder="请输入邮箱地址" />
+                  <n-input v-model:value="form.email" :disabled="saving" placeholder="请输入邮箱地址" />
                 </n-form-item>
               </div>
-              <div class="card-actions">
-                <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
+              <div class="card-actions profile-save-actions">
+                <span class="profile-save-status" role="status" aria-live="polite">
+                  {{ hasProfileChanges ? '有尚未保存的修改' : '个人资料已是最新' }}
+                </span>
+                <n-button
+                  attr-type="submit"
+                  type="primary"
+                  :disabled="!hasProfileChanges"
+                  :loading="saving"
+                >
+                  保存资料
+                </n-button>
               </div>
             </n-form>
           </n-card>
@@ -149,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import {
   NCard, NForm, NFormItem, NInput, NButton, NSpin, NTag, NPopconfirm,
   NAlert, NModal, useMessage,
@@ -170,6 +187,11 @@ const avatarInputRef = ref<HTMLInputElement | null>(null)
 
 const profileFormRef = ref<any>(null)
 const form = reactive({ display_name: '', email: '' })
+const savedProfile = reactive({ display_name: '', email: '' })
+const hasProfileChanges = computed(() => (
+  form.display_name.trim() !== savedProfile.display_name
+  || form.email.trim() !== savedProfile.email
+))
 const profileRules = {
 	email: [
 	  { required: true, message: '邮箱为必填项', trigger: ['input', 'blur'] },
@@ -194,11 +216,17 @@ const showTotpModal = ref(false)
 
 onMounted(async () => {
   if (userStore.user) {
-    form.display_name = userStore.user.display_name
-    form.email = userStore.user.email
+    syncProfileForm(userStore.user)
   }
   await loadTOTPStatus()
 })
+
+function syncProfileForm(profile: { display_name: string; email: string }) {
+  form.display_name = profile.display_name
+  form.email = profile.email
+  savedProfile.display_name = profile.display_name.trim()
+  savedProfile.email = profile.email.trim()
+}
 
 async function loadTOTPStatus() {
   totpLoading.value = true
@@ -218,15 +246,22 @@ async function loadTOTPStatus() {
 }
 
 async function handleSave() {
-	try {
-	  await profileFormRef.value?.validate()
-	} catch {
-	  return
-	}
+  if (saving.value || !hasProfileChanges.value) return
+  try {
+    await profileFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  const payload = {
+    display_name: form.display_name.trim(),
+    email: form.email.trim(),
+  }
   saving.value = true
   try {
-    await api.put('/api/users/me', form)
+    await api.put('/api/users/me', payload)
     await userStore.fetchMe()
+    syncProfileForm(userStore.user || payload)
     message.success('保存成功')
   } catch (err: any) {
     message.error(err.response?.data?.error || '保存失败')
@@ -409,12 +444,18 @@ function finishSetup() {
 .settings-card :deep(.n-card__content) {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .settings-card-heading { display: grid; gap: 4px; }
 .settings-card-heading strong { font-size: 16px; text-wrap: balance; }
 .settings-card-heading span { color: var(--workspace-text-muted); font-size: 12px; font-weight: 400; text-wrap: pretty; }
-.settings-form { height: 100%; display: flex; flex-direction: column; }
+.settings-form {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
 .settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 .profile-avatar-panel {
@@ -464,6 +505,18 @@ function finishSetup() {
 }
 
 .settings-form .card-actions { margin-top: auto; }
+
+.profile-save-actions {
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-save-status {
+  margin-right: auto;
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+  text-wrap: pretty;
+}
 
 .totp-code-input {
   max-width: 240px;
@@ -553,6 +606,17 @@ function finishSetup() {
 
   .card-actions .n-button {
     width: 100%;
+  }
+
+  .profile-save-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .profile-save-status {
+    margin-right: 0;
+    text-align: center;
   }
 
   .totp-actions .n-button {
