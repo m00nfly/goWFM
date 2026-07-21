@@ -54,6 +54,7 @@ func migrate(d *sql.DB) error {
 			password_hash TEXT NOT NULL,
 			display_name TEXT DEFAULT '',
 			email TEXT DEFAULT '',
+			avatar_data TEXT DEFAULT '',
 			is_admin BOOLEAN DEFAULT 0,
 			permissions INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -109,6 +110,18 @@ func migrate(d *sql.DB) error {
 			value TEXT NOT NULL DEFAULT '{}',
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS share_download_tokens (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			token_hash TEXT UNIQUE NOT NULL,
+			share_id INTEGER NOT NULL,
+			share_file_id INTEGER NOT NULL,
+			expires_at DATETIME NOT NULL,
+			used_at DATETIME,
+			invalidated_at DATETIME,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
+			FOREIGN KEY (share_file_id) REFERENCES share_files(id) ON DELETE CASCADE
+		)`,
 	}
 
 	for _, m := range migrations {
@@ -131,10 +144,20 @@ func migrate(d *sql.DB) error {
 	// 迁移：shares 增加 name 字段
 	d.Exec(`ALTER TABLE shares ADD COLUMN name TEXT DEFAULT ''`)
 
+	if _, err := d.Exec(`CREATE INDEX IF NOT EXISTS idx_share_download_tokens_file
+		ON share_download_tokens(share_id, share_file_id, used_at, invalidated_at)`); err != nil {
+		return fmt.Errorf("create share download token file index: %w", err)
+	}
+	if _, err := d.Exec(`CREATE INDEX IF NOT EXISTS idx_share_download_tokens_expiry
+		ON share_download_tokens(expires_at)`); err != nil {
+		return fmt.Errorf("create share download token expiry index: %w", err)
+	}
+
 	// 迁移：确保 Guest 系统账户存在（id=0，用于匿名用户操作日志）
 	d.Exec(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name, is_admin, permissions) VALUES (0, 'Guest', '', 'Guest', 0, 0)`)
 
 	// 迁移：TOTP 字段
+	d.Exec(`ALTER TABLE users ADD COLUMN avatar_data TEXT DEFAULT ''`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT ''`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0`)
 	d.Exec(`ALTER TABLE users ADD COLUMN totp_forced BOOLEAN DEFAULT 0`)

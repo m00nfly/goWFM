@@ -27,7 +27,6 @@ func setupRouter() *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	r.GET("/api/setup/status", handlers.GetSetupStatus)
 	r.POST("/api/setup", handlers.PostSetup)
 	r.GET("/api/config/info", handlers.GetConfigInfo)
 
@@ -44,6 +43,10 @@ func setupRouter() *gin.Engine {
 	auth.Use(middleware.AuthRequired())
 	{
 		auth.GET("/auth/me", handlers.GetMe)
+		auth.GET("/dashboard", middleware.AdminRequired(), handlers.GetDashboard)
+		auth.GET("/dashboard/activity", middleware.AdminRequired(), handlers.GetDashboardActivity)
+		auth.GET("/admin/storage-scan/status", middleware.AdminRequired(), handlers.GetStorageScanStatus)
+		auth.POST("/admin/storage-scan/run", middleware.AdminRequired(), handlers.TriggerStorageScan)
 
 		auth.GET("/users", middleware.AdminRequired(), handlers.ListUsers)
 		auth.POST("/users", middleware.AdminRequired(), handlers.CreateUser)
@@ -52,6 +55,8 @@ func setupRouter() *gin.Engine {
 
 		auth.PUT("/users/me", handlers.UpdateMe)
 		auth.PUT("/users/me/password", handlers.ChangePassword)
+		auth.POST("/users/me/avatar", handlers.UploadMyAvatar)
+		auth.DELETE("/users/me/avatar", handlers.DeleteMyAvatar)
 
 		// TOTP 管理（用户自己）
 		auth.GET("/users/me/totp/status", handlers.GetMyTOTPStatus)
@@ -73,28 +78,28 @@ func setupRouter() *gin.Engine {
 		auth.PUT("/files/move", handlers.MoveFile)
 
 		auth.POST("/shares", handlers.CreateShareLink)
-		auth.GET("/shares/my", handlers.ListMyShares)
+		auth.GET("/shares", handlers.ListShares)
 		auth.PUT("/shares/:id", handlers.UpdateShareLink)
+		auth.POST("/shares/:id/email", handlers.EmailShareLink)
 		auth.DELETE("/shares/:id", handlers.DeleteShareLink)
 
 		auth.GET("/logs", handlers.ListLogs)
 		auth.GET("/logs/users", handlers.ListUsersForLog)
 
-		auth.GET("/admin/shares", middleware.AdminRequired(), handlers.ListAllShares)
-		auth.GET("/admin/share-users", middleware.AdminRequired(), handlers.ListShareUsers)
-
 		// 配置管理 API
 		auth.GET("/admin/config/:category", middleware.AdminRequired(), handlers.GetConfig)
 		auth.PUT("/admin/config/:category", middleware.AdminRequired(), handlers.UpdateConfig)
 		auth.POST("/admin/email/test", middleware.AdminRequired(), handlers.TestEmailSettings)
+		auth.PUT("/admin/email/templates/:key", middleware.AdminRequired(), handlers.UpdateEmailTemplate)
 	}
 
 	sharePublic := r.Group("/share")
 	sharePublic.Use(middleware.OptionalAuth())
 	{
+		sharePublic.GET("/download/:downloadToken/:filename", handlers.TemporaryShareFileDownload)
 		sharePublic.GET("/:token", handlers.AccessShareEntry)
 		sharePublic.GET("/:token/info", handlers.GetShareInfo)
-		sharePublic.GET("/:token/:filename", handlers.ShareFileDownload)
+		sharePublic.POST("/:token/files/:fileID/download-link", handlers.CreateShareDownloadLink)
 	}
 
 	staticFS, err := getFrontendFS()
@@ -141,11 +146,17 @@ func main() {
 		}
 	}
 
-	// 4. 设置路由
+	// 4. 启动前完整扫描共享目录，Dashboard 后续只读取内存快照。
+	if err := services.InitializeDashboardStorage(); err != nil {
+		log.Printf("Failed to initialize dashboard storage statistics: %v", err)
+	}
+
+	// 5. 设置路由
 	r := setupRouter()
 	r.MaxMultipartMemory = basicCfg.MaxUploadSize
 
-	// 5. 后台定时任务
+	// 6. 后台定时任务
+	go services.RunDashboardScanScheduler()
 	go func() {
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
@@ -182,10 +193,10 @@ func main() {
 		}
 	}()
 
-	// 6. 启动封锁引擎后台清理
+	// 7. 启动封锁引擎后台清理
 	go services.StartBlockerCleanup()
 
-	// 7. 启动 HTTP/HTTPS 服务器
+	// 8. 启动 HTTP/HTTPS 服务器
 	appCfg := config.GetAppearance()
 	addr := fmt.Sprintf(":%d", appCfg.ServerPort)
 	log.Printf("goWFM server starting on %s (HTTPS: %v)", addr, appCfg.EnableHTTPS)

@@ -39,10 +39,16 @@ func ListFiles(c *gin.Context) {
 	if entries == nil {
 		entries = []services.FileEntry{}
 	}
+	canUpload, err := services.CanUploadToDirectory(relativePath, user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"path":    relativePath,
-		"entries": entries,
+		"path":       relativePath,
+		"entries":    entries,
+		"can_upload": canUpload,
 	})
 }
 
@@ -51,11 +57,6 @@ func UploadFile(c *gin.Context) {
 	user, err := services.GetUserByID(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "get user failed"})
-		return
-	}
-
-	if !user.HasPermission(models.PermUpload) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
 		return
 	}
 
@@ -74,6 +75,15 @@ func UploadFile(c *gin.Context) {
 	targetDir := c.PostForm("path")
 	if targetDir == "" {
 		targetDir = "/"
+	}
+	canUpload, err := services.CanUploadToDirectory(targetDir, user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !canUpload {
+		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
+		return
 	}
 
 	fullDir, err := services.SafePath(targetDir)
@@ -98,6 +108,7 @@ func UploadFile(c *gin.Context) {
 
 	relativePath := services.RelativePath(fullPath)
 	services.CreateFileMetadata(relativePath, false, user.ID)
+	services.RecordDashboardStorageCreated(relativePath)
 	services.CreateLog(user.ID, models.ActionUpload, relativePath, c.ClientIP(), map[string]interface{}{"size": file.Size})
 
 	c.JSON(http.StatusOK, gin.H{"message": "upload successful", "path": relativePath})
@@ -111,11 +122,6 @@ func CreateDir(c *gin.Context) {
 		return
 	}
 
-	if !user.HasPermission(models.PermUpload) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
-		return
-	}
-
 	var req struct {
 		Path string `json:"path" binding:"required"`
 		Name string `json:"name" binding:"required"`
@@ -124,12 +130,22 @@ func CreateDir(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	canUpload, err := services.CanUploadToDirectory(req.Path, user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !canUpload {
+		c.JSON(http.StatusForbidden, gin.H{"error": "upload permission denied"})
+		return
+	}
 
 	relativePath := filepath.Join(req.Path, services.SanitizeFilename(req.Name))
 	if err := services.CreateDirectory(relativePath, user.ID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	services.RecordDashboardStorageCreated(relativePath)
 
 	services.CreateLog(user.ID, models.ActionCreateDir, relativePath, c.ClientIP(), nil)
 	c.JSON(http.StatusOK, gin.H{"message": "directory created", "path": relativePath})
@@ -151,14 +167,17 @@ func DeleteFile(c *gin.Context) {
 		return
 	}
 
+	storageState, storageStateErr := services.CaptureDashboardStoragePath(req.Path)
 	if err := services.DeleteFileOrDir(req.Path, user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if storageStateErr == nil {
+		services.RecordDashboardStorageDeleted(storageState)
+	}
 
 	action := models.ActionDeleteFile
-	dataRoot := config.GetBasic().DataRootPath
-	if info, e := os.Stat(dataRoot + req.Path); e == nil && info.IsDir() {
+	if storageState.IsDirectory {
 		action = models.ActionDeleteDir
 	}
 	services.CreateLog(user.ID, action, req.Path, c.ClientIP(), nil)
@@ -245,6 +264,7 @@ func MoveFile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	storageState, storageStateErr := services.CaptureDashboardStoragePath(req.Source)
 
 	dstFullPath, err := services.SafePath(req.Destination)
 	if err != nil {
@@ -259,7 +279,11 @@ func MoveFile(c *gin.Context) {
 		return
 	}
 
-	services.UpdateFileMetadataPath(req.Source, services.RelativePath(dstFullPath))
+	newRelativePath := services.RelativePath(dstFullPath)
+	services.UpdateFileMetadataPath(req.Source, newRelativePath)
+	if storageStateErr == nil {
+		services.RecordDashboardStorageMoved(storageState, newRelativePath)
+	}
 	services.CreateLog(user.ID, models.ActionMove, req.Source, c.ClientIP(), map[string]interface{}{"destination": services.RelativePath(dstFullPath)})
 	c.JSON(http.StatusOK, gin.H{"message": "moved", "new_path": services.RelativePath(dstFullPath)})
 }

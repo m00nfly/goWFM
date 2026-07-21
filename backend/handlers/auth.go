@@ -325,6 +325,7 @@ func GetMe(c *gin.Context) {
 		"username":            user.Username,
 		"display_name":        user.DisplayName,
 		"email":               user.Email,
+		"avatar":              user.AvatarData,
 		"is_admin":            user.IsAdmin,
 		"permissions":         user.Permissions,
 		"totp_enabled":        user.TotpEnabled,

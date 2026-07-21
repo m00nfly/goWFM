@@ -11,20 +11,53 @@
       <div class="workspace-form-scroll user-settings-scroll">
         <div class="settings-grid">
           <n-card :bordered="false" class="workspace-mini-card settings-card profile-card">
-          <template #header><div class="settings-card-heading"><strong>个人资料</strong><span>用于页面展示和账号联系</span></div></template>
-		  <n-form ref="profileFormRef" :model="form" :rules="profileRules" label-placement="top" class="settings-form">
-            <div class="settings-field-grid">
-            <n-form-item label="显示名称">
-              <n-input v-model:value="form.display_name" placeholder="请输入显示名称" />
-            </n-form-item>
-			<n-form-item label="邮箱" path="email">
-              <n-input v-model:value="form.email" placeholder="请输入邮箱地址" />
-            </n-form-item>
+            <template #header><div class="settings-card-heading"><strong>个人资料</strong><span>用于页面展示和账号联系</span></div></template>
+            <div class="profile-avatar-panel">
+              <UserAvatar
+                :size="72"
+                :avatar="userStore.user?.avatar"
+                :name="form.display_name || userStore.user?.username"
+              />
+              <div class="profile-avatar-copy">
+                <strong>个人头像</strong>
+                <span>支持 JPG、PNG、WebP，文件不超过 2 MB</span>
+                <div class="profile-avatar-actions">
+                  <input ref="avatarInputRef" class="avatar-file-input" type="file" accept="image/jpeg,image/png,image/webp" @change="handleAvatarSelect" />
+                  <n-button secondary :loading="avatarUploading" @click="selectAvatarFile">上传头像</n-button>
+                  <n-button v-if="userStore.user?.avatar" text type="error" :loading="avatarRemoving" @click="removeAvatar">恢复默认</n-button>
+                </div>
+              </div>
             </div>
-            <div class="card-actions">
-              <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-            </div>
-          </n-form>
+            <n-form
+              ref="profileFormRef"
+              :model="form"
+              :rules="profileRules"
+              label-placement="top"
+              class="settings-form"
+              @submit.prevent="handleSave"
+            >
+              <div class="settings-field-grid">
+                <n-form-item label="显示名称" path="display_name">
+                  <n-input v-model:value="form.display_name" :disabled="saving" placeholder="请输入显示名称" />
+                </n-form-item>
+                <n-form-item label="邮箱" path="email">
+                  <n-input v-model:value="form.email" :disabled="saving" placeholder="请输入邮箱地址" />
+                </n-form-item>
+              </div>
+              <div class="card-actions profile-save-actions">
+                <span class="profile-save-status" role="status" aria-live="polite">
+                  {{ hasProfileChanges ? '有尚未保存的修改' : '个人资料已是最新' }}
+                </span>
+                <n-button
+                  attr-type="submit"
+                  type="primary"
+                  :disabled="!hasProfileChanges"
+                  :loading="saving"
+                >
+                  保存资料
+                </n-button>
+              </div>
+            </n-form>
           </n-card>
 
           <n-card :bordered="false" class="workspace-mini-card settings-card password-card">
@@ -133,12 +166,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import {
   NCard, NForm, NFormItem, NInput, NButton, NSpin, NTag, NPopconfirm,
   NAlert, NModal, useMessage,
 } from 'naive-ui'
 import api from '@/api'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 
@@ -147,9 +181,17 @@ const userStore = useUserStore()
 const themeStore = useThemeStore()
 const saving = ref(false)
 const pwSaving = ref(false)
+const avatarUploading = ref(false)
+const avatarRemoving = ref(false)
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 
 const profileFormRef = ref<any>(null)
 const form = reactive({ display_name: '', email: '' })
+const savedProfile = reactive({ display_name: '', email: '' })
+const hasProfileChanges = computed(() => (
+  form.display_name.trim() !== savedProfile.display_name
+  || form.email.trim() !== savedProfile.email
+))
 const profileRules = {
 	email: [
 	  { required: true, message: '邮箱为必填项', trigger: ['input', 'blur'] },
@@ -174,11 +216,17 @@ const showTotpModal = ref(false)
 
 onMounted(async () => {
   if (userStore.user) {
-    form.display_name = userStore.user.display_name
-    form.email = userStore.user.email
+    syncProfileForm(userStore.user)
   }
   await loadTOTPStatus()
 })
+
+function syncProfileForm(profile: { display_name: string; email: string }) {
+  form.display_name = profile.display_name
+  form.email = profile.email
+  savedProfile.display_name = profile.display_name.trim()
+  savedProfile.email = profile.email.trim()
+}
 
 async function loadTOTPStatus() {
   totpLoading.value = true
@@ -198,20 +246,74 @@ async function loadTOTPStatus() {
 }
 
 async function handleSave() {
-	try {
-	  await profileFormRef.value?.validate()
-	} catch {
-	  return
-	}
+  if (saving.value || !hasProfileChanges.value) return
+  try {
+    await profileFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  const payload = {
+    display_name: form.display_name.trim(),
+    email: form.email.trim(),
+  }
   saving.value = true
   try {
-    await api.put('/api/users/me', form)
+    await api.put('/api/users/me', payload)
     await userStore.fetchMe()
+    syncProfileForm(userStore.user || payload)
     message.success('保存成功')
   } catch (err: any) {
     message.error(err.response?.data?.error || '保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+function selectAvatarFile() {
+  avatarInputRef.value?.click()
+}
+
+async function handleAvatarSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    message.warning('仅支持 JPG、PNG 或 WebP 格式的头像')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    message.warning('头像文件不能超过 2 MB')
+    return
+  }
+
+  avatarUploading.value = true
+  try {
+    const data = new FormData()
+    data.append('avatar', file)
+    await api.post('/api/users/me/avatar', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    await userStore.fetchMe()
+    message.success('头像已更新')
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '头像上传失败')
+  } finally {
+    avatarUploading.value = false
+  }
+}
+
+async function removeAvatar() {
+  avatarRemoving.value = true
+  try {
+    await api.delete('/api/users/me/avatar')
+    await userStore.fetchMe()
+    message.success('已恢复默认头像')
+  } catch (err: any) {
+    message.error(err.response?.data?.error || '恢复默认头像失败')
+  } finally {
+    avatarRemoving.value = false
   }
 }
 
@@ -342,13 +444,59 @@ function finishSetup() {
 .settings-card :deep(.n-card__content) {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .settings-card-heading { display: grid; gap: 4px; }
 .settings-card-heading strong { font-size: 16px; text-wrap: balance; }
 .settings-card-heading span { color: var(--workspace-text-muted); font-size: 12px; font-weight: 400; text-wrap: pretty; }
-.settings-form { height: 100%; display: flex; flex-direction: column; }
+.settings-form {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
 .settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.profile-avatar-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: var(--workspace-radius-lg);
+  background: color-mix(in srgb, var(--workspace-surface-soft) 78%, transparent);
+  box-shadow: inset 0 0 0 1px var(--workspace-border-soft);
+}
+
+.profile-avatar-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.profile-avatar-copy strong {
+  color: var(--workspace-text);
+  font-size: 14px;
+}
+
+.profile-avatar-copy > span {
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+  text-wrap: pretty;
+}
+
+.profile-avatar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.avatar-file-input {
+  display: none;
+}
 
 .card-actions {
   display: flex;
@@ -357,6 +505,18 @@ function finishSetup() {
 }
 
 .settings-form .card-actions { margin-top: auto; }
+
+.profile-save-actions {
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-save-status {
+  margin-right: auto;
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+  text-wrap: pretty;
+}
 
 .totp-code-input {
   max-width: 240px;
@@ -434,6 +594,10 @@ function finishSetup() {
 
   .security-card { grid-column: auto; }
   .settings-field-grid { grid-template-columns: 1fr; }
+
+  .profile-avatar-panel {
+    align-items: flex-start;
+  }
   .security-summary { align-items: stretch; flex-direction: column; }
 
   .card-actions {
@@ -442,6 +606,17 @@ function finishSetup() {
 
   .card-actions .n-button {
     width: 100%;
+  }
+
+  .profile-save-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .profile-save-status {
+    margin-right: 0;
+    text-align: center;
   }
 
   .totp-actions .n-button {

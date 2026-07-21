@@ -1,5 +1,5 @@
 <template>
-  <div class="file-explorer" :class="{ dark: themeStore.isDark }">
+  <div class="file-explorer">
     <section class="explorer-overview" aria-label="文件库概览">
       <div class="overview-main">
         <div class="overview-icon">
@@ -51,19 +51,19 @@
     >
       <div class="content-header">
         <div class="header-tools-actions">
-          <n-button secondary @click="refresh">
+          <n-button size="medium" secondary @click="refresh">
             <template #icon><n-icon><RefreshOutline /></n-icon></template>
             刷新
           </n-button>
-          <n-button v-if="hasPermUpload" secondary @click="showMkdirModal = true">
+          <n-button v-if="canUploadToCurrentDirectory" size="medium" secondary @click="showMkdirModal = true">
             <template #icon><n-icon><AddCircleOutline /></n-icon></template>
             新建目录
           </n-button>
-          <n-button v-if="hasPermUpload" type="primary" @click="showUploadModal = true">
+          <n-button v-if="canUploadToCurrentDirectory" size="medium" type="primary" @click="showUploadModal = true">
             <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
             上传文件
           </n-button>
-          <n-button v-if="currentPath !== '/'" secondary @click="goToParent">
+          <n-button v-if="currentPath !== '/'" size="medium" secondary @click="goToParent">
             <template #icon><n-icon><ArrowBackOutline /></n-icon></template>
             返回上级
           </n-button>
@@ -80,7 +80,12 @@
           </template>
         </n-input>
 
-        <div class="view-switch" role="group" aria-label="视图切换">
+        <div
+          class="view-switch"
+          :class="{ 'is-grid': viewMode === 'grid' }"
+          role="group"
+          aria-label="视图切换"
+        >
           <button
             class="view-switch-btn"
             :class="{ active: viewMode === 'list' }"
@@ -129,86 +134,114 @@
         />
       </div>
 
-      <div v-else class="file-grid-container">
+      <div
+        v-else
+        ref="gridContainerRef"
+        class="file-grid-container"
+        @scroll="handleGridScroll"
+      >
         <div v-if="filteredFiles.length === 0" class="grid-empty">
           <n-empty :description="searchKeyword ? '没有匹配的文件' : '暂无文件'" />
         </div>
-        <div v-else class="file-grid">
-          <article
-            v-for="file in filteredFiles"
-            :key="file.path || file.name"
-            class="grid-card"
-            :class="{ 'grid-card-selected': checkedKeySet.has(file.path || file.name) }"
-            @click="onGridCardClick(file)"
+        <div
+          v-else
+          class="file-grid-viewport"
+          :style="{ height: `${gridTotalHeight}px` }"
+        >
+          <div
+            class="file-grid-window"
+            :style="{ transform: `translateY(${gridWindowOffset}px)` }"
           >
-            <div class="grid-card-top">
-              <n-checkbox
-                class="grid-card-checkbox"
-                :checked="checkedKeySet.has(file.path || file.name)"
-                @update:checked="toggleGridSelection(file.path || file.name, $event)"
-                @click.stop
-              />
-              <span class="grid-card-kind">{{ file.is_directory ? '文件夹' : formatSize(file.size) }}</span>
-            </div>
+            <div
+              v-for="row in visibleGridRows"
+              :key="row.key"
+              class="file-grid-row"
+              :style="{
+                height: `${GRID_ROW_HEIGHT}px`,
+                gridTemplateColumns: `repeat(${gridColumnCount}, minmax(0, 1fr))`,
+              }"
+            >
+              <article
+                v-for="gridItem in row.items"
+                :key="gridItem.key"
+                class="grid-card"
+                :class="{ 'grid-card-selected': checkedKeySet.has(gridItem.key) }"
+                @click="onGridCardClick(gridItem.file)"
+              >
+                <div class="grid-card-top">
+                  <n-checkbox
+                    class="grid-card-checkbox"
+                    :checked="checkedKeySet.has(gridItem.key)"
+                    @update:checked="toggleGridSelection(gridItem.key, $event)"
+                    @click.stop
+                  />
+                  <span class="grid-card-kind">
+                    {{ gridItem.file.is_directory ? '文件夹' : formatSize(gridItem.file.size) }}
+                  </span>
+                </div>
 
-            <div class="grid-card-icon" :class="{ 'icon-folder': file.is_directory, 'icon-file': !file.is_directory }">
-              <n-icon :size="34" :color="getFileIcon(file.name, file.is_directory).color">
-                <component :is="getFileIcon(file.name, file.is_directory).icon" />
-              </n-icon>
-            </div>
+                <div
+                  class="grid-card-icon"
+                  :style="{ '--grid-icon-color': gridItem.icon.color }"
+                >
+                  <n-icon :size="34" :color="gridItem.icon.color">
+                    <component :is="gridItem.icon.icon" />
+                  </n-icon>
+                </div>
 
-            <div class="grid-card-body">
-              <h3 class="grid-card-name" :title="file.name">{{ file.name }}</h3>
-              <p class="grid-card-info">
-                {{ file.is_directory ? '点击进入目录' : formatTime(file.mod_time) }}
-              </p>
-            </div>
+                <div class="grid-card-body">
+                  <n-ellipsis class="grid-card-name" :tooltip="{ placement: 'top' }">
+                    {{ gridItem.file.name }}
+                  </n-ellipsis>
+                </div>
 
-            <div class="grid-card-actions">
-              <n-tooltip v-if="file.is_directory" trigger="hover" placement="top">
-                <template #trigger>
-                  <button class="card-action-btn primary" type="button" @click.stop="navigateTo(file.path)">
-                    <n-icon size="16"><EnterOutline /></n-icon>
-                  </button>
-                </template>
-                进入目录
-              </n-tooltip>
-              <template v-else>
-                <n-tooltip v-if="file.can_download" trigger="hover" placement="top">
-                  <template #trigger>
-                    <button class="card-action-btn primary" type="button" @click.stop="downloadFile(file)">
-                      <n-icon size="16"><CloudDownloadOutline /></n-icon>
-                    </button>
+                <div class="grid-card-actions">
+                  <n-tooltip v-if="gridItem.file.is_directory" trigger="hover" placement="top">
+                    <template #trigger>
+                      <button class="card-action-btn primary" type="button" @click.stop="navigateTo(gridItem.file.path)">
+                        <n-icon size="16"><EnterOutline /></n-icon>
+                      </button>
+                    </template>
+                    进入目录
+                  </n-tooltip>
+                  <template v-else>
+                    <n-tooltip v-if="gridItem.file.can_download" trigger="hover" placement="top">
+                      <template #trigger>
+                        <button class="card-action-btn primary" type="button" @click.stop="downloadFile(gridItem.file)">
+                          <n-icon size="16"><CloudDownloadOutline /></n-icon>
+                        </button>
+                      </template>
+                      下载
+                    </n-tooltip>
+                    <n-tooltip v-if="hasPermShare" trigger="hover" placement="top">
+                      <template #trigger>
+                        <button class="card-action-btn primary" type="button" @click.stop="shareFile(gridItem.file)">
+                          <n-icon size="16"><ShareSocialOutline /></n-icon>
+                        </button>
+                      </template>
+                      分享
+                    </n-tooltip>
                   </template>
-                  下载
-                </n-tooltip>
-                <n-tooltip v-if="hasPermShare" trigger="hover" placement="top">
-                  <template #trigger>
-                    <button class="card-action-btn primary" type="button" @click.stop="shareFile(file)">
-                      <n-icon size="16"><ShareSocialOutline /></n-icon>
-                    </button>
-                  </template>
-                  分享
-                </n-tooltip>
-              </template>
-              <n-tooltip v-if="file.can_change" trigger="hover" placement="top">
-                <template #trigger>
-                  <button class="card-action-btn" type="button" @click.stop="openMoveModal(file)">
-                    <n-icon size="16"><CreateOutline /></n-icon>
-                  </button>
-                </template>
-                移动/重命名
-              </n-tooltip>
-              <n-tooltip v-if="file.can_delete" trigger="hover" placement="top">
-                <template #trigger>
-                  <button class="card-action-btn danger" type="button" @click.stop="deleteEntry(file)">
-                    <n-icon size="16"><TrashOutline /></n-icon>
-                  </button>
-                </template>
-                删除
-              </n-tooltip>
+                  <n-tooltip v-if="gridItem.file.can_change" trigger="hover" placement="top">
+                    <template #trigger>
+                      <button class="card-action-btn" type="button" @click.stop="openMoveModal(gridItem.file)">
+                        <n-icon size="16"><CreateOutline /></n-icon>
+                      </button>
+                    </template>
+                    移动/重命名
+                  </n-tooltip>
+                  <n-tooltip v-if="gridItem.file.can_delete" trigger="hover" placement="top">
+                    <template #trigger>
+                      <button class="card-action-btn danger" type="button" @click.stop="deleteEntry(gridItem.file)">
+                        <n-icon size="16"><TrashOutline /></n-icon>
+                      </button>
+                    </template>
+                    删除
+                  </n-tooltip>
+                </div>
+              </article>
             </div>
-          </article>
+          </div>
         </div>
       </div>
 
@@ -282,15 +315,22 @@
     </n-modal>
 
     <!-- 创建分享模态框 -->
-    <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="showShareModal = false" :mask-closable="false">
+    <n-modal v-model:show="showShareModal" preset="dialog" title="创建文件分享" positive-text="创建" negative-text="取消" :positive-button-props="{ loading: shareLoading }" @positive-click="handleCreateShare" @negative-click="cancelShareCreation" :mask-closable="false">
       <n-form label-placement="left" label-width="80">
         <n-form-item label="文件">
-          <div v-if="shareFilePaths.length === 1">
-            <n-input :value="shareFilePaths[0]" readonly />
-          </div>
-          <div v-else class="share-file-list">
-            <n-tag v-for="p in shareFilePaths" :key="p" size="small" style="margin: 2px 4px;">{{ p.split('/').pop() }}</n-tag>
-            <p style="color: #999; font-size: 12px; margin-top: 4px;">共 {{ shareFilePaths.length }} 个文件</p>
+          <div class="share-file-list">
+            <n-tag
+              v-for="p in shareFilePaths"
+              :key="p"
+              class="share-file-tag"
+              size="small"
+              :closable="!shareLoading"
+              :title="p.split('/').pop()"
+              @close="removeShareFilePath(p)"
+            >
+              {{ p.split('/').pop() }}
+            </n-tag>
+            <p class="share-file-count">共 {{ shareFilePaths.length }} 个文件</p>
           </div>
         </n-form-item>
         <n-form-item label="分享名称">
@@ -305,16 +345,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton, NDataTable, NModal, NForm, NFormItem, NInput, NInputNumber,
-  NSelect, NIcon, NTooltip, NResult, NEmpty, NSpace, NCheckbox, NTag, NDropdown, useMessage, useDialog
+  NSelect, NIcon, NTooltip, NEllipsis, NResult, NEmpty, NSpace, NCheckbox, NTag, NDropdown, useMessage, useDialog
 } from 'naive-ui'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
-import { useThemeStore } from '@/stores/theme'
 import { useViewport } from '@/composables/useViewport'
 import { formatSize } from '@/utils/format'
 import {
@@ -346,7 +385,6 @@ const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const userStore = useUserStore()
-const themeStore = useThemeStore()
 
 // === 跨目录选择数据模型 ===
 interface SelectedItem {
@@ -354,6 +392,28 @@ interface SelectedItem {
   name: string
   is_directory: boolean
 }
+
+interface FileIconMeta {
+  icon: any
+  color: string
+}
+
+interface GridFileItem {
+  key: string
+  file: any
+  icon: FileIconMeta
+}
+
+interface GridRow {
+  key: string
+  items: GridFileItem[]
+}
+
+const GRID_ROW_HEIGHT = 192
+const GRID_GAP = 12
+const GRID_INLINE_PADDING = 28
+const GRID_VERTICAL_PADDING = 8
+const GRID_OVERSCAN_ROWS = 2
 
 // === 状态 ===
 const entries = ref<any[]>([])
@@ -382,6 +442,7 @@ const moveDest = ref('')
 const ownerChangePath = ref('')
 const newOwnerId = ref<number | null>(null)
 const allUsers = ref<{ label: string; value: number }[]>([])
+const currentDirectoryAllowsUpload = ref(false)
 
 // === 新增状态 ===
 const searchKeyword = ref('')
@@ -390,12 +451,68 @@ const selectedItems = ref<SelectedItem[]>([])
 const checkedKeys = computed<DataTableRowKey[]>(() => selectedItems.value.map(i => i.key))
 const checkedKeySet = computed(() => new Set(checkedKeys.value))
 const viewMode = ref<'list' | 'grid'>('list')
+const gridContainerRef = ref<HTMLElement | null>(null)
+const gridColumnCount = ref(4)
+const gridScrollTop = ref(0)
+const gridViewportHeight = ref(0)
+let gridResizeObserver: ResizeObserver | null = null
+let gridScrollFrame: number | null = null
+let pendingGridScrollTop = 0
 
 // === 视口状态（共享自 MainLayout 的 resize 监听） ===
 const { isMobile } = useViewport()
 
+function updateGridColumnCount(containerWidth: number) {
+  const minCardWidth = containerWidth <= 767 ? 148 : 176
+  const availableWidth = Math.max(0, containerWidth - GRID_INLINE_PADDING)
+  const nextColumnCount = Math.max(
+    1,
+    Math.floor((availableWidth + GRID_GAP) / (minCardWidth + GRID_GAP)),
+  )
+
+  if (nextColumnCount !== gridColumnCount.value) {
+    gridColumnCount.value = nextColumnCount
+  }
+}
+
+function updateGridViewport(containerWidth: number, containerHeight: number) {
+  updateGridColumnCount(containerWidth)
+  if (containerHeight !== gridViewportHeight.value) {
+    gridViewportHeight.value = containerHeight
+  }
+}
+
+function handleGridScroll(event: Event) {
+  pendingGridScrollTop = (event.currentTarget as HTMLElement).scrollTop
+  if (gridScrollFrame !== null) return
+
+  gridScrollFrame = window.requestAnimationFrame(() => {
+    gridScrollTop.value = pendingGridScrollTop
+    gridScrollFrame = null
+  })
+}
+
+watch(gridContainerRef, (container, previousContainer) => {
+  if (previousContainer) gridResizeObserver?.unobserve(previousContainer)
+  if (!container) return
+
+  gridScrollTop.value = container.scrollTop
+  updateGridViewport(container.clientWidth, container.clientHeight)
+
+  if (typeof ResizeObserver === 'undefined') return
+  if (!gridResizeObserver) {
+    gridResizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry) updateGridViewport(entry.contentRect.width, entry.contentRect.height)
+    })
+  }
+  gridResizeObserver.observe(container)
+}, { flush: 'post' })
+
 // === 计算属性 ===
-const hasPermUpload = computed(() => userStore.hasPermission(4))
+const canUploadToCurrentDirectory = computed(() =>
+  userStore.hasPermission(4) || currentDirectoryAllowsUpload.value,
+)
 const hasPermShare = computed(() => userStore.hasPermission(8))
 const isAdmin = computed(() => userStore.user?.is_admin)
 
@@ -427,6 +544,69 @@ const filteredFiles = computed(() => {
   return entries.value.filter((f: any) => f.name.toLowerCase().includes(keyword))
 })
 
+const gridItems = computed<GridFileItem[]>(() =>
+  filteredFiles.value.map((file: any) => ({
+    key: file.path || file.name,
+    file,
+    icon: getFileIcon(file.name, file.is_directory),
+  })),
+)
+
+const gridRows = computed<GridRow[]>(() => {
+  const rows: GridRow[] = []
+  const columnCount = gridColumnCount.value
+
+  for (let index = 0; index < gridItems.value.length; index += columnCount) {
+    const items = gridItems.value.slice(index, index + columnCount)
+    rows.push({
+      key: `${columnCount}:${items[0].key}`,
+      items,
+    })
+  }
+
+  return rows
+})
+
+const gridTotalHeight = computed(() =>
+  gridRows.value.length * GRID_ROW_HEIGHT + GRID_VERTICAL_PADDING * 2,
+)
+
+const firstVisibleGridRow = computed(() => Math.max(
+  0,
+  Math.floor(
+    Math.max(0, gridScrollTop.value - GRID_VERTICAL_PADDING) / GRID_ROW_HEIGHT,
+  ) - GRID_OVERSCAN_ROWS,
+))
+
+const lastVisibleGridRow = computed(() => Math.min(
+  gridRows.value.length,
+  Math.ceil(
+    Math.max(
+      0,
+      gridScrollTop.value + gridViewportHeight.value - GRID_VERTICAL_PADDING,
+    ) / GRID_ROW_HEIGHT,
+  ) + GRID_OVERSCAN_ROWS,
+))
+
+const visibleGridRows = computed(() =>
+  gridRows.value.slice(firstVisibleGridRow.value, lastVisibleGridRow.value),
+)
+
+const gridWindowOffset = computed(() =>
+  GRID_VERTICAL_PADDING + firstVisibleGridRow.value * GRID_ROW_HEIGHT,
+)
+
+watch([() => gridRows.value.length, gridColumnCount], () => {
+  const container = gridContainerRef.value
+  if (!container) return
+
+  const maxScrollTop = Math.max(0, gridTotalHeight.value - container.clientHeight)
+  if (container.scrollTop > maxScrollTop) {
+    container.scrollTop = maxScrollTop
+    gridScrollTop.value = maxScrollTop
+  }
+}, { flush: 'post' })
+
 const folderCount = computed(() =>
   entries.value.filter((item: any) => item.is_directory).length,
 )
@@ -453,27 +633,38 @@ const selectedFolderCount = computed(() =>
 )
 
 // === 文件图标 ===
-function getFileIcon(name: string, isDir: boolean): { icon: any; color: string } {
-  if (isDir) return { icon: FolderOpen, color: '#faad14' }
+const folderIconMeta: FileIconMeta = { icon: FolderOpen, color: '#faad14' }
+const defaultFileIconMeta: FileIconMeta = { icon: Document, color: '#8c8c8c' }
+const fileIconCache = new Map<string, FileIconMeta>()
+
+function getFileIcon(name: string, isDir: boolean): FileIconMeta {
+  if (isDir) return folderIconMeta
 
   const ext = name.toLowerCase().split('.').pop() || ''
+  const cachedIcon = fileIconCache.get(ext)
+  if (cachedIcon) return cachedIcon
+
+  let iconMeta: FileIconMeta
 
   if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'tif'].includes(ext))
-    return { icon: Image, color: '#52c41a' }
-  if (['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v'].includes(ext))
-    return { icon: Videocam, color: '#fa8c16' }
-  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape'].includes(ext))
-    return { icon: MusicalNotes, color: '#eb2f96' }
-  if (['zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'zst'].includes(ext))
-    return { icon: Archive, color: '#8c8c8c' }
-  if (['js', 'ts', 'jsx', 'tsx', 'vue', 'py', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb',
-       'php', 'swift', 'kt', 'html', 'css', 'scss', 'less', 'json', 'xml', 'yaml',
-       'yml', 'toml', 'sql', 'sh', 'bash', 'cmd', 'ps1', 'bat'].includes(ext))
-    return { icon: CodeSlash, color: '#1890ff' }
-  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'log', 'csv', 'rtf'].includes(ext))
-    return { icon: DocumentText, color: '#722ed1' }
+    iconMeta = { icon: Image, color: '#52c41a' }
+  else if (['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v'].includes(ext))
+    iconMeta = { icon: Videocam, color: '#fa8c16' }
+  else if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape'].includes(ext))
+    iconMeta = { icon: MusicalNotes, color: '#eb2f96' }
+  else if (['zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'zst'].includes(ext))
+    iconMeta = { icon: Archive, color: '#8c8c8c' }
+  else if (['js', 'ts', 'jsx', 'tsx', 'vue', 'py', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb',
+            'php', 'swift', 'kt', 'html', 'css', 'scss', 'less', 'json', 'xml', 'yaml',
+            'yml', 'toml', 'sql', 'sh', 'bash', 'cmd', 'ps1', 'bat'].includes(ext))
+    iconMeta = { icon: CodeSlash, color: '#1890ff' }
+  else if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'log', 'csv', 'rtf'].includes(ext))
+    iconMeta = { icon: DocumentText, color: '#722ed1' }
+  else
+    iconMeta = defaultFileIconMeta
 
-  return { icon: Document, color: '#8c8c8c' }
+  fileIconCache.set(ext, iconMeta)
+  return iconMeta
 }
 
 // === 时间格式化 ===
@@ -673,11 +864,7 @@ function batchShare() {
     return
   }
 
-  shareFilePaths.value = filePaths
-  shareExpireDays.value = 3
-  const displayName = userStore.user?.display_name || userStore.user?.username || ''
-  shareName.value = `由${displayName}分享的${filePaths.length}个文件`
-  showShareModal.value = true
+  openShareModal(filePaths)
 }
 
 // === 网格视图选中（仅 checkbox 触发）===
@@ -759,18 +946,27 @@ onMounted(() => {
   }
 })
 
+onBeforeUnmount(() => {
+  gridResizeObserver?.disconnect()
+  if (gridScrollFrame !== null) window.cancelAnimationFrame(gridScrollFrame)
+  if (highlightTimer) clearTimeout(highlightTimer)
+})
+
 // === 数据获取 ===
 async function fetchFiles() {
   loading.value = true
+  currentDirectoryAllowsUpload.value = false
   try {
     const res = await api.get('/api/files', { params: { path: currentPath.value } })
     entries.value = res.data.entries || []
+    currentDirectoryAllowsUpload.value = res.data.can_upload === true
     permissionDenied.value = false
     permissionDeniedMsg.value = ''
     applyHighlight()
   } catch (err: any) {
     console.error('fetchFiles failed:', err)
     entries.value = []
+    currentDirectoryAllowsUpload.value = false
     if (err.response?.status === 403) {
       permissionDenied.value = true
       permissionDeniedMsg.value = err.response?.data?.error || '您没有访问此目录的权限'
@@ -868,10 +1064,39 @@ function downloadFile(row: any) {
 }
 
 function shareFile(row: any) {
-  shareFilePaths.value = [row.path]
-  shareExpireDays.value = 7
-  shareName.value = row.name
+  openShareModal([row.path])
+}
+
+function openShareModal(filePaths: string[]) {
+  shareFilePaths.value = [...filePaths]
+  shareExpireDays.value = 3
+  shareName.value = buildDefaultShareName(filePaths.length)
   showShareModal.value = true
+}
+
+function buildDefaultShareName(fileCount: number) {
+  const sharerName = userStore.user?.display_name || userStore.user?.username || '用户'
+  return `由 ${sharerName} 分享的 ${fileCount} 个文件`
+}
+
+function removeShareFilePath(filePath: string) {
+  const previousDefaultName = buildDefaultShareName(shareFilePaths.value.length)
+  shareFilePaths.value = shareFilePaths.value.filter(path => path !== filePath)
+
+  if (shareFilePaths.value.length === 0) {
+    cancelShareCreation()
+    return
+  }
+
+  if (shareName.value === previousDefaultName) {
+    shareName.value = buildDefaultShareName(shareFilePaths.value.length)
+  }
+}
+
+function cancelShareCreation() {
+  showShareModal.value = false
+  shareFilePaths.value = []
+  shareName.value = ''
 }
 
 async function handleCreateShare() {
@@ -977,7 +1202,7 @@ async function fetchAllUsers() {
   --fe-control-shadow: 0 8px 22px rgba(var(--fe-accent-rgb), 0.13);
 }
 
-.dark {
+:global(html.dark .file-explorer) {
   --fe-page: #0f172a;
   --fe-surface: #172033;
   --fe-surface-strong: #1e2a42;
@@ -1023,13 +1248,13 @@ async function fetchAllUsers() {
     radial-gradient(circle at 92% 20%, rgba(var(--fe-accent-rgb), 0.12), transparent 28%);
 }
 
-.dark .explorer-overview::before {
+:global(html.dark .explorer-overview::before) {
   background:
     linear-gradient(90deg, rgba(15, 23, 42, 0.18), transparent 40%),
     radial-gradient(circle at 92% 20%, rgba(var(--fe-accent-rgb), 0.18), transparent 30%);
 }
 
-.dark .explorer-overview {
+:global(html.dark .explorer-overview) {
   box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.08);
 }
 
@@ -1064,7 +1289,7 @@ async function fetchAllUsers() {
   height: 21px;
 }
 
-.dark .overview-icon {
+:global(html.dark .overview-icon) {
   box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.10);
 }
 
@@ -1151,7 +1376,7 @@ async function fetchAllUsers() {
   backdrop-filter: blur(14px);
 }
 
-.dark .stat-strip {
+:global(html.dark .stat-strip) {
   background: rgba(15, 23, 42, 0.28);
 }
 
@@ -1185,7 +1410,9 @@ async function fetchAllUsers() {
 
 .header-tools-actions {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   min-width: 0;
   flex-wrap: wrap;
@@ -1199,29 +1426,53 @@ async function fetchAllUsers() {
 }
 
 .search-input :deep(.n-input) {
+  height: 40px;
   min-height: 40px;
   border-radius: 10px;
   background-color: var(--fe-field);
 }
 
 .view-switch {
+  position: relative;
   display: inline-flex;
-  gap: 4px;
+  gap: 2px;
+  height: 34px;
   padding: 3px;
-  border: 1px solid var(--fe-border-soft);
-  border-radius: 11px;
+  border: 0;
+  border-radius: 10px;
   background: var(--fe-surface-strong);
+  box-shadow: inset 0 0 0 1px var(--fe-border-soft);
+}
+
+.view-switch::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 32px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--fe-surface);
+  box-shadow: 0 4px 12px rgba(42, 59, 87, 0.10);
+  pointer-events: none;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.view-switch.is-grid::before {
+  transform: translateX(34px);
 }
 
 .view-switch-btn {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
+  width: 32px;
+  min-width: 32px;
+  height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--fe-text-muted);
   cursor: pointer;
@@ -1240,12 +1491,10 @@ async function fetchAllUsers() {
 
 .view-switch-btn.active {
   color: var(--fe-accent);
-  background: var(--fe-surface);
-  box-shadow: 0 6px 16px rgba(42, 59, 87, 0.10);
 }
 
-.dark .view-switch-btn.active {
-  box-shadow: 0 8px 18px rgba(2, 6, 23, 0.28);
+:global(html.dark .view-switch::before) {
+  box-shadow: 0 5px 14px rgba(2, 6, 23, 0.30);
 }
 
 .view-switch-btn:active,
@@ -1254,14 +1503,8 @@ async function fetchAllUsers() {
   transform: translateY(1px);
 }
 
-.header-tools-actions {
-  flex: 0 1 auto;
-  justify-content: flex-start;
-}
-
 .header-tools-actions :deep(.n-button) {
-  min-height: 40px;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 700;
 }
 
@@ -1293,7 +1536,7 @@ async function fetchAllUsers() {
   backdrop-filter: blur(14px);
 }
 
-.dark .batch-bar {
+:global(html.dark .batch-bar) {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08) inset,
     0 16px 34px rgba(2, 6, 23, 0.38);
@@ -1354,7 +1597,7 @@ async function fetchAllUsers() {
   padding-bottom: 62px;
 }
 
-.dark .content-surface {
+:global(html.dark .content-surface) {
   box-shadow: 0 1px 0 rgba(248, 250, 252, 0.08) inset;
 }
 
@@ -1363,7 +1606,7 @@ async function fetchAllUsers() {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--fe-border-soft);
 }
 
@@ -1389,20 +1632,57 @@ async function fetchAllUsers() {
   background: var(--fe-surface);
 }
 
+.file-list,
+.file-grid-container,
+.file-data-table :deep(.n-scrollbar-container),
+.file-data-table :deep(.n-data-table-base-table-body) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.file-list::-webkit-scrollbar,
+.file-grid-container::-webkit-scrollbar,
+.file-data-table :deep(.n-scrollbar-container::-webkit-scrollbar),
+.file-data-table :deep(.n-data-table-base-table-body::-webkit-scrollbar) {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.file-data-table :deep(.n-scrollbar-rail) {
+  display: none !important;
+}
+
 .file-grid-container {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background:
     linear-gradient(180deg, rgba(var(--fe-accent-rgb), 0.035), transparent 180px),
     var(--fe-surface);
 }
 
-.file-grid {
+.file-grid-viewport {
+  position: relative;
+  width: 100%;
+}
+
+.file-grid-window {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+}
+
+.file-grid-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 14px;
 }
 
 .grid-empty {
@@ -1416,21 +1696,22 @@ async function fetchAllUsers() {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 192px;
-  padding: 12px;
+  height: 180px;
+  min-height: 0;
+  padding: 10px;
   overflow: hidden;
   border: 1px solid var(--fe-border-soft);
   border-radius: var(--fe-radius-md);
   background: var(--fe-surface);
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.58);
   cursor: pointer;
   user-select: none;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease,
-    background-color 0.18s ease;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 192px;
+  contain: layout paint style;
+  transition: transform 0.18s ease;
+}
+
+:global(html.dark .grid-card) {
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.06);
 }
 
 .grid-card::before {
@@ -1446,7 +1727,15 @@ async function fetchAllUsers() {
 .grid-card:hover {
   transform: translateY(-2px);
   border-color: rgba(var(--fe-accent-rgb), 0.34);
-  box-shadow: var(--fe-shadow-card);
+  box-shadow:
+    inset 0 1px 0 rgba(248, 250, 252, 0.62),
+    0 10px 24px rgba(42, 59, 87, 0.10);
+}
+
+:global(html.dark .grid-card:hover) {
+  box-shadow:
+    inset 0 1px 0 rgba(248, 250, 252, 0.08),
+    0 12px 28px rgba(2, 6, 23, 0.32);
 }
 
 .grid-card:hover::before {
@@ -1459,7 +1748,9 @@ async function fetchAllUsers() {
 }
 
 .grid-card-selected:hover {
-  box-shadow: 0 14px 36px rgba(var(--fe-accent-rgb), 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(248, 250, 252, 0.16),
+    0 10px 26px rgba(var(--fe-accent-rgb), 0.16);
 }
 
 .grid-card-top {
@@ -1469,7 +1760,7 @@ async function fetchAllUsers() {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 28px;
+  min-height: 24px;
 }
 
 .grid-card-checkbox {
@@ -1485,11 +1776,11 @@ async function fetchAllUsers() {
 .grid-card-kind {
   max-width: 116px;
   overflow: hidden;
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-radius: 999px;
   color: var(--fe-text-muted);
   background: var(--fe-surface-strong);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -1497,65 +1788,58 @@ async function fetchAllUsers() {
 }
 
 .grid-card-icon {
+  --grid-icon-color: var(--fe-accent);
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 62px;
-  height: 62px;
-  margin: 10px auto 12px;
-  border: 1px solid transparent;
-  border-radius: 18px;
+  width: 56px;
+  height: 56px;
+  margin: 6px auto 8px;
+  border: 1px solid color-mix(in srgb, var(--grid-icon-color) 24%, var(--fe-border-soft));
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--grid-icon-color) 16%, transparent), transparent 72%),
+    var(--fe-surface-soft);
+  box-shadow:
+    inset 0 1px 0 rgba(248, 250, 252, 0.64),
+    0 6px 16px color-mix(in srgb, var(--grid-icon-color) 9%, transparent);
+  transition: transform 180ms ease-out;
 }
 
-.icon-folder {
-  border-color: rgba(199, 130, 21, 0.22);
-  background:
-    linear-gradient(135deg, rgba(199, 130, 21, 0.16), rgba(199, 130, 21, 0.07)),
-    var(--fe-surface-soft);
+:global(html.dark .grid-card-icon) {
+  background: color-mix(in srgb, var(--grid-icon-color) 9%, var(--fe-surface-soft));
+  box-shadow:
+    inset 0 1px 0 rgba(248, 250, 252, 0.08),
+    0 8px 18px rgba(2, 6, 23, 0.22);
 }
 
-.icon-file {
-  border-color: rgba(var(--fe-accent-rgb), 0.18);
-  background:
-    linear-gradient(135deg, rgba(var(--fe-accent-rgb), 0.14), rgba(var(--fe-accent-rgb), 0.05)),
-    var(--fe-surface-soft);
+.grid-card:hover .grid-card-icon {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--grid-icon-color) 38%, var(--fe-border-soft));
 }
 
 .grid-card-body {
   position: relative;
   z-index: 1;
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   align-items: center;
   min-width: 0;
   text-align: center;
 }
 
-.grid-card-name {
-  display: -webkit-box;
+.grid-card-body :deep(.grid-card-name) {
+  display: block;
   width: 100%;
-  min-height: 40px;
   margin: 0;
   overflow: hidden;
   color: var(--fe-text);
   font-size: 13px;
-  font-weight: 800;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.grid-card-info {
-  width: 100%;
-  margin: 5px 0 0;
-  overflow: hidden;
-  color: var(--fe-text-muted);
-  font-size: 11px;
-  line-height: 1.35;
+  font-weight: 700;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1566,10 +1850,10 @@ async function fetchAllUsers() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  min-height: 34px;
-  margin-top: 10px;
+  min-height: 40px;
+  margin-top: 6px;
   opacity: 0;
   transition: opacity 0.18s ease;
 }
@@ -1580,13 +1864,14 @@ async function fetchAllUsers() {
 }
 
 .card-action-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border: 1px solid var(--fe-border-soft);
-  border-radius: 10px;
+  border-radius: 9px;
   background: var(--fe-surface-strong);
   color: var(--fe-text-muted);
   cursor: pointer;
@@ -1595,6 +1880,12 @@ async function fetchAllUsers() {
     border-color 0.18s ease,
     color 0.18s ease,
     transform 0.18s ease;
+}
+
+.card-action-btn::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 
 .card-action-btn:hover {
@@ -1715,27 +2006,50 @@ async function fetchAllUsers() {
   transform: translateY(1px);
 }
 
-.dark .file-data-table :deep(.n-data-table),
-.dark .file-data-table :deep(.n-data-table-wrapper) {
+:global(html.dark .file-data-table .n-data-table),
+:global(html.dark .file-data-table .n-data-table-wrapper) {
   background-color: var(--fe-surface);
 }
 
-.dark .file-data-table :deep(.n-data-table-th) {
+:global(html.dark .file-data-table .n-data-table-th) {
   background-color: var(--fe-surface-soft) !important;
 }
 
-.dark .file-data-table :deep(.n-data-table-td) {
+:global(html.dark .file-data-table .n-data-table-td) {
   background-color: var(--fe-surface);
 }
 
-.dark .file-data-table :deep(.n-data-table-base-table) {
+:global(html.dark .file-data-table .n-data-table-base-table) {
   border-color: var(--fe-border);
 }
 
 .share-file-list {
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
+  gap: 4px 8px;
+}
+
+.share-file-tag {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.share-file-tag :deep(.n-tag__content) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-file-count {
+  flex: 0 0 100%;
+  margin: 0;
+  color: var(--fe-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 @media (hover: none) {
@@ -1806,7 +2120,7 @@ async function fetchAllUsers() {
   }
 
   .content-header {
-    padding: 8px;
+    padding: 12px;
   }
 
   .header-tools-actions {
@@ -1843,14 +2157,9 @@ async function fetchAllUsers() {
     flex: 1 1 calc(50% - 6px);
   }
 
-  .file-grid {
-    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-    gap: 12px;
-    padding: 12px;
-  }
-
-  .grid-card {
-    min-height: 182px;
+  .file-grid-row {
+    gap: 10px;
+    padding: 6px 12px;
   }
 
   .file-data-table :deep(.n-data-table-td),

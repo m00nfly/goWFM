@@ -8,6 +8,7 @@ type User struct {
 	Password          string     `json:"-"`
 	DisplayName       string     `json:"display_name"`
 	Email             string     `json:"email"`
+	AvatarData        string     `json:"avatar"`
 	IsAdmin           bool       `json:"is_admin"`
 	Permissions       int        `json:"permissions"`
 	TotpEnabled       bool       `json:"totp_enabled"`
@@ -20,12 +21,15 @@ type User struct {
 }
 
 const (
-	PermBrowse     = 1 << 0 // 1
-	PermDownload   = 1 << 1 // 2
-	PermUpload     = 1 << 2 // 4
-	PermShare      = 1 << 3 // 8
-	PermManageLogs = 1 << 4 // 16
-	PermAll        = PermBrowse | PermDownload | PermUpload | PermShare | PermManageLogs
+	PermBrowse       = 1 << 0 // 1
+	PermDownload     = 1 << 1 // 2
+	PermGlobalUpload = 1 << 2 // 4
+	PermShare        = 1 << 3 // 8
+	PermManageLogs   = 1 << 4 // 16
+	PermAll          = PermBrowse | PermDownload | PermGlobalUpload | PermShare | PermManageLogs
+
+	// PermUpload 保留旧名称兼容性；该权限现在表示可向任意目录上传。
+	PermUpload = PermGlobalUpload
 )
 
 func (u *User) HasPermission(bit int) bool {

@@ -1,53 +1,59 @@
 <template>
   <div class="login-page" :class="{ dark: themeStore.isDark, 'has-custom-bg': !!loginBgUrl }" :style="loginBgStyle">
     <main class="login-shell" aria-label="登录">
-      <section class="brand-panel" aria-label="goWFM">
-        <div class="brand-mark-row">
-          <div v-if="customLogo" class="brand-logo-custom">
-            <img :src="customLogo" class="brand-logo-img" alt="Logo" />
-          </div>
-          <div v-else class="brand-mark">
-            <FolderOutline />
-          </div>
-          <div>
-            <p class="brand-kicker">私有文件工作台</p>
-            <p class="brand-name">{{ orgName || 'goWFM' }}</p>
-          </div>
-        </div>
+      <section
+        class="brand-panel"
+        :class="{ 'has-custom-content': customBrandPanelEnabled }"
+        :aria-label="orgName || 'goWFM'"
+      >
+        <BrandIdentity
+          :logo="customLogo"
+          :name="orgName || 'goWFM'"
+          kicker="私有文件工作台"
+          variant="login"
+        />
 
-        <div class="brand-copy">
-          <h1>回到你的安全文件空间</h1>
-          <p>集中管理文件、分享链接和团队权限，继续处理今天的工作。</p>
-        </div>
+        <div
+          v-if="customBrandPanelEnabled"
+          class="brand-custom-content"
+          v-html="customBrandPanelHTML"
+        ></div>
 
-        <div class="visual-stage" aria-hidden="true">
-          <div class="visual-card">
-            <img :src="heroImage" class="hero-art" alt="" />
+        <template v-else>
+          <div class="brand-copy">
+            <h1>回到你的安全文件空间</h1>
+            <p>集中管理文件、分享链接和团队权限，继续处理今天的工作。</p>
           </div>
-          <div class="signal-card signal-primary">
-            <ShieldCheckmarkOutline />
-            <span>权限检查</span>
-          </div>
-          <div class="signal-card signal-secondary">
-            <KeyOutline />
-            <span>安全会话</span>
-          </div>
-        </div>
 
-        <div class="brand-points" aria-label="平台能力">
-          <div class="brand-point">
-            <ShieldCheckmarkOutline />
-            <span>自托管部署</span>
+          <div class="visual-stage" aria-hidden="true">
+            <div class="visual-card">
+              <img :src="heroImage" class="hero-art" alt="" />
+            </div>
+            <div class="signal-card signal-primary">
+              <ShieldCheckmarkOutline />
+              <span>权限检查</span>
+            </div>
+            <div class="signal-card signal-secondary">
+              <KeyOutline />
+              <span>安全会话</span>
+            </div>
           </div>
-          <div class="brand-point">
-            <KeyOutline />
-            <span>双重验证</span>
+
+          <div class="brand-points" aria-label="平台能力">
+            <div class="brand-point">
+              <ShieldCheckmarkOutline />
+              <span>自托管部署</span>
+            </div>
+            <div class="brand-point">
+              <KeyOutline />
+              <span>双重验证</span>
+            </div>
+            <div class="brand-point">
+              <FolderOutline />
+              <span>文件与分享</span>
+            </div>
           </div>
-          <div class="brand-point">
-            <FolderOutline />
-            <span>文件与分享</span>
-          </div>
-        </div>
+        </template>
       </section>
 
       <section class="auth-panel" aria-label="账号登录">
@@ -247,7 +253,7 @@
 					<input type="checkbox" v-model="rememberMe" class="checkbox" />
 					<span>保持登录状态</span>
 				  </label>
-				  <button type="button" class="forgot-link" @click="openForgotPassword">忘记密码？</button>
+				  <button v-if="passwordResetEnabled" type="button" class="forgot-link" @click="openForgotPassword">忘记密码？</button>
 				</div>
 
                 <button type="submit" class="login-btn" :disabled="loading">
@@ -380,12 +386,16 @@ import {
 import api from '@/api'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import { useConfig } from '@/composables/useConfig'
+import BrandIdentity from '@/components/BrandIdentity.vue'
 import heroImage from '@/assets/hero.png'
+import { renderBrandPanelContent } from '@/utils/brandPanel'
 
 const router = useRouter()
 const message = useMessage()
 const userStore = useUserStore()
 const themeStore = useThemeStore()
+const { config, fetchConfig } = useConfig()
 const loading = ref(false)
 const showPassword = ref(false)
 const showResetPassword = ref(false)
@@ -403,12 +413,15 @@ const resetLoading = ref(false)
 const resetTOTPRequired = ref(false)
 const resetError = ref('')
 const resetForm = reactive({ new_password: '', confirm_password: '', totp_code: '' })
+const passwordResetEnabled = computed(() => config.value?.allow_email_password_reset === true && config.value?.email_active === true)
 
 const orgName = ref('')
 const orgLink = ref('')
 const version = ref('')
 const loginBgUrl = ref('')
 const customLogo = ref('')
+const customBrandPanelEnabled = ref(false)
+const customBrandPanelContent = ref('')
 const captchaEnabled = ref(false)
 const captchaImage = ref('')
 
@@ -433,6 +446,7 @@ const trustDevice = ref(false)
 const trustDays = ref(30)
 const loginToken = ref('')
 const totpCodeRef = ref<HTMLInputElement | null>(null)
+const customBrandPanelHTML = computed(() => renderBrandPanelContent(customBrandPanelContent.value))
 
 const authHeading = computed(() => {
   if (passwordFlow.value === 'forgot') {
@@ -485,13 +499,16 @@ onMounted(async () => {
   }
   // 获取配置信息
   try {
-    const res = await api.get('/api/config/info')
-    orgName.value = res.data.site_name || ''
-    orgLink.value = res.data.site_link || ''
-    version.value = res.data.version || ''
-    loginBgUrl.value = res.data.login_bg_url || ''
-    customLogo.value = res.data.custom_logo || ''
-    captchaEnabled.value = res.data.enable_captcha || false
+	await fetchConfig(true)
+    orgName.value = config.value?.site_name || ''
+    orgLink.value = config.value?.site_link || ''
+    version.value = config.value?.version || ''
+    loginBgUrl.value = config.value?.login_bg_url || ''
+    customLogo.value = config.value?.custom_logo || ''
+    customBrandPanelEnabled.value = config.value?.custom_brand_panel_enabled === true
+    customBrandPanelContent.value = config.value?.custom_brand_panel_content || ''
+    captchaEnabled.value = config.value?.enable_captcha || false
+    trustDays.value = config.value?.totp_trust_days || 30
     // 如果启用验证码则自动获取
     if (captchaEnabled.value) {
       await refreshCaptcha()
@@ -503,6 +520,10 @@ onMounted(async () => {
 })
 
 function openForgotPassword() {
+	if (!passwordResetEnabled.value) {
+		message.warning('系统未开放自主密码找回功能，请联系管理员处理！')
+		return
+	}
 	passwordFlow.value = 'forgot'
 	forgotSent.value = false
 	resetError.value = ''
@@ -636,11 +657,6 @@ async function handleLogin() {
       // 需要 TOTP 二次验证
       totpRequired.value = true
       loginToken.value = res.data.login_token
-      // 获取信任天数配置
-      try {
-        const configRes = await api.get('/api/config/info')
-        trustDays.value = configRes.data.totp_trust_days || 30
-      } catch { /* use default */ }
       // 自动聚焦 TOTP 输入框
       setTimeout(() => totpCodeRef.value?.focus(), 100)
       return
@@ -754,12 +770,14 @@ function resetTOTPFlow() {
   --shadow-soft:
     0 1px 2px rgba(16, 32, 51, 0.05),
     0 24px 70px rgba(16, 32, 51, 0.12);
-  min-height: 100dvh;
+  width: 100%;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: clamp(16px, 2.2vw, 24px);
   color: var(--page-ink);
   background:
@@ -784,14 +802,9 @@ function resetTOTPFlow() {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 84%);
 }
 
+.login-page.has-custom-bg::before,
 .login-page.has-custom-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(238, 243, 247, 0.92), rgba(238, 243, 247, 0.58)),
-    radial-gradient(circle at 70% 50%, transparent, rgba(16, 32, 51, 0.18));
+  content: none;
 }
 
 .login-page.dark {
@@ -821,19 +834,13 @@ function resetTOTPFlow() {
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
 }
 
-.login-page.dark.has-custom-bg::after {
-  background:
-    linear-gradient(90deg, rgba(7, 17, 31, 0.93), rgba(7, 17, 31, 0.64)),
-    radial-gradient(circle at 70% 50%, transparent, rgba(0, 0, 0, 0.28));
-}
-
 .login-shell {
-  width: min(1016px, 100%);
-  min-height: min(640px, calc(100dvh - 32px));
+  width: min(900px, 100%);
+  min-height: min(576px, calc(100dvh - 32px));
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 0.72fr);
+  grid-template-columns: minmax(0, 1fr) minmax(350px, 0.82fr);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 28px;
@@ -845,15 +852,101 @@ function resetTOTPFlow() {
 
 .brand-panel {
   position: relative;
-  min-height: 608px;
+  min-height: 544px;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  gap: 24px;
-  padding: 36px;
+  gap: 16px;
+  padding: 26px;
   overflow: hidden;
   background:
     linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), transparent 36%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0));
+}
+
+.brand-panel.has-custom-content {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.brand-custom-content {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 4px 6px 0;
+  color: var(--page-ink);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.brand-custom-content :deep(h1),
+.brand-custom-content :deep(h2),
+.brand-custom-content :deep(h3) {
+  margin: 0 0 12px;
+  color: var(--page-ink);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.brand-custom-content :deep(h1) { font-size: 30px; }
+.brand-custom-content :deep(h2) { font-size: 24px; }
+.brand-custom-content :deep(h3) { font-size: 18px; }
+
+.brand-custom-content :deep(p),
+.brand-custom-content :deep(ul),
+.brand-custom-content :deep(ol),
+.brand-custom-content :deep(blockquote),
+.brand-custom-content :deep(pre) {
+  margin: 0 0 14px;
+}
+
+.brand-custom-content :deep(ul),
+.brand-custom-content :deep(ol) {
+  padding-left: 22px;
+}
+
+.brand-custom-content :deep(a) {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.brand-custom-content :deep(blockquote) {
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  color: var(--muted-ink);
+  background: rgba(var(--accent-rgb), 0.07);
+}
+
+.brand-custom-content :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
+
+.dark .brand-custom-content :deep(img) {
+  outline-color: rgba(255, 255, 255, 0.1);
+}
+
+.brand-custom-content :deep(code) {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--field-bg);
+  font-size: 0.92em;
+}
+
+.brand-custom-content :deep(pre) {
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--field-bg);
+}
+
+.brand-custom-content :deep(pre code) {
+  padding: 0;
+  background: transparent;
 }
 
 .brand-panel::before {
@@ -865,60 +958,6 @@ function resetTOTPFlow() {
   pointer-events: none;
 }
 
-.brand-mark-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  position: relative;
-  z-index: 1;
-}
-
-.brand-mark,
-.brand-logo-custom {
-  width: 50px;
-  height: 50px;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-  background: var(--panel-strong);
-  color: var(--accent);
-  box-shadow: 0 0 0 1px var(--line), 0 14px 34px rgba(16, 32, 51, 0.12);
-}
-
-.brand-mark svg {
-  width: 25px;
-  height: 25px;
-}
-
-.brand-logo-img {
-  max-width: 40px;
-  max-height: 40px;
-  object-fit: contain;
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  outline-offset: -1px;
-  border-radius: 12px;
-}
-
-.dark .brand-logo-img {
-  outline-color: rgba(255, 255, 255, 0.1);
-}
-
-.brand-kicker {
-  margin: 0 0 3px;
-  font-size: 12px;
-  color: var(--soft-ink);
-}
-
-.brand-name {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 760;
-  letter-spacing: 0;
-  color: var(--page-ink);
-}
-
 .brand-copy {
   position: relative;
   z-index: 1;
@@ -927,7 +966,7 @@ function resetTOTPFlow() {
 
 .brand-copy h1 {
   margin: 0;
-  font-size: clamp(32px, 4.2vw, 54px);
+  font-size: clamp(29px, 3.6vw, 42px);
   line-height: 1.04;
   letter-spacing: 0;
   text-wrap: balance;
@@ -935,8 +974,8 @@ function resetTOTPFlow() {
 
 .brand-copy p {
   max-width: 46ch;
-  margin: 14px 0 0;
-  font-size: 15px;
+  margin: 12px 0 0;
+  font-size: 14px;
   line-height: 1.62;
   color: var(--muted-ink);
   text-wrap: pretty;
@@ -945,12 +984,12 @@ function resetTOTPFlow() {
 .visual-stage {
   position: relative;
   align-self: center;
-  min-height: 242px;
+  min-height: 190px;
   z-index: 1;
 }
 
 .visual-card {
-  width: min(286px, 68%);
+  width: min(220px, 64%);
   aspect-ratio: 1 / 1;
   margin: 2px auto 0;
   display: grid;
@@ -971,7 +1010,7 @@ function resetTOTPFlow() {
 }
 
 .hero-art {
-  width: min(248px, 84%);
+  width: min(190px, 84%);
   height: auto;
   filter: drop-shadow(0 24px 34px rgba(var(--accent-rgb), 0.2));
 }
@@ -1036,13 +1075,13 @@ function resetTOTPFlow() {
 }
 
 .signal-primary {
-  top: 26px;
-  right: 24px;
+  top: 16px;
+  right: 14px;
 }
 
 .signal-secondary {
-  left: 22px;
-  bottom: 26px;
+  left: 14px;
+  bottom: 16px;
 }
 
 .brand-points {
@@ -1054,11 +1093,11 @@ function resetTOTPFlow() {
 }
 
 .brand-point {
-  min-height: 62px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px;
+  padding: 9px;
   border: 1px solid var(--line);
   border-radius: 16px;
   color: var(--muted-ink);
@@ -1074,7 +1113,7 @@ function resetTOTPFlow() {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: 34px;
   border-left: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
 }
@@ -1338,7 +1377,7 @@ function resetTOTPFlow() {
 .captcha-image img {
   height: 48px;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   outline: 1px solid rgba(0, 0, 0, 0.1);
   outline-offset: -1px;
@@ -1624,19 +1663,23 @@ function resetTOTPFlow() {
 
 @media (max-width: 920px) {
   .login-page {
-    padding: 20px;
-    align-items: stretch;
+    align-items: flex-start;
+    padding: 16px;
   }
 
   .login-shell {
+    width: min(720px, 100%);
     min-height: auto;
+    margin: auto;
     grid-template-columns: 1fr;
+    border-radius: 22px;
   }
 
   .brand-panel {
     min-height: auto;
-    gap: 24px;
-    padding: 34px;
+    grid-template-rows: auto auto;
+    gap: 14px;
+    padding: 20px 24px;
   }
 
   .brand-panel::before,
@@ -1646,45 +1689,121 @@ function resetTOTPFlow() {
   }
 
   .brand-copy h1 {
-    font-size: clamp(32px, 8vw, 44px);
+    font-size: 26px;
+  }
+
+  .brand-copy p {
+    margin-top: 7px;
+    font-size: 13px;
+  }
+
+  .brand-custom-content {
+    max-height: 180px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .brand-custom-content :deep(h1) { font-size: 24px; }
+  .brand-custom-content :deep(h2) { font-size: 20px; }
+  .brand-custom-content :deep(h3) { font-size: 16px; }
+
+  .auth-card {
+    max-width: 340px;
+  }
+
+  .auth-header {
+    margin-bottom: 18px;
+  }
+
+  .auth-header h2 {
+    font-size: 26px;
+  }
+
+  .auth-header p {
+    line-height: 1.5;
+  }
+
+  .form-panel {
+    gap: 13px;
+  }
+
+  .input-field {
+    min-height: 44px;
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+
+  .login-btn {
+    min-height: 46px;
   }
 
   .auth-panel {
     border-left: 0;
     border-top: 1px solid var(--line);
-    padding: 34px;
+    padding: 27px;
   }
 }
 
 @media (max-width: 560px) {
   .login-page {
-    padding: 12px;
+    display: block;
+    padding: 8px;
   }
 
   .login-shell {
-    border-radius: 24px;
+    border-radius: 18px;
   }
 
-  .brand-panel,
+  .brand-panel {
+    gap: 10px;
+    padding: 14px 16px;
+  }
+
+  .brand-panel:not(.has-custom-content) .brand-copy {
+    display: none;
+  }
+
+  .brand-custom-content {
+    max-height: 112px;
+    padding-top: 2px;
+    font-size: 12px;
+  }
+
+  .brand-custom-content :deep(p),
+  .brand-custom-content :deep(ul),
+  .brand-custom-content :deep(ol),
+  .brand-custom-content :deep(blockquote),
+  .brand-custom-content :deep(pre) {
+    margin-bottom: 8px;
+  }
+
   .auth-panel {
-    padding: 24px;
+    padding: 20px 16px 18px;
   }
 
   .theme-toggle {
-    top: 18px;
-    right: 18px;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .auth-header {
+    padding-right: 40px;
   }
 
   .auth-header h2 {
-    font-size: 28px;
+    font-size: 24px;
   }
 
   .captcha-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    gap: 8px;
   }
 
   .captcha-image {
-    width: 100%;
+    width: 104px;
   }
 
   .label-row {
@@ -1695,6 +1814,27 @@ function resetTOTPFlow() {
 
   .field-hint {
     white-space: normal;
+  }
+
+  .bottom-links {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .captcha-row {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+
+  .captcha-image {
+    width: 96px;
+  }
+}
+
+@media (max-height: 680px) {
+  .login-page {
+    align-items: flex-start;
   }
 }
 </style>

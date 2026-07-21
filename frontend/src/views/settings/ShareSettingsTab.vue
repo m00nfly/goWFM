@@ -16,10 +16,20 @@
               <n-input-number v-model:value="form.max_shares_per_user" :min="0" :max="100000" style="width: 150px" />
               <span class="workspace-inline-note">0 表示不限制</span>
             </n-form-item>
+            <n-form-item label="文件链接超时">
+              <n-input-number v-model:value="form.file_link_timeout_minutes" :min="1" :max="1440" style="width: 150px" />
+              <span class="workspace-inline-note">分钟，临时链接仅可使用一次</span>
+            </n-form-item>
             <n-form-item label="允许匿名下载">
               <n-switch v-model:value="form.allow_anonymous_download" />
               <span class="workspace-inline-note">关闭后分享链接需要登录才能下载</span>
             </n-form-item>
+			<n-form-item label="允许邮件发送分享">
+			  <n-switch :value="form.allow_email_share" @update:value="handleEmailShareToggle" />
+			  <span class="workspace-inline-note" :class="{ 'dependency-warning': !smtpActive }">
+				{{ smtpActive ? '启用后分享管理页面显示邮件发送按钮' : '需先在邮件设置中配置并激活 SMTP 服务' }}
+			  </span>
+			</n-form-item>
 
           </div>
         </section>
@@ -42,18 +52,34 @@ const saving = ref(false)
 const form = ref({
   default_expire_days: 7,
   max_shares_per_user: 0,
+  file_link_timeout_minutes: 5,
   allow_anonymous_download: true,
+	allow_email_share: false,
 })
+const smtpActive = ref(false)
 
 onMounted(async () => {
   loading.value = true
   try {
-    const res = await api.get('/api/admin/config/share')
+	const [res, emailRes] = await Promise.all([
+		api.get('/api/admin/config/share'),
+		api.get('/api/admin/config/email'),
+	])
     Object.assign(form.value, res.data)
+	smtpActive.value = emailRes.data?.active === true
+	if (!smtpActive.value) form.value.allow_email_share = false
   } catch { /* ignore */ } finally {
     loading.value = false
   }
 })
+
+function handleEmailShareToggle(next: boolean) {
+	if (next && !smtpActive.value) {
+		message.warning('请先配置并激活 SMTP 服务，再启用邮件发送分享')
+		return
+	}
+	form.value.allow_email_share = next
+}
 
 async function handleSave() {
   saving.value = true
@@ -67,3 +93,9 @@ async function handleSave() {
   }
 }
 </script>
+
+<style scoped>
+.dependency-warning {
+	color: #d97706;
+}
+</style>

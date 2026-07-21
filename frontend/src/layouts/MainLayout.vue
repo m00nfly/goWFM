@@ -5,24 +5,25 @@
       <div class="header-inner">
         <!-- Logo -->
         <div class="header-brand" @click="router.push('/')">
-          <template v-if="customLogo">
-            <img :src="customLogo" class="brand-logo-img" alt="Logo" />
-          </template>
-          <template v-else>
-            <div class="brand-icon">
-              <n-icon size="20"><FolderOpenOutline /></n-icon>
-            </div>
-          </template>
-          <span class="brand-text">{{ orgName || 'goWFM' }}</span>
+          <BrandIdentity :logo="customLogo" :name="orgName || 'goWFM'" variant="header" />
         </div>
 
         <!-- 右侧操作区 -->
         <div class="header-actions">
           <!-- 导航图标 - 宽屏（仅登录后显示） -->
           <div v-show="!isNarrow && userStore.user" class="nav-icons">
+            <n-tooltip v-if="userStore.user?.is_admin" trigger="hover" placement="bottom">
+              <template #trigger>
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/dashboard' }" @click="router.push('/dashboard')">
+                  <n-icon size="22"><SpeedometerOutline /></n-icon>
+                </button>
+              </template>
+              仪表盘
+            </n-tooltip>
+
             <n-tooltip trigger="hover" placement="bottom">
               <template #trigger>
-                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/' }" @click="router.push('/')">
+                <button class="nav-icon-btn" :class="{ active: activeMenuKey === '/files' }" @click="router.push('/files')">
                   <n-icon size="22"><FolderOpenOutline /></n-icon>
                 </button>
               </template>
@@ -100,13 +101,12 @@
             <!-- 用户下拉 -->
             <n-dropdown trigger="click" :options="userDropdownOptions" @select="onUserAction">
               <div class="user-trigger">
-                <n-avatar
-                  round
-                  :size="32"
+                <UserAvatar
+                  :size="34"
+                  :avatar="userStore.user.avatar"
+                  :name="displayName"
                   class="user-avatar"
-                >
-                  <n-icon size="20"><PersonCircle /></n-icon>
-                </n-avatar>
+                />
                 <span class="user-display-name">{{ displayName }}</span>
               </div>
             </n-dropdown>
@@ -145,7 +145,7 @@
 import { ref, computed, h, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  NDropdown, NIcon, NAvatar, NTooltip, NBadge, NPopselect,
+  NDropdown, NIcon, NTooltip, NBadge, NPopselect,
 } from 'naive-ui'
 import {
   FolderOpenOutline,
@@ -158,13 +158,15 @@ import {
   SunnyOutline,
   MoonOutline,
   MenuOutline,
-  PersonCircle,
+  SpeedometerOutline,
 } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { useConfig } from '@/composables/useConfig'
 import { useViewport } from '@/composables/useViewport'
 import api from '@/api'
+import UserAvatar from '@/components/UserAvatar.vue'
+import BrandIdentity from '@/components/BrandIdentity.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -204,20 +206,18 @@ const displayName = computed(() =>
 
 // ---------- 导航配置 ----------
 
-const shareMenuKey = computed(() =>
-  userStore.user?.is_admin ? '/admin/shares' : '/shares'
-)
+const shareMenuKey = computed(() => '/shares')
 
 // 高亮的导航 key
 const activeMenuKey = computed(() => {
   const p = route.path
-  if (p.startsWith('/admin/shares')) return '/admin/shares'
+  if (p.startsWith('/dashboard')) return '/dashboard'
   if (p.startsWith('/admin/users')) return '/admin/users'
   if (p.startsWith('/admin/settings')) return '/admin/settings'
   if (p === '/shares') return '/shares'
   if (p === '/logs') return '/logs'
   if (p === '/settings') return '/settings'
-  return '/'
+  return '/files'
 })
 
 // ---------- 窄屏折叠导航 ----------
@@ -225,9 +225,11 @@ const activeMenuKey = computed(() => {
 const popNavValue = ref<string | null>(null)
 
 const popNavOptions = computed(() => {
-  const opts: Array<{ label: string; value: string }> = [
-    { label: '文件管理', value: '/' },
-  ]
+  const opts: Array<{ label: string; value: string }> = []
+  if (userStore.user?.is_admin) {
+    opts.push({ label: '仪表盘', value: '/dashboard' })
+  }
+  opts.push({ label: '文件管理', value: '/files' })
   if (userStore.user?.is_admin || userStore.hasPermission(8)) {
     const label = userStore.user?.is_admin ? '分享管理' : '我的分享'
     const badgeText = shareBadgeCount.value > 0
@@ -323,6 +325,19 @@ onUnmounted(() => {
     box-shadow 0.2s ease;
 }
 
+.main-layout.dark .top-header {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--workspace-surface-strong) 92%, var(--workspace-accent) 8%),
+      color-mix(in srgb, var(--workspace-surface) 95%, var(--workspace-accent) 5%)
+    );
+  border-bottom-color: rgba(var(--workspace-accent-rgb), 0.20);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 12px 30px rgba(2, 6, 23, 0.34);
+}
+
 .header-inner {
   max-width: 1280px;
   margin: 0 auto;
@@ -335,66 +350,25 @@ onUnmounted(() => {
 
 /* ---- Logo ---- */
 .header-brand {
+  min-width: 0;
+  max-width: min(360px, 40vw);
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 10px;
   cursor: pointer;
   user-select: none;
   height: 100%;
+  overflow: hidden;
 }
 
-/* 自定义 Logo：自适应 header 高度，无背景色，无容器约束 */
-.brand-logo-img {
-  height: 36px;
-  width: auto;
-  max-width: 140px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: var(--workspace-radius-sm);
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  outline-offset: -1px;
-}
-
-.dark .brand-logo-img {
-  outline-color: rgba(255, 255, 255, 0.1);
-}
-
-/* 默认图标容器（无 Logo 时） */
-.brand-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--workspace-on-accent);
-  background: var(--workspace-accent);
-  padding: 8px;
-  border-radius: var(--workspace-radius-md);
-  box-shadow: 0 8px 18px rgba(var(--workspace-accent-rgb), 0.2);
-  flex-shrink: 0;
-  transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease;
-}
-
-.header-brand:active .brand-icon {
+.header-brand:active :deep(.brand-identity__fallback) {
   transform: scale(0.96);
-}
-
-.brand-text {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--workspace-text);
-  letter-spacing: 0;
-  transition: color 0.2s ease;
-}
-
-@media (max-width: 640px) {
-  .brand-text {
-    display: none;
-  }
 }
 
 /* ---- 右侧操作区 ---- */
 .header-actions {
+  min-width: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -479,10 +453,7 @@ onUnmounted(() => {
 }
 
 .user-avatar {
-  color: var(--workspace-on-accent);
-  background-color: var(--workspace-accent) !important;
   cursor: pointer;
-  font-size: 14px;
 }
 
 .user-display-name {

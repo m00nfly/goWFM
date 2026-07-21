@@ -17,6 +17,18 @@ const router = createRouter({
       children: [
         {
           path: '',
+          name: 'home',
+          component: () => import('@/views/HomeView.vue'),
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/DashboardView.vue'),
+          meta: { admin: true },
+        },
+        {
+          path: 'files',
           name: 'files',
           component: () => import('@/views/FileExplorer.vue'),
           meta: { requiresAuth: true },
@@ -36,7 +48,7 @@ const router = createRouter({
         {
           path: 'shares',
           name: 'shares',
-          component: () => import('@/views/MySharesView.vue'),
+          component: () => import('@/views/ShareManagementView.vue'),
           meta: { permission: 8 },
         },
         {
@@ -44,12 +56,6 @@ const router = createRouter({
           name: 'logs',
           component: () => import('@/views/LogsView.vue'),
           meta: { permission: 16 },
-        },
-        {
-          path: 'admin/shares',
-          name: 'admin-shares',
-          component: () => import('@/views/ShareManagementView.vue'),
-          meta: { admin: true },
         },
         {
           path: 'admin/users',
@@ -75,7 +81,7 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
-  const { fetchSetupStatus, setupStatus } = useConfig()
+  const { fetchConfig, config } = useConfig()
 
   // Resolve meta from all matched route records (supports nested routes)
   const requiresAuth = to.matched.some(r => r.meta.requiresAuth)
@@ -90,8 +96,8 @@ router.beforeEach(async (to, _from, next) => {
     // 未登录时，检查是否需要跳转到初始化页面
     if (!userStore.user && to.name !== 'setup') {
       try {
-        await fetchSetupStatus()
-        if (setupStatus.value?.needs_setup) {
+        await fetchConfig()
+        if (config.value?.needs_setup) {
           return next('/setup')
         }
       } catch {
@@ -111,6 +117,10 @@ router.beforeEach(async (to, _from, next) => {
   // 需要登录但未登录
   if (!userStore.user) {
     return next('/login')
+  }
+
+  if (to.name === 'home') {
+    return next(userStore.user.is_admin ? '/dashboard' : '/files')
   }
 
   // 管理员强制启用但尚未绑定时，只允许进入个人设置完成绑定。

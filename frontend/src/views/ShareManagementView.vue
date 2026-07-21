@@ -3,8 +3,10 @@
     <section class="workspace-surface">
       <header class="workspace-header">
         <div class="workspace-title-block">
-          <h1 class="workspace-title">分享管理</h1>
-          <p class="workspace-subtitle">按分享者、状态和文件名筛选全站分享链接</p>
+          <h1 class="workspace-title">{{ isAdmin ? '管理分享' : '我的分享' }}</h1>
+          <p class="workspace-subtitle">
+            {{ isAdmin ? '查看和维护所有账户创建的分享链接' : '查看、复制和维护由您创建的文件分享' }}
+          </p>
         </div>
         <div class="workspace-stat-grid shares-stats">
           <div class="workspace-stat">
@@ -22,12 +24,12 @@
         </div>
       </header>
 
-      <div class="workspace-toolbar shares-toolbar">
+      <div v-if="isAdmin" class="workspace-toolbar shares-toolbar">
         <div class="workspace-toolbar-group">
           <n-input
-            v-model:value="filterFileName"
+            v-model:value="filterKeyword"
             class="shares-filter-name"
-            placeholder="按文件名/Token筛选"
+            placeholder="按文件名或分享 ID 筛选"
             clearable
             size="small"
           />
@@ -49,327 +51,488 @@
           />
         </div>
         <div class="workspace-count-pill">
-          当前显示
-          <strong>{{ filteredShares.length }}</strong>
-          条
+          当前显示 <strong>{{ filteredShares.length }}</strong> 条
         </div>
       </div>
 
-      <div class="workspace-table-shell shares-table-wrapper">
-        <n-data-table
-          class="workspace-data-table shares-data-table"
-          size="small"
-          flex-height
-          :columns="columns"
-          :data="filteredShares"
-          :bordered="false"
-          striped
-          :loading="loading"
-          :row-key="(row: any) => row.id"
-          :row-class-name="rowClassName"
-          style="height: 100%;"
+      <div class="shares-list" aria-live="polite">
+        <template v-if="loading">
+          <div
+            v-for="index in 4"
+            :key="index"
+            class="share-card share-card-skeleton"
+            :class="{ 'is-admin': isAdmin }"
+          >
+            <div class="share-main">
+              <n-skeleton circle :width="40" :height="40" />
+              <div class="share-main-content">
+                <n-skeleton text style="width: 54%" />
+                <n-skeleton text style="width: 78%" />
+              </div>
+            </div>
+            <n-skeleton class="share-status" round style="width: 52px" />
+            <div class="share-meta-grid">
+              <n-skeleton v-for="item in 3" :key="item" text />
+            </div>
+            <n-skeleton v-if="isAdmin" class="share-owner-column" circle :width="26" :height="26" />
+            <n-skeleton class="share-actions" text style="width: 112px" />
+          </div>
+        </template>
+
+        <n-empty
+          v-else-if="filteredShares.length === 0"
+          class="shares-empty"
+          :description="hasFilters ? '没有符合筛选条件的分享' : '暂无分享记录'"
         />
+
+        <article
+          v-for="share in filteredShares"
+          v-else
+          :id="`share-card-${share.id}`"
+          :key="share.id"
+          class="share-card"
+          :class="{ 'is-admin': isAdmin, 'is-highlighted': share.id === highlightId }"
+        >
+          <div class="share-main">
+            <span class="share-record-icon" role="img" aria-label="分享记录">
+              <n-icon :size="22"><ShareSocialOutline /></n-icon>
+            </span>
+            <div class="share-main-content">
+              <button class="share-file-button" type="button" @click="openFilesModal(share, $event)">
+                <span class="share-file-title">{{ share.file_name || '未命名分享' }}</span>
+                <span class="share-file-summary">
+                  <n-icon :size="15"><DocumentsOutline /></n-icon>
+                  {{ share.file_count }} 个文件 · 查看文件列表
+                </span>
+              </button>
+
+              <div class="share-token-row">
+                <span class="share-token-label">分享 ID</span>
+                <code class="share-token">{{ share.token }}</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="share-status">
+            <n-tooltip trigger="hover" :style="{ whiteSpace: 'pre-line' }">
+              <template #trigger>
+                <n-tag :type="statusTagType(share.status)" size="small" round>
+                  {{ statusLabel(share.status) }}
+                </n-tag>
+              </template>
+              {{ getStatusTooltip(share) }}
+            </n-tooltip>
+          </div>
+
+          <div class="share-meta-grid">
+            <div class="share-meta-item">
+              <span class="share-meta-label">访问次数</span>
+              <strong class="share-meta-value tabular-nums">{{ share.access_count }}</strong>
+            </div>
+            <div class="share-meta-item">
+              <span class="share-meta-label">创建时间</span>
+              <strong class="share-meta-value tabular-nums">{{ share.created_at }}</strong>
+            </div>
+            <div class="share-meta-item">
+              <span class="share-meta-label">到期时间</span>
+              <strong class="share-meta-value tabular-nums">{{ share.expire_at || '永久有效' }}</strong>
+            </div>
+          </div>
+
+          <div v-if="isAdmin" class="share-owner-column">
+            <span class="share-meta-label">分享者</span>
+            <n-tooltip trigger="hover" placement="top">
+              <template #trigger>
+                <span class="share-owner-avatar" tabindex="0">
+                  <UserAvatar
+                    :size="26"
+                    :avatar="share.owner.avatar"
+                    :name="share.owner.display_name || share.owner.username"
+                  />
+                </span>
+              </template>
+              {{ share.owner.username }}
+            </n-tooltip>
+          </div>
+
+          <div class="share-actions" aria-label="分享操作">
+			<n-tooltip v-if="emailShareEnabled" trigger="hover" placement="top">
+			  <template #trigger>
+				<n-button class="share-action-button email" quaternary circle @click="openEmailModal(share)">
+				  <template #icon><n-icon :size="19"><MailOutline /></n-icon></template>
+				</n-button>
+			  </template>
+			  邮件发送该分享
+			</n-tooltip>
+            <n-tooltip trigger="hover" placement="top">
+              <template #trigger>
+                <n-button class="share-action-button copy" quaternary circle @click="copyLink(share)">
+                  <template #icon><n-icon :size="19"><LinkOutline /></n-icon></template>
+                </n-button>
+              </template>
+              复制链接
+            </n-tooltip>
+            <n-tooltip trigger="hover" placement="top">
+              <template #trigger>
+                <n-button class="share-action-button edit" quaternary circle @click="openEditModal(share)">
+                  <template #icon><n-icon :size="19"><CreateOutline /></n-icon></template>
+                </n-button>
+              </template>
+              编辑
+            </n-tooltip>
+            <n-popconfirm @positive-click="handleDelete(share)">
+              <template #trigger>
+                <n-tooltip trigger="hover" placement="top">
+                  <template #trigger>
+                    <n-button class="share-action-button delete" quaternary circle>
+                      <template #icon><n-icon :size="19"><TrashOutline /></n-icon></template>
+                    </n-button>
+                  </template>
+                  删除
+                </n-tooltip>
+              </template>
+              确认删除此分享链接？
+            </n-popconfirm>
+          </div>
+        </article>
       </div>
     </section>
   </div>
 
-  <n-modal v-model:show="showFilesModal" preset="card" title="文件列表" style="width: 600px; max-width: 90vw;">
-    <n-spin :show="filesModalLoading">
+  <n-modal
+    v-model:show="showFilesModal"
+    preset="card"
+    :title="filesModalTitle"
+    :auto-focus="false"
+    class="files-modal"
+    style="width: 640px; max-width: 92vw"
+    @after-enter="focusFilesModalContent"
+    @after-leave="restoreFilesModalTrigger"
+  >
+    <div ref="filesModalContentRef" class="files-modal-content" tabindex="-1" aria-label="分享文件列表">
       <div v-if="modalFiles.length > 0" class="files-modal-list">
-        <div v-for="file in modalFiles" :key="file.file_name" class="file-item">
-          <span class="file-name-link" @click="navigateToFile(file.file_path)">{{ file.file_name }}</span>
+        <button
+          v-for="file in modalFiles"
+          :key="file.id"
+          class="file-item"
+          type="button"
+          @click="navigateToFile(file.file_path)"
+        >
+          <span class="file-name-group">
+            <n-icon :size="19"><DocumentOutline /></n-icon>
+            <span class="file-name-link">{{ file.file_name }}</span>
+          </span>
           <span class="file-download-count">下载 {{ file.download_count }} 次</span>
-        </div>
+        </button>
       </div>
       <n-empty v-else description="暂无文件" />
-    </n-spin>
+    </div>
   </n-modal>
 
-  <!-- 编辑分享弹窗 -->
-  <n-modal v-model:show="showEditModal" preset="dialog" title="编辑分享" positive-text="保存" negative-text="取消" :positive-button-props="{ loading: editLoading }" @positive-click="handleEditSave" @negative-click="showEditModal = false" :mask-closable="false">
-    <n-form label-placement="left" label-width="80">
+  <n-modal
+	v-model:show="showEmailModal"
+	preset="dialog"
+	title="邮件发送该分享"
+	positive-text="确定发送"
+	negative-text="取消"
+	:positive-button-props="{ loading: emailSending }"
+	:mask-closable="false"
+	@positive-click="handleEmailShare"
+	@negative-click="showEmailModal = false"
+  >
+	<n-form label-placement="top">
+	  <n-form-item :label="`收件人 Email · ${emailShare?.file_name || ''}`">
+		<n-input
+		  v-model:value="recipientEmail"
+		  placeholder="name@example.com"
+		  type="text"
+		  autocomplete="email"
+		  @keydown.enter.prevent="handleEmailShare"
+		/>
+	  </n-form-item>
+	</n-form>
+  </n-modal>
+
+  <n-modal
+    v-model:show="showEditModal"
+    preset="dialog"
+    title="编辑分享"
+    positive-text="保存"
+    negative-text="取消"
+    :positive-button-props="{ loading: editLoading }"
+    :mask-closable="false"
+    @positive-click="handleEditSave"
+    @negative-click="showEditModal = false"
+  >
+    <n-form label-placement="top">
       <n-form-item label="分享名称">
         <n-input v-model:value="editName" placeholder="分享名称" clearable :maxlength="100" />
       </n-form-item>
-      <n-form-item label="有效期(天)">
-        <n-input-number v-model:value="editExpireDays" :min="0" :max="365" placeholder="0 表示永久有效" style="width: 100%" />
+      <n-form-item label="有效期（天）">
+        <n-input-number
+          v-model:value="editExpireDays"
+          :min="0"
+          :max="365"
+          placeholder="0 表示永久有效"
+          style="width: 100%"
+        />
       </n-form-item>
     </n-form>
   </n-modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { NSpace, NButton, NDataTable, NTooltip, NTag, NInput, NSelect, NPopconfirm, NModal, NSpin, NEmpty, NIcon, NForm, NFormItem, NInputNumber, useMessage } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
-import { CopyOutline, TrashOutline, CreateOutline } from '@vicons/ionicons5'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  NButton,
+  NEmpty,
+  NForm,
+  NFormItem,
+  NIcon,
+  NInput,
+  NInputNumber,
+  NModal,
+  NPopconfirm,
+  NSelect,
+  NSkeleton,
+  NTag,
+  NTooltip,
+  useMessage,
+} from 'naive-ui'
+import {
+  CreateOutline,
+  DocumentOutline,
+  DocumentsOutline,
+  LinkOutline,
+	MailOutline,
+  ShareSocialOutline,
+  TrashOutline,
+} from '@vicons/ionicons5'
 import api from '@/api'
-import { copyToClipboard } from '@/utils/clipboard'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { useUserStore } from '@/stores/user'
+import { useConfig } from '@/composables/useConfig'
+import { copyToClipboard } from '@/utils/clipboard'
+
+interface ShareFile {
+  id: number
+  file_name: string
+  file_path: string
+  download_count: number
+}
+
+interface ShareOwner {
+  id: number
+  username: string
+  display_name: string
+  avatar: string
+}
+
+interface ShareItem {
+  id: number
+  token: string
+  name: string
+  file_name: string
+  file_count: number
+  files: ShareFile[]
+  owner: ShareOwner
+  status: 'valid' | 'expired' | 'deleted'
+  created_at: string
+  expire_at: string | null
+  access_count: number
+}
 
 const router = useRouter()
 const route = useRoute()
 const message = useMessage()
-const shares = ref<any[]>([])
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.user?.is_admin === true)
+const { config: publicConfig, fetchConfig } = useConfig()
+const emailShareEnabled = computed(() => publicConfig.value?.email_active === true && publicConfig.value?.allow_email_share === true)
+
+const shares = ref<ShareItem[]>([])
 const loading = ref(false)
 const highlightId = ref<number | null>(null)
 let highlightTimer: ReturnType<typeof setTimeout> | null = null
 
-// 筛选状态
-const filterFileName = ref('')
+const filterKeyword = ref('')
 const filterOwnerId = ref<number | null>(null)
 const filterStatus = ref<string | null>(null)
-
 const statusOptions = [
   { label: '有效', value: 'valid' },
   { label: '已过期', value: 'expired' },
   { label: '无效', value: 'deleted' },
 ]
 
-// 分享者数据
-const shareUsers = ref<{id: number, username: string}[]>([])
-const ownerMap = computed(() => new Map(shareUsers.value.map(u => [u.id, u.username])))
-const ownerOptions = computed(() => shareUsers.value.map(u => ({ label: u.username, value: u.id })))
-
-// 统计（基于全量数据）
-const totalCount = computed(() => shares.value.length)
-const validCount = computed(() => shares.value.filter((s: any) => s.status === 'valid').length)
-const expiredCount = computed(() => shares.value.filter((s: any) => s.status === 'expired').length)
-
-// 文件详情 modal 状态
-const showFilesModal = ref(false)
-const filesModalLoading = ref(false)
-const modalFiles = ref<Array<{file_name: string, file_path: string, file_size: number, download_count: number}>>([])
-
-// 编辑 modal 状态
-const showEditModal = ref(false)
-const editLoading = ref(false)
-const editId = ref<number>(0)
-const editName = ref('')
-const editExpireDays = ref<number>(7)
-
-// 筛选过滤（同时匹配 file_name 和 token）
-const filteredShares = computed(() => {
-  return shares.value.filter(s => {
-    if (filterFileName.value) {
-      const keyword = filterFileName.value.toLowerCase()
-      if (!s.file_name.toLowerCase().includes(keyword) && !(s.token && s.token.toLowerCase().includes(keyword))) return false
-    }
-    if (filterOwnerId.value && s.owner_id !== filterOwnerId.value) return false
-    if (filterStatus.value && s.status !== filterStatus.value) return false
-    return true
-  })
+const ownerOptions = computed(() => {
+  const owners = new Map<number, ShareOwner>()
+  for (const share of shares.value) owners.set(share.owner.id, share.owner)
+  return Array.from(owners.values()).map(owner => ({
+    label: owner.username,
+    value: owner.id,
+  }))
 })
 
-function rowClassName(row: any) {
-  return row.id === highlightId.value ? 'highlighted-row' : ''
+const filteredShares = computed(() => shares.value.filter(share => {
+  const keyword = filterKeyword.value.trim().toLocaleLowerCase()
+  if (keyword) {
+    const matchesFile = share.files.some(file => file.file_name.toLocaleLowerCase().includes(keyword))
+    const matchesShare = share.file_name.toLocaleLowerCase().includes(keyword) || share.token.toLocaleLowerCase().includes(keyword)
+    if (!matchesFile && !matchesShare) return false
+  }
+  if (filterOwnerId.value !== null && share.owner.id !== filterOwnerId.value) return false
+  if (filterStatus.value && share.status !== filterStatus.value) return false
+  return true
+}))
+
+const hasFilters = computed(() => Boolean(filterKeyword.value || filterOwnerId.value !== null || filterStatus.value))
+const totalCount = computed(() => shares.value.length)
+const validCount = computed(() => shares.value.filter(share => share.status === 'valid').length)
+const expiredCount = computed(() => shares.value.filter(share => share.status === 'expired').length)
+
+const showFilesModal = ref(false)
+const modalFiles = ref<ShareFile[]>([])
+const activeShareName = ref('')
+const filesModalContentRef = ref<HTMLElement | null>(null)
+let filesModalTrigger: HTMLElement | null = null
+const filesModalTitle = computed(() => `${activeShareName.value || '分享文件'} · ${modalFiles.value.length} 项`)
+
+const showEditModal = ref(false)
+const editLoading = ref(false)
+const editId = ref(0)
+const editName = ref('')
+const editExpireDays = ref(7)
+const showEmailModal = ref(false)
+const emailSending = ref(false)
+const emailShare = ref<ShareItem | null>(null)
+const recipientEmail = ref('')
+
+function statusLabel(status: ShareItem['status']) {
+  return status === 'expired' ? '已过期' : status === 'deleted' ? '无效' : '有效'
 }
 
-function applyHighlight() {
-  const hid = route.query.highlightId
-  if (hid) {
-    highlightId.value = Number(hid)
-    if (highlightTimer) clearTimeout(highlightTimer)
-    highlightTimer = setTimeout(() => {
-      highlightId.value = null
-    }, 4000)
+function statusTagType(status: ShareItem['status']): 'success' | 'error' | 'warning' {
+  return status === 'expired' ? 'error' : status === 'deleted' ? 'warning' : 'success'
+}
+
+function getStatusTooltip(share: ShareItem): string {
+  if (share.status === 'deleted') {
+    return share.expire_at ? `到期时间：${share.expire_at}\n源文件已删除` : '到期时间：永久\n源文件已删除'
   }
+  if (!share.expire_at) return '永久有效'
+  const remaining = Math.ceil((new Date(share.expire_at).getTime() - Date.now()) / 86400000)
+  return remaining > 0
+    ? `到期时间：${share.expire_at}\n剩余：${remaining} 天`
+    : `到期时间：${share.expire_at}\n已过期`
+}
+
+function openFilesModal(share: ShareItem, event: MouseEvent) {
+  filesModalTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  filesModalTrigger?.blur()
+  activeShareName.value = share.file_name
+  modalFiles.value = share.files
+  showFilesModal.value = true
+}
+
+function focusFilesModalContent() {
+  filesModalContentRef.value?.focus({ preventScroll: true })
+}
+
+function restoreFilesModalTrigger() {
+  if (filesModalTrigger?.isConnected) {
+    filesModalTrigger.focus({ preventScroll: true })
+  }
+  filesModalTrigger = null
 }
 
 function navigateToFile(filePath: string) {
-  const dirPath = filePath.substring(0, filePath.lastIndexOf('/')) || '/'
-  const fileName = filePath.split('/').pop()
-  router.push({ path: '/', query: { path: dirPath, highlight: fileName } })
+  if (!filePath) {
+    message.error('文件路径无效，无法跳转')
+    return
+  }
+  const separatorIndex = filePath.lastIndexOf('/')
+  const dirPath = separatorIndex > 0 ? filePath.slice(0, separatorIndex) : '/'
+  const fileName = filePath.slice(separatorIndex + 1)
+  showFilesModal.value = false
+  router.push({ path: '/files', query: { path: dirPath, highlight: fileName } })
 }
 
-function getStatusTooltip(row: any): string {
-  if (row.status === 'deleted') {
-    return row.expire_at ? `到期时间: ${row.expire_at}\n源文件已删除` : '到期时间: 永久\n源文件已删除'
-  }
-  if (!row.expire_at) return '永久有效'
-  const remaining = Math.ceil((new Date(row.expire_at).getTime() - Date.now()) / 86400000)
-  if (remaining > 0) {
-    return `到期时间: ${row.expire_at}\n剩余: ${remaining}天`
-  }
-  return `到期时间: ${row.expire_at}\n已过期`
+async function applyHighlight() {
+  const value = Number(route.query.highlightId)
+  highlightId.value = Number.isFinite(value) && value > 0 ? value : null
+  if (highlightTimer) clearTimeout(highlightTimer)
+  if (highlightId.value === null) return
+
+  await nextTick()
+  document.getElementById(`share-card-${highlightId.value}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  highlightTimer = setTimeout(() => {
+    highlightId.value = null
+  }, 4000)
 }
-
-async function openFilesModal(row: any) {
-  showFilesModal.value = true
-  filesModalLoading.value = true
-  try {
-    const res = await api.get(`/share/${row.token}/info`)
-    modalFiles.value = res.data.files || []
-  } catch (err: any) {
-    message.error('获取文件列表失败')
-    modalFiles.value = []
-  } finally {
-    filesModalLoading.value = false
-  }
-}
-
-const columns: DataTableColumns = [
-  {
-    title: '分享ID',
-    key: 'token',
-    className: 'col-token',
-    width: 300,
-    render: (row: any) => {
-      // const shortToken = row.token ? row.token.substring(0, 8) + '...' : ''
-      // return h(NTooltip, { trigger: 'hover' }, {
-      //   trigger: () => h('span', {}, shortToken),
-      //   default: () => row.token,
-      // })
-      return h('span', {}, row.token)
-    },
-  },
-  {
-    title: '分享文件',
-    key: 'file_name',
-    className: 'col-files',
-    render: (row: any) => {
-      const isMulti = row.file_count && row.file_count > 1
-      if (isMulti) {
-        return h('span', {
-          class: 'file-link',
-          onClick: () => openFilesModal(row),
-        }, `分享${row.file_count}个文件`)
-      }
-      return h('span', {
-        class: 'file-link',
-        onClick: () => navigateToFile(row.file_path),
-      }, row.file_name)
-    },
-  },
-  {
-    title: '分享者',
-    key: 'owner_id',
-    width: 120,
-    className: 'col-owner',
-    render(row: any) {
-      return ownerMap.value.get(row.owner_id) || '未知用户'
-    },
-  },
-  {
-    title: '分享状态',
-    key: 'status',
-    width: 100,
-    className: 'col-status',
-    render(row: any) {
-      let tagType: 'success' | 'error' | 'warning' = 'success'
-      let label = '有效'
-      if (row.status === 'expired') {
-        tagType = 'error'
-        label = '已过期'
-      } else if (row.status === 'deleted') {
-        tagType = 'warning'
-        label = '无效'
-      }
-      return h(NTooltip, { trigger: 'hover', style: 'white-space: pre-line' }, {
-        trigger: () => h(NTag, { type: tagType, size: 'small' }, () => label),
-        default: () => getStatusTooltip(row),
-      })
-    },
-  },
-  {
-    title: '访问次数',
-    key: 'access_count',
-    width: 90,
-    className: 'col-count',
-  },
-  {
-    title: '创建时间',
-    key: 'created_at',
-    width: 170,
-    className: 'col-time',
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 120,
-    className: 'col-actions',
-    render: (row: any) =>
-      h(NSpace, { size: 2, wrap: false }, () => [
-        h(NTooltip, { trigger: 'hover', placement: 'top' }, {
-          default: () => '复制链接',
-          trigger: () => h(NButton, { size: 'small', quaternary: true, class: 'action-btn', onClick: () => copyLink(row) }, {
-            icon: () => h(NIcon, { size: 18, color: '#1890ff' }, () => h(CopyOutline)),
-          }),
-        }),
-        h(NTooltip, { trigger: 'hover', placement: 'top' }, {
-          default: () => '编辑',
-          trigger: () => h(NButton, { size: 'small', quaternary: true, class: 'action-btn', onClick: () => openEditModal(row) }, {
-            icon: () => h(NIcon, { size: 18, color: '#faad14' }, () => h(CreateOutline)),
-          }),
-        }),
-        h(NPopconfirm, {
-          onPositiveClick: () => handleDelete(row),
-        }, {
-          trigger: () => h(NTooltip, { trigger: 'hover', placement: 'top' }, {
-            default: () => '删除',
-            trigger: () => h(NButton, { size: 'small', quaternary: true, class: 'action-btn' }, {
-              icon: () => h(NIcon, { size: 18, color: '#d03050' }, () => h(TrashOutline)),
-            }),
-          }),
-          default: () => '确认删除此分享链接？',
-        }),
-      ]),
-  },
-]
-
-onMounted(() => {
-  fetchShares()
-  fetchShareUsers()
-})
 
 async function fetchShares() {
   loading.value = true
   try {
-    const res = await api.get('/api/admin/shares')
-    shares.value = res.data
-    applyHighlight()
-  } catch (err: any) {
-    message.error(err.response?.data?.error || '获取分享列表失败')
+    const response = await api.get<ShareItem[]>('/api/shares')
+    shares.value = response.data
+    await applyHighlight()
+  } catch (error: any) {
+    message.error(error.response?.data?.error || '获取分享列表失败')
   } finally {
     loading.value = false
   }
 }
 
-async function fetchShareUsers() {
-  try {
-    const res = await api.get('/api/admin/share-users')
-    shareUsers.value = res.data
-  } catch (err: any) {
-    message.error(err.response?.data?.error || '获取分享者列表失败')
-  }
+async function copyLink(share: ShareItem) {
+  const ok = await copyToClipboard(`${window.location.origin}/share/${share.token}`)
+  ok ? message.success('链接已复制') : message.error('复制失败，请手动复制')
 }
 
-async function copyLink(row: any) {
-  const link = `${window.location.origin}/share/${row.token}`
-  const ok = await copyToClipboard(link)
-  if (ok) {
-    message.success('链接已复制')
-  } else {
-    message.error('复制失败，请手动复制')
-  }
+function openEmailModal(share: ShareItem) {
+	emailShare.value = share
+	recipientEmail.value = ''
+	showEmailModal.value = true
 }
 
-async function handleDelete(row: any) {
+async function handleEmailShare() {
+	const share = emailShare.value
+	const email = recipientEmail.value.trim()
+	if (!share) return false
+	if (!/^\S+@\S+\.\S+$/.test(email)) {
+		message.warning('请输入有效的收件人 Email 地址')
+		return false
+	}
+	emailSending.value = true
+	try {
+		await api.post(`/api/shares/${share.id}/email`, { email })
+		message.success(`分享邮件已发送至 ${email}`)
+		showEmailModal.value = false
+		return true
+	} catch (error: any) {
+		message.error(error.response?.data?.error || '分享邮件发送失败')
+		return false
+	} finally {
+		emailSending.value = false
+	}
+}
+
+async function handleDelete(share: ShareItem) {
   try {
-    await api.delete(`/api/shares/${row.id}`)
+    await api.delete(`/api/shares/${share.id}`)
     message.success('分享链接已删除')
-    const userStore = useUserStore()
-    userStore.onShareDeleted(row.status === 'expired' ? 'expired' : 'valid')
-    fetchShares()
-  } catch (err: any) {
-    message.error(err.response?.data?.error || '删除失败')
+    if (share.owner.id === userStore.user?.id) {
+      userStore.onShareDeleted(share.status === 'expired' ? 'expired' : 'valid')
+    }
+    await fetchShares()
+  } catch (error: any) {
+    message.error(error.response?.data?.error || '删除失败')
   }
 }
 
-function openEditModal(row: any) {
-  editId.value = row.id
-  editName.value = row.name || row.file_name || ''
+function openEditModal(share: ShareItem) {
+  editId.value = share.id
+  editName.value = share.name || share.file_name
   editExpireDays.value = 7
   showEditModal.value = true
 }
@@ -383,18 +546,18 @@ async function handleEditSave() {
     })
     message.success('分享已更新')
     showEditModal.value = false
-    fetchShares()
-  } catch (err: any) {
-    message.error(err.response?.data?.error || '更新失败')
+    await fetchShares()
+  } catch (error: any) {
+    message.error(error.response?.data?.error || '更新失败')
   } finally {
     editLoading.value = false
   }
 }
 
-watch(() => route.query.highlightId, () => {
-  applyHighlight()
+onMounted(async () => {
+	await Promise.all([fetchShares(), fetchConfig(true)])
 })
-
+watch(() => route.query.highlightId, applyHighlight)
 onUnmounted(() => {
   if (highlightTimer) clearTimeout(highlightTimer)
 })
@@ -406,7 +569,7 @@ onUnmounted(() => {
 }
 
 .shares-filter-name {
-  width: 210px;
+  width: 230px;
 }
 
 .shares-filter-owner {
@@ -417,80 +580,364 @@ onUnmounted(() => {
   width: 130px;
 }
 
-/* 分享ID列 */
-.shares-data-table :deep(.col-token) {
+.shares-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  scrollbar-gutter: stable;
+}
+
+.share-card {
+  display: grid;
+  grid-template-areas: "main status meta actions";
+  grid-template-columns: minmax(280px, 1.2fr) 72px minmax(360px, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 14px 14px 16px;
+  border-radius: var(--workspace-radius-lg);
+  background: color-mix(in srgb, var(--workspace-surface-soft) 52%, var(--workspace-surface));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.055),
+    0 1px 2px -1px rgba(39, 55, 82, 0.08),
+    0 8px 20px rgba(39, 55, 82, 0.055);
+  transition-property: box-shadow, background-color;
+  transition-duration: 180ms;
+  transition-timing-function: ease-out;
+}
+
+.share-card.is-admin {
+  grid-template-areas: "main status meta owner actions";
+  grid-template-columns: minmax(280px, 1.15fr) 72px minmax(350px, 1fr) 62px auto;
+}
+
+.share-card:hover {
+  box-shadow:
+    0 0 0 1px rgba(var(--workspace-accent-rgb), 0.2),
+    0 2px 4px -1px rgba(39, 55, 82, 0.1),
+    0 12px 26px rgba(39, 55, 82, 0.09);
+}
+
+.share-card.is-highlighted {
+  background: color-mix(in srgb, var(--workspace-row-selected) 68%, var(--workspace-surface));
+  box-shadow:
+    0 0 0 2px rgba(var(--workspace-accent-rgb), 0.48),
+    0 12px 28px rgba(var(--workspace-accent-rgb), 0.12);
+}
+
+:global(.dark .share-card) {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark .share-card:hover) {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.13);
+}
+
+.share-card-skeleton {
+  min-height: 102px;
+}
+
+.share-main {
+  grid-area: main;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.share-main-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.share-record-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--workspace-radius-md);
+  background: rgba(var(--workspace-accent-rgb), 0.09);
+  color: var(--workspace-accent);
+  box-shadow:
+    0 0 0 1px rgba(var(--workspace-accent-rgb), 0.13),
+    0 4px 12px rgba(var(--workspace-accent-rgb), 0.08);
+}
+
+.share-owner-avatar {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  outline: none;
+}
+
+.share-owner-avatar:focus-visible {
+  box-shadow: 0 0 0 3px rgba(var(--workspace-accent-rgb), 0.22);
+}
+
+.share-file-button {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition-property: scale;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.share-file-button:active,
+.share-action-button:active,
+.file-item:active {
+  scale: 0.96;
+}
+
+.share-file-title {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--workspace-text);
+  font-size: 14px;
+  font-weight: 730;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-file-button:hover .share-file-title {
+  color: var(--workspace-accent);
+}
+
+.share-file-button:focus-visible {
+  border-radius: var(--workspace-radius-sm);
+  outline: 2px solid rgba(var(--workspace-accent-rgb), 0.42);
+  outline-offset: 3px;
+}
+
+.share-file-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.share-token-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.share-token-label {
+  color: var(--workspace-text-soft);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.share-token {
+  overflow: hidden;
   color: var(--workspace-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-
-/* 分享文件列自适应换行 */
-.shares-data-table :deep(.col-files .n-data-table-td__ellipsis),
-.shares-data-table :deep(.col-files) {
-  white-space: normal !important;
-  max-width: 50%;
-}
-
-.shares-data-table :deep(.col-files .file-link) {
-  color: var(--workspace-accent);
-  cursor: pointer;
-  word-break: break-all;
-  overflow-wrap: anywhere;
-  line-height: 1.5;
-}
-
-.shares-data-table :deep(.col-files .file-link:hover) {
-  text-decoration: underline;
-}
-
-/* 其他列保持单行 */
-.shares-data-table :deep(.col-status),
-.shares-data-table :deep(.col-owner),
-.shares-data-table :deep(.col-time),
-.shares-data-table :deep(.col-actions) {
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.shares-data-table :deep(.highlighted-row td) {
-  background-color: var(--workspace-row-selected) !important;
-  transition: background-color 0.3s ease;
+.share-meta-grid {
+  grid-area: meta;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(72px, 0.55fr) minmax(144px, 1fr) minmax(144px, 1fr);
+  gap: 16px;
 }
 
-/* 文件列表 modal */
+.share-status {
+  grid-area: status;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-owner-column {
+  grid-area: owner;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.share-meta-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.share-meta-label {
+  color: var(--workspace-text-soft);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.share-meta-value {
+  overflow: hidden;
+  color: var(--workspace-text);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.share-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.share-action-button {
+  width: 40px;
+  height: 40px;
+  transition-property: scale, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.share-action-button.copy {
+  color: var(--workspace-accent);
+}
+
+.share-action-button.edit {
+  color: #d68b12;
+}
+
+.share-action-button.email {
+	color: #0f8b8d;
+}
+
+.share-action-button.delete {
+  color: #d03050;
+}
+
+.shares-empty {
+  margin: auto;
+  padding: 42px 16px;
+}
+
 .files-modal-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.files-modal-list .file-item {
+.files-modal-content {
+  border-radius: var(--workspace-radius-md);
+  outline: none;
+}
+
+.files-modal-content:focus-visible {
+  box-shadow: 0 0 0 3px rgba(var(--workspace-accent-rgb), 0.2);
+}
+
+.file-item {
+  width: 100%;
+  min-height: 48px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 9px 11px;
-  border: 1px solid var(--workspace-border-soft);
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 12px;
+  border: 0;
   border-radius: var(--workspace-radius-md);
   background: var(--workspace-surface-soft);
-}
-
-.files-modal-list .file-name-link {
-  color: var(--workspace-accent);
+  color: inherit;
   cursor: pointer;
-  word-break: break-all;
+  text-align: left;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.055);
+  transition-property: scale, box-shadow, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
 }
 
-.files-modal-list .file-name-link:hover {
-  text-decoration: underline;
+.file-item:hover {
+  background: var(--workspace-row-hover);
+  box-shadow: 0 0 0 1px rgba(var(--workspace-accent-rgb), 0.22);
 }
 
-.files-modal-list .file-download-count {
+.file-item:focus-visible {
+  outline: 2px solid rgba(var(--workspace-accent-rgb), 0.45);
+  outline-offset: 2px;
+}
+
+.file-name-group {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--workspace-accent);
+}
+
+.file-name-link {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 620;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-download-count {
+  flex: 0 0 auto;
   color: var(--workspace-text-muted);
   font-size: 12px;
-  margin-left: 16px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .share-card {
+    grid-template-areas:
+      "main status meta"
+      "actions actions actions";
+    grid-template-columns: minmax(240px, 1fr) 68px minmax(320px, 1fr);
+  }
+
+  .share-card.is-admin {
+    grid-template-areas:
+      "main status meta owner"
+      "actions actions actions actions";
+    grid-template-columns: minmax(240px, 1fr) 68px minmax(300px, 1fr) 58px;
+  }
+
+  .share-actions {
+    justify-content: flex-end;
+    padding-top: 2px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -502,6 +949,70 @@ onUnmounted(() => {
   .shares-filter-owner,
   .shares-filter-status {
     width: 100%;
+  }
+
+  .share-card {
+    grid-template-areas:
+      "main status"
+      "meta meta"
+      "actions actions";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .share-card.is-admin {
+    grid-template-areas:
+      "main status"
+      "meta meta"
+      "owner actions";
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .share-status {
+    min-width: 58px;
+  }
+
+  .share-meta-grid {
+    grid-template-columns: 0.6fr 1fr;
+  }
+
+  .share-meta-item:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .share-actions {
+    justify-content: flex-start;
+    border-top: 1px solid var(--workspace-border-soft);
+    padding-top: 10px;
+  }
+
+  .share-owner-column {
+    align-items: flex-start;
+    border-top: 1px solid var(--workspace-border-soft);
+    padding-top: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .shares-list {
+    padding: 9px;
+  }
+
+  .share-main {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .share-record-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .file-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
   }
 }
 </style>

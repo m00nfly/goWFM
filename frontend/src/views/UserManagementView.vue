@@ -20,18 +20,58 @@
         </div>
       </header>
 
-      <div class="workspace-table-shell users-table-wrapper">
-        <n-data-table
-          class="workspace-data-table users-data-table"
-          size="small"
-          flex-height
-          :columns="columns"
-          :data="users"
-          :bordered="false"
-          striped
-          style="height: 100%;"
-        />
-      </div>
+      <n-spin :show="usersLoading" class="users-card-shell">
+        <div v-if="users.length" class="users-card-list" aria-label="用户列表">
+          <article v-for="user in users" :key="user.id" class="user-card">
+            <div class="user-card-profile">
+              <UserAvatar
+                :size="60"
+                :avatar="user.avatar"
+                :name="user.display_name || user.username"
+              />
+              <div class="user-identity">
+                <div class="user-name-row">
+                  <h2>{{ user.display_name || user.username }}</h2>
+                  <n-tag size="small" :type="user.is_admin ? 'error' : user.id === 0 ? 'default' : 'info'">
+                    {{ user.is_admin ? '管理员' : user.id === 0 ? '系统账户' : '普通用户' }}
+                  </n-tag>
+                </div>
+                <span class="username">@{{ user.username }} · ID {{ user.id }}</span>
+                <span class="user-email">{{ user.email || '未设置邮箱' }}</span>
+              </div>
+            </div>
+
+            <div class="user-card-details">
+              <div class="user-detail-group permission-summary">
+                <span class="detail-label">功能权限</span>
+                <div v-if="permissionLabels(user.permissions).length" class="permission-tags">
+                  <n-tag v-for="permission in permissionLabels(user.permissions)" :key="permission" size="small" :bordered="false">
+                    {{ permission }}
+                  </n-tag>
+                </div>
+                <span v-else class="detail-empty">未授予功能权限</span>
+              </div>
+              <div class="user-detail-group totp-summary">
+                <span class="detail-label">二次认证</span>
+                <n-tag :type="totpStatus(user).type" size="small">{{ totpStatus(user).label }}</n-tag>
+              </div>
+            </div>
+
+            <div v-if="user.id !== 0" class="user-card-actions">
+              <n-button secondary @click="openEdit(user)">
+                <template #icon><n-icon><CreateOutline /></n-icon></template>
+                编辑
+              </n-button>
+              <n-button secondary type="error" @click="handleDelete(user)">
+                <template #icon><n-icon><TrashOutline /></n-icon></template>
+                删除
+              </n-button>
+            </div>
+            <div v-else class="user-card-actions system-account-note">由系统维护</div>
+          </article>
+        </div>
+        <n-empty v-else-if="!usersLoading" description="暂无用户" class="users-empty" />
+      </n-spin>
     </section>
   </div>
 
@@ -54,8 +94,8 @@
         </div>
         <div class="permission-block">
           <span class="permission-label">功能权限</span>
-          <n-checkbox-group v-model:value="permChecks"><div class="permission-grid">
-            <n-checkbox :value="1">浏览</n-checkbox><n-checkbox :value="2">下载</n-checkbox><n-checkbox :value="4">上传</n-checkbox><n-checkbox :value="8">分享</n-checkbox><n-checkbox :value="16">日志</n-checkbox>
+          <n-checkbox-group :value="permChecks" @update:value="handleCreatePermissionChange"><div class="permission-grid">
+            <n-checkbox :value="1">浏览</n-checkbox><n-checkbox :value="2">下载</n-checkbox><n-checkbox :value="4">全局上传</n-checkbox><n-checkbox :value="8">分享</n-checkbox><n-checkbox :value="16">日志</n-checkbox>
           </div></n-checkbox-group>
         </div>
       </section>
@@ -98,11 +138,11 @@
         </div>
         <div class="permission-block">
           <span class="permission-label">功能权限</span>
-          <n-checkbox-group v-model:value="editPermChecks">
+          <n-checkbox-group :value="editPermChecks" @update:value="handleEditPermissionChange">
             <div class="permission-grid">
               <n-checkbox :value="1">浏览</n-checkbox>
               <n-checkbox :value="2">下载</n-checkbox>
-              <n-checkbox :value="4">上传</n-checkbox>
+              <n-checkbox :value="4">全局上传</n-checkbox>
               <n-checkbox :value="8">分享</n-checkbox>
               <n-checkbox :value="16">日志</n-checkbox>
             </div>
@@ -145,19 +185,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, h } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import {
-  NSpace, NButton, NDataTable, NModal, NForm, NFormItem, NInput,
-  NCheckboxGroup, NCheckbox, NSwitch, NTag, NIcon, NTooltip, NPopconfirm, useMessage,
+  NButton, NModal, NForm, NFormItem, NInput, NEmpty, NSpin,
+  NCheckboxGroup, NCheckbox, NSwitch, NTag, NIcon, NPopconfirm, useMessage, useDialog,
 } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
 import { AddOutline, CreateOutline, RefreshOutline, TrashOutline } from '@vicons/ionicons5'
 import api from '@/api'
-import { useViewport } from '@/composables/useViewport'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const message = useMessage()
-const { isMobile } = useViewport()
+const dialog = useDialog()
 const users = ref<any[]>([])
+const usersLoading = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const createLoading = ref(false)
@@ -187,84 +227,80 @@ const editPermChecks = ref<number[]>([])
 const originalTotpForced = ref(false)
 const resetLoading = ref(false)
 
-const columns = computed<DataTableColumns>(() => {
-  const cols: DataTableColumns = [
-    { title: 'ID', key: 'id', width: 60 },
-    { title: '用户名', key: 'username' },
-  ]
-
-  if (!isMobile.value) {
-    cols.push(
-      { title: '显示名称', key: 'display_name' },
-      { title: '邮箱', key: 'email' },
-    )
-  }
-
-  cols.push(
-    { title: '管理员', key: 'is_admin', width: 80, render: (row: any) => row.is_admin ? '是' : '否' },
-    {
-      title: 'TOTP',
-      key: 'totp_forced',
-      width: 110,
-      render: (row: any) =>
-        h(NTag, { type: row.totp_reset_required ? 'warning' : row.totp_forced ? (row.totp_enabled ? 'success' : 'warning') : (row.totp_enabled ? 'info' : 'default'), size: 'small' }, () =>
-          row.totp_reset_required ? '待重新绑定' : row.totp_forced ? (row.totp_enabled ? '强制启用' : '待绑定') : (row.totp_enabled ? '自主启用' : '未启用'),
-        ),
-    },
-  )
-
-  if (!isMobile.value) {
-    cols.push({ title: '权限', key: 'permissions', render: (row: any) => permLabel(row.permissions) })
-  }
-
-  cols.push({
-    title: '操作',
-    key: 'actions',
-    width: 96,
-    render: (row: any) =>
-      row.id === 0
-        ? null
-        : h(NSpace, { size: 2, wrap: false }, () => [
-            iconAction(CreateOutline, '编辑', () => openEdit(row), '#1890ff'),
-            iconAction(TrashOutline, '删除', () => handleDelete(row), '#d03050'),
-          ]),
-  })
-
-  return cols
-})
-
-function iconAction(iconComp: any, tooltip: string, onClick: () => void, color: string) {
-  return h(NTooltip, { trigger: 'hover', placement: 'top' }, {
-    default: () => tooltip,
-    trigger: () =>
-      h(NButton, { size: 'small', quaternary: true, class: 'action-btn', onClick }, {
-        icon: () => h(NIcon, { size: 18, color }, () => h(iconComp)),
-      }),
-  })
-}
-
-function permLabel(p: number): string {
+function permissionLabels(p: number): string[] {
   const labels: string[] = []
   if (p & 1) labels.push('浏览')
   if (p & 2) labels.push('下载')
-  if (p & 4) labels.push('上传')
+  if (p & 4) labels.push('全局上传')
   if (p & 8) labels.push('分享')
   if (p & 16) labels.push('日志')
-  return labels.join(', ')
+  return labels
+}
+
+function totpStatus(user: any): { label: string; type: 'default' | 'info' | 'success' | 'warning' } {
+  if (user.totp_reset_required) return { label: '待重新绑定', type: 'warning' }
+  if (user.totp_forced) {
+    return user.totp_enabled
+      ? { label: '强制启用', type: 'success' }
+      : { label: '待绑定', type: 'warning' }
+  }
+  return user.totp_enabled
+    ? { label: '自主启用', type: 'info' }
+    : { label: '未启用', type: 'default' }
 }
 
 function calcPerms(checks: number[]): number {
   return checks.reduce((sum, v) => sum | v, 0)
 }
 
+function confirmGlobalUploadPermission(): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (confirmed: boolean) => {
+      if (settled) return
+      settled = true
+      resolve(confirmed)
+    }
+    dialog.warning({
+      title: '确认授予全局上传权限',
+      content: '用户默认可向自有目录上传文件，确定授予任意目录的上传权限？',
+      positiveText: '确定授予',
+      negativeText: '取消',
+      maskClosable: false,
+      onPositiveClick: () => finish(true),
+      onNegativeClick: () => finish(false),
+      onClose: () => finish(false),
+    })
+  })
+}
+
+async function updatePermissionChecks(current: number[], next: number[], apply: (value: number[]) => void) {
+  const grantsGlobalUpload = !current.includes(4) && next.includes(4)
+  if (grantsGlobalUpload && !(await confirmGlobalUploadPermission())) return
+  apply(next)
+}
+
+function handleCreatePermissionChange(value: Array<string | number>) {
+  const next = value.map(Number)
+  void updatePermissionChecks(permChecks.value, next, value => { permChecks.value = value })
+}
+
+function handleEditPermissionChange(value: Array<string | number>) {
+  const next = value.map(Number)
+  void updatePermissionChecks(editPermChecks.value, next, value => { editPermChecks.value = value })
+}
+
 onMounted(() => fetchUsers())
 
 async function fetchUsers() {
+  usersLoading.value = true
   try {
     const res = await api.get('/api/users')
     users.value = res.data
   } catch (err: any) {
     message.error(err.response?.data?.error || '获取用户列表失败')
+  } finally {
+    usersLoading.value = false
   }
 }
 
@@ -367,8 +403,143 @@ async function handleResetTOTP() {
 </script>
 
 <style scoped>
-.users-data-table :deep(.n-data-table-td) {
+.users-card-shell {
+  flex: 1;
+  min-height: 0;
+}
+
+.users-card-shell :deep(.n-spin-content) {
+  height: 100%;
+  min-height: 0;
+}
+
+.users-card-list {
+  height: 100%;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 10px;
+  scrollbar-gutter: stable;
+}
+
+.user-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(250px, 1.15fr) minmax(320px, 1.5fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 16px;
+  border-radius: var(--workspace-radius-lg);
+  background: var(--workspace-surface);
+  box-shadow:
+    0 0 0 1px var(--workspace-border-soft),
+    0 2px 8px rgba(39, 55, 82, 0.05);
+  transition-property: box-shadow, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-out;
+}
+
+.user-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(var(--workspace-accent-rgb), 0.2),
+    0 8px 20px rgba(var(--workspace-accent-rgb), 0.08);
+}
+
+.user-card-profile {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.user-identity {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.user-name-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.user-name-row h2 {
+  min-width: 0;
+  margin: 0;
+  color: var(--workspace-text);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.username,
+.user-email {
+  overflow: hidden;
+  color: var(--workspace-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.username {
   font-variant-numeric: tabular-nums;
+}
+
+.user-card-details {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 20px;
+}
+
+.user-detail-group {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+}
+
+.detail-label {
+  color: var(--workspace-text-soft);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.permission-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-empty,
+.system-account-note {
+  color: var(--workspace-text-soft);
+  font-size: 12px;
+}
+
+.user-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.user-card-actions :deep(.n-button) {
+  min-width: 72px;
+}
+
+.users-empty {
+  padding-top: 80px;
 }
 
 :deep(.edit-user-modal),
@@ -445,9 +616,15 @@ async function handleResetTOTP() {
 }
 
 .permission-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 24px;
+}
+
+.permission-grid :deep(.n-checkbox) {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .security-actions {
@@ -474,8 +651,7 @@ async function handleResetTOTP() {
 }
 
 @media (max-width: 560px) {
-  .edit-field-grid,
-  .permission-grid {
+  .edit-field-grid {
     grid-template-columns: 1fr;
   }
 
@@ -487,6 +663,60 @@ async function handleResetTOTP() {
   .security-actions {
     width: 100%;
     justify-content: space-between;
+  }
+}
+
+@media (max-width: 960px) {
+  .user-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+  }
+
+  .user-card-details {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .user-card-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .user-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .user-card-details {
+    grid-column: 1;
+    grid-row: auto;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding-top: 12px;
+    box-shadow: inset 0 1px 0 var(--workspace-border-soft);
+  }
+
+  .user-card-actions {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: stretch;
+  }
+
+  .user-card-actions :deep(.n-button) {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-card {
+    transition: none;
+  }
+
+  .user-card:hover {
+    transform: none;
   }
 }
 </style>

@@ -15,11 +15,12 @@ const (
 	KeyEmail      = "email_settings"
 	KeyAppearance = "appearance_settings"
 	KeyShare      = "share_settings"
+	KeyScan       = "scan_settings"
 )
 
 // AllKeys 返回所有配置分类 key
 func AllKeys() []string {
-	return []string{KeyBasic, KeySecurity, KeyLog, KeyEmail, KeyAppearance, KeyShare}
+	return []string{KeyBasic, KeySecurity, KeyLog, KeyEmail, KeyAppearance, KeyShare, KeyScan}
 }
 
 // 全局配置实例（读写锁保护）
@@ -31,6 +32,7 @@ var (
 	email      EmailSettings
 	appearance AppearanceSettings
 	share      ShareSettings
+	scan       ScanSettings
 )
 
 // Version 程序版本号，默认 "dev"，编译时通过 -ldflags 注入：
@@ -46,6 +48,7 @@ func GetLog() LogSettings               { mu.RLock(); defer mu.RUnlock(); return
 func GetEmail() EmailSettings           { mu.RLock(); defer mu.RUnlock(); return email }
 func GetAppearance() AppearanceSettings { mu.RLock(); defer mu.RUnlock(); return appearance }
 func GetShare() ShareSettings           { mu.RLock(); defer mu.RUnlock(); return share }
+func GetScan() ScanSettings             { mu.RLock(); defer mu.RUnlock(); return scan }
 
 // --- 更新（由 service 层调用） ---
 
@@ -55,6 +58,7 @@ func SetLog(s LogSettings)               { mu.Lock(); defer mu.Unlock(); logCfg 
 func SetEmail(s EmailSettings)           { mu.Lock(); defer mu.Unlock(); email = s }
 func SetAppearance(s AppearanceSettings) { mu.Lock(); defer mu.Unlock(); appearance = s }
 func SetShare(s ShareSettings)           { mu.Lock(); defer mu.Unlock(); share = s }
+func SetScan(s ScanSettings)             { mu.Lock(); defer mu.Unlock(); scan = s }
 
 // InitDefaults 将所有配置设为默认值（内存中）
 func InitDefaults() {
@@ -66,6 +70,7 @@ func InitDefaults() {
 	email = DefaultEmail()
 	appearance = DefaultAppearance()
 	share = DefaultShare()
+	scan = DefaultScan()
 }
 
 // LoadFromDB 从数据库加载所有配置到内存
@@ -81,6 +86,7 @@ func LoadFromDB(getter func(key string) (string, error)) error {
 	email = DefaultEmail()
 	appearance = DefaultAppearance()
 	share = DefaultShare()
+	scan = DefaultScan()
 
 	// 从数据库覆盖
 	if val, err := getter(KeyBasic); err == nil && val != "" {
@@ -103,12 +109,22 @@ func LoadFromDB(getter func(key string) (string, error)) error {
 		if _, ok := email.Templates["reset_password"]; !ok {
 			email.Templates["reset_password"] = DefaultResetPasswordTemplate()
 		}
+		if _, ok := email.Templates["share_notification"]; !ok {
+			email.Templates["share_notification"] = DefaultShareNotificationTemplate()
+		}
+		UpgradeBuiltinEmailTemplates(email.Templates)
 	}
 	if val, err := getter(KeyAppearance); err == nil && val != "" {
 		json.Unmarshal([]byte(val), &appearance)
 	}
 	if val, err := getter(KeyShare); err == nil && val != "" {
 		json.Unmarshal([]byte(val), &share)
+	}
+	if val, err := getter(KeyScan); err == nil && val != "" {
+		json.Unmarshal([]byte(val), &scan)
+	}
+	if scan.IntervalHours < 1 {
+		scan.IntervalHours = 1
 	}
 
 	return nil
